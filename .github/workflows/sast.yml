@@ -48,11 +48,31 @@ jobs:
         languages: ${{ matrix.language }}
         config-file: ./.github/codeql/codeql-config.yml
 
+    - name: Debug - Show files to analyze
+      run: |
+        echo "🔍 Files that will be analyzed for ${{ matrix.language }}:"
+        if [ "${{ matrix.language }}" = "javascript" ]; then
+          echo "JavaScript/TypeScript files:"
+          find . -name "*.js" -o -name "*.ts" -o -name "*.jsx" -o -name "*.tsx" | head -20
+          echo "Package.json files:"
+          find . -name "package.json"
+        elif [ "${{ matrix.language }}" = "python" ]; then
+          echo "Python files:"
+          find . -name "*.py" | head -20
+        fi
+
     - name: Set up Python
       if: matrix.language == 'python'
       uses: actions/setup-python@v4
       with:
         python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Set up Node.js
+      if: matrix.language == 'javascript'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
 
     - name: Install Python dependencies
       if: matrix.language == 'python'
@@ -63,6 +83,20 @@ jobs:
         # Install additional dependencies for Lambda functions
         pip install boto3 botocore
 
+    - name: Install Node.js dependencies
+      if: matrix.language == 'javascript'
+      run: |
+        echo "📦 Setting up JavaScript environment..."
+        if [ -f "package.json" ]; then
+          echo "Found package.json, installing dependencies..."
+          npm ci
+          echo "✅ Dependencies installed"
+        else
+          echo "⚠️ No package.json found, skipping dependency installation"
+        fi
+        echo "JavaScript files in workspace:"
+        find . -name "*.js" -type f | grep -v node_modules | head -10
+
     - name: Autobuild
       uses: github/codeql-action/autobuild@v3
 
@@ -70,6 +104,7 @@ jobs:
       uses: github/codeql-action/analyze@v3
       with:
         category: "/language:${{matrix.language}}"
+      continue-on-error: true  # Don't fail if Code Security is not enabled
 
   opengrep-analysis:
     name: OpenGrep SAST

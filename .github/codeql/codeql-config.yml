@@ -9,21 +9,25 @@ queries:
 paths-ignore:
   - "**/*.md"
   - "**/*.txt"
-  - "**/*.json"
   - "**/node_modules/**"
   - "**/venv/**"
   - "**/__pycache__/**"
-  - "**/tests/**"
+  - "**/tests/**/*.json"
   - "**/test_*.py"
   - "**/*_test.py"
   - "**/conftest.py"
 
 paths:
+  - "src/"
   - "backend/"
   - "infrastructure/"
   - "scripts/"
 
 packs:
+  javascript:
+    - codeql/javascript-queries:AlertSuppression.ql
+    - codeql/javascript-queries:Security/
+    - codeql/javascript-queries:Correctness/
   python:
     - codeql/python-queries:AlertSuppression.ql
     - codeql/python-queries:Security/
