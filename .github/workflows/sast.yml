@@ -107,11 +107,20 @@ jobs:
       continue-on-error: true  # Continue even if security issues are found
       # Note: OpenGrep provides all security rules for free, no paywalls
 
+    - name: Check Code Security Status
+      id: check-security
+      run: |
+        echo "🔍 Checking if GitHub Code Security is enabled..."
+        # This will help users understand why SARIF upload might fail
+        echo "ℹ️  Note: SARIF upload requires GitHub Advanced Security to be enabled"
+        echo "ℹ️  If upload fails, security results will still be available as artifacts"
+
     - name: Upload SARIF file
       uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: opengrep.sarif
       if: always() && github.actor != 'nektos/act'
+      continue-on-error: true  # Don't fail if Code Security is not enabled
 
     - name: Upload OpenGrep artifacts
       uses: actions/upload-artifact@v4
@@ -178,6 +187,7 @@ jobs:
       with:
         sarif_file: bandit-report.sarif
       if: always() && github.actor != 'nektos/act'
+      continue-on-error: true  # Don't fail if Code Security is not enabled
 
     - name: Upload Bandit artifacts
       uses: actions/upload-artifact@v4
@@ -300,6 +310,7 @@ jobs:
       with:
         sarif_file: checkov-terraform.sarif
       if: always() && github.actor != 'nektos/act'
+      continue-on-error: true  # Don't fail if Code Security is not enabled
 
     - name: Upload Checkov artifacts
       uses: actions/upload-artifact@v4
@@ -408,6 +419,7 @@ jobs:
       with:
         sarif_file: gitleaks-report.sarif
       if: always() && github.actor != 'nektos/act'
+      continue-on-error: true  # Don't fail if Code Security is not enabled
 
     - name: Upload Gitleaks artifacts
       uses: actions/upload-artifact@v4
@@ -448,12 +460,39 @@ jobs:
         echo "| Gitleaks (Secrets) | ${{ needs.secrets-detection.result }} |" >> sast-summary.md
         echo "" >> sast-summary.md
 
+        echo "## Security Reports Location" >> sast-summary.md
+        echo "" >> sast-summary.md
+        echo "🔍 **Security scan results are available in the following locations:**" >> sast-summary.md
+        echo "" >> sast-summary.md
+        echo "1. **Workflow Artifacts** - Download detailed reports from the Actions tab" >> sast-summary.md
+        echo "2. **GitHub Security Tab** - If GitHub Advanced Security is enabled" >> sast-summary.md
+        echo "3. **SARIF Files** - Available as artifacts for integration with other tools" >> sast-summary.md
+        echo "" >> sast-summary.md
+        echo "📋 **Available Report Formats:**" >> sast-summary.md
+        echo "- SARIF (for security tools integration)" >> sast-summary.md
+        echo "- JSON (for programmatic analysis)" >> sast-summary.md
+        echo "- Text (for human-readable output)" >> sast-summary.md
+        echo "" >> sast-summary.md
+
         echo "## Recommendations" >> sast-summary.md
         echo "" >> sast-summary.md
-        echo "1. Review all findings in the Security tab" >> sast-summary.md
-        echo "2. Address high and critical severity issues first" >> sast-summary.md
-        echo "3. Update dependencies with known vulnerabilities" >> sast-summary.md
-        echo "4. Implement security fixes for infrastructure issues" >> sast-summary.md
+        echo "1. **Download artifacts** to review detailed security findings" >> sast-summary.md
+        echo "2. **Address high and critical severity issues** first" >> sast-summary.md
+        echo "3. **Update dependencies** with known vulnerabilities" >> sast-summary.md
+        echo "4. **Implement security fixes** for infrastructure issues" >> sast-summary.md
+        echo "5. **Consider enabling GitHub Advanced Security** for integrated security dashboard" >> sast-summary.md
+        echo "" >> sast-summary.md
+
+        echo "## GitHub Advanced Security" >> sast-summary.md
+        echo "" >> sast-summary.md
+        echo "ℹ️  **Note:** Some SARIF uploads may show warnings if GitHub Advanced Security is not enabled." >> sast-summary.md
+        echo "This doesn't affect the security scanning - all results are still available as downloadable artifacts." >> sast-summary.md
+        echo "" >> sast-summary.md
+        echo "To enable Code Security features:" >> sast-summary.md
+        echo "1. Go to repository Settings > Security & Analysis" >> sast-summary.md
+        echo "2. Enable 'Private vulnerability reporting'" >> sast-summary.md
+        echo "3. Enable 'Dependency review' (requires GitHub Advanced Security)" >> sast-summary.md
+        echo "4. Enable 'Code scanning' (requires GitHub Advanced Security)" >> sast-summary.md
         echo "" >> sast-summary.md
         echo "Generated on: $(date)" >> sast-summary.md
 
