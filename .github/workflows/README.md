@@ -200,7 +200,15 @@ workflow_dispatch:
      - Ensure the role has read permissions for security analysis
    - **"Missing id-token permission"** - Already fixed in this version
 
-4. **Not All Pipelines Need AWS**
+4. **Pull Request Comment Issues**
+   - **"Resource not accessible by integration"** - This is expected when:
+     - Running from a forked repository (GitHub security restriction)
+     - Missing `pull-requests: write` permission (already fixed)
+     - Repository settings restrict PR comments
+   - The pipeline continues normally and reports are available in artifacts
+   - All security scanning results are preserved regardless of commenting issues
+
+5. **Not All Pipelines Need AWS**
    - Many security hardening workflows don't require AWS components
    - SAST, container scanning, and infrastructure analysis work without AWS
    - AWS analysis only runs on main branch for infrastructure scans

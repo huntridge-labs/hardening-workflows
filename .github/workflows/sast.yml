@@ -552,11 +552,18 @@ jobs:
         script: |
           const fs = require('fs');
           
-          // Check if we have the necessary permissions
+          // Check if we have the necessary permissions and context
           console.log('Repository:', context.repo.owner + '/' + context.repo.repo);
           console.log('Event name:', context.eventName);
           console.log('Actor:', context.actor);
+          console.log('PR number:', context.issue?.number);
           console.log('Is from fork:', context.payload.pull_request?.head?.repo?.fork || false);
+          
+          // Check if running from a fork
+          const isFromFork = context.payload.pull_request?.head?.repo?.fork || false;
+          if (isFromFork) {
+            console.log('⚠️  Running from a fork - PR commenting may be restricted');
+          }
           
           try {
             const summary = fs.readFileSync('sast-summary.md', 'utf8');
@@ -569,9 +576,20 @@ jobs:
             });
             
             console.log('✅ Successfully posted SAST summary comment');
+            core.setOutput('comment_posted', 'true');
           } catch (error) {
             console.log('❌ Failed to post SAST comment:', error.message);
-            console.log('ℹ️  This is usually due to insufficient permissions when running on forks');
+            console.log('Error status:', error.status);
+            
+            if (error.status === 403) {
+              console.log('🔒 Permission denied - this can happen when:');
+              console.log('   • Running on a fork (security restriction)');
+              console.log('   • Missing pull-requests: write permission');
+              console.log('   • Repository settings restrict PR comments');
+            } else if (error.status === 404) {
+              console.log('🔍 Resource not found - check if PR exists');
+            }
+            
             console.log('📋 SAST report is still available in workflow artifacts');
             
             // Set step output to indicate comment failed

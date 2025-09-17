@@ -18,6 +18,7 @@ permissions:
   contents: read
   security-events: write
   actions: read
+  pull-requests: write
 
 jobs:
   # Discover containers in this repository
@@ -357,6 +358,12 @@ jobs:
       with:
         script: |
           const fs = require('fs');
+          
+          console.log('Repository:', context.repo.owner + '/' + context.repo.repo);
+          console.log('Event name:', context.eventName);
+          console.log('PR number:', context.issue?.number);
+          console.log('Is from fork:', context.payload.pull_request?.head?.repo?.fork || false);
+          
           try {
             const report = fs.readFileSync('container-security-report.md', 'utf8');
             const truncatedReport = report.length > 65000 ?
@@ -369,6 +376,20 @@ jobs:
               repo: context.repo.repo,
               body: `## 🐳 Container Security Scan Results\n\n${truncatedReport}`
             });
+            
+            console.log('✅ Successfully posted container scan comment');
           } catch (error) {
-            console.log('Could not create PR comment:', error.message);
+            console.log('❌ Failed to post container scan comment:', error.message);
+            console.log('Error status:', error.status);
+            
+            if (error.status === 403) {
+              console.log('🔒 Permission denied - this can happen when:');
+              console.log('   • Running on a fork (security restriction)');
+              console.log('   • Missing pull-requests: write permission');
+              console.log('   • Repository settings restrict PR comments');
+            } else if (error.status === 404) {
+              console.log('🔍 Resource not found - check if PR exists');
+            }
+            
+            console.log('📋 Container scan report is still available in workflow artifacts');
           }
