@@ -189,6 +189,34 @@ Files in the "fail" category should:
    docker build -f docker/Dockerfile.vulnerable -t vulnerable-app .
    ```
 
+### AWS Configuration (Optional)
+
+The security hardening pipeline includes optional AWS security analysis. **This is not required** - the pipeline works perfectly without AWS components.
+
+#### If you want to enable AWS security analysis:
+
+1. **Set up AWS OIDC Role** for your repository:
+   - Create an IAM role with trust policy for your GitHub repository
+   - Grant necessary read permissions for security analysis
+
+2. **Update the workflow environment variables** in `.github/workflows/security-hardening.yml`:
+   ```yaml
+   env:
+     AWS_ACCOUNT_ID: YOUR_ACCOUNT_ID  # Replace with your AWS account ID
+     AWS_REGION: us-east-1           # Replace with your preferred region
+   ```
+
+3. **Required permissions** for the AWS role:
+   - `s3:ListAllMyBuckets`
+   - `iam:ListRoles`
+   - `lambda:ListFunctions`
+   - `sts:GetCallerIdentity`
+
+#### If you don't need AWS analysis:
+- The pipeline will automatically detect missing AWS credentials
+- All other security scans will continue normally
+- A report will be generated explaining the AWS analysis was skipped
+
 ### Testing the Pipeline
 
 1. **Create a test branch**:

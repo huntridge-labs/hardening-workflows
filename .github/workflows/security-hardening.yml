@@ -28,6 +28,7 @@ permissions:
   actions: read
   pull-requests: write
   checks: write
+  id-token: write  # Required for AWS OIDC authentication
 
 env:
   AWS_ACCOUNT_ID: 701186259805
@@ -222,7 +223,9 @@ jobs:
       uses: actions/checkout@v5
 
     - name: Configure AWS Credentials
+      id: aws-auth
       uses: aws-actions/configure-aws-credentials@v5
+      continue-on-error: true  # Don't fail if AWS credentials aren't available
       with:
         role-to-assume: "arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-oidc-role"
         aws-region: ${{ env.AWS_REGION }}
@@ -240,20 +243,46 @@ jobs:
         # Create a basic AWS security report
         mkdir -p aws-security-report
 
-        # Check S3 bucket security
-        echo "# AWS Security Assessment Report" > aws-security-report/aws-security.md
-        echo "" >> aws-security-report/aws-security.md
+        # Check if AWS credentials were configured successfully
+        if aws sts get-caller-identity >/dev/null 2>&1; then
+          echo "✅ AWS credentials configured successfully"
+          
+          # Check S3 bucket security
+          echo "# AWS Security Assessment Report" > aws-security-report/aws-security.md
+          echo "" >> aws-security-report/aws-security.md
+          echo "**Account:** $(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo 'Unable to determine')" >> aws-security-report/aws-security.md
+          echo "**Region:** ${{ env.AWS_REGION }}" >> aws-security-report/aws-security.md
+          echo "**Generated:** $(date)" >> aws-security-report/aws-security.md
+          echo "" >> aws-security-report/aws-security.md
 
-        echo "## S3 Bucket Security" >> aws-security-report/aws-security.md
-        aws s3api list-buckets --query 'Buckets[].Name' --output table >> aws-security-report/aws-security.md || true
+          echo "## S3 Bucket Security" >> aws-security-report/aws-security.md
+          aws s3api list-buckets --query 'Buckets[].Name' --output table >> aws-security-report/aws-security.md 2>/dev/null || echo "No S3 buckets found or access denied" >> aws-security-report/aws-security.md
 
-        echo "" >> aws-security-report/aws-security.md
-        echo "## IAM Roles" >> aws-security-report/aws-security.md
-        aws iam list-roles --query 'Roles[?contains(RoleName, `form-extraction`) || contains(RoleName, `github`)].RoleName' --output table >> aws-security-report/aws-security.md || true
+          echo "" >> aws-security-report/aws-security.md
+          echo "## IAM Roles" >> aws-security-report/aws-security.md
+          aws iam list-roles --query 'Roles[?contains(RoleName, `form-extraction`) || contains(RoleName, `github`)].RoleName' --output table >> aws-security-report/aws-security.md 2>/dev/null || echo "No matching IAM roles found or access denied" >> aws-security-report/aws-security.md
 
-        echo "" >> aws-security-report/aws-security.md
-        echo "## Lambda Functions" >> aws-security-report/aws-security.md
-        aws lambda list-functions --query 'Functions[?contains(FunctionName, `field`) || contains(FunctionName, `doc`) || contains(FunctionName, `image`)].FunctionName' --output table >> aws-security-report/aws-security.md || true
+          echo "" >> aws-security-report/aws-security.md
+          echo "## Lambda Functions" >> aws-security-report/aws-security.md
+          aws lambda list-functions --query 'Functions[?contains(FunctionName, `field`) || contains(FunctionName, `doc`) || contains(FunctionName, `image`)].FunctionName' --output table >> aws-security-report/aws-security.md 2>/dev/null || echo "No matching Lambda functions found or access denied" >> aws-security-report/aws-security.md
+        else
+          echo "⚠️  AWS credentials not available or invalid"
+          echo "# AWS Security Assessment - Credentials Not Available" > aws-security-report/aws-security.md
+          echo "" >> aws-security-report/aws-security.md
+          echo "AWS credentials could not be configured for this repository." >> aws-security-report/aws-security.md
+          echo "" >> aws-security-report/aws-security.md
+          echo "## Possible reasons:" >> aws-security-report/aws-security.md
+          echo "1. No AWS OIDC role configured for this repository" >> aws-security-report/aws-security.md
+          echo "2. The repository doesn't contain AWS resources" >> aws-security-report/aws-security.md
+          echo "3. AWS account credentials haven't been set up" >> aws-security-report/aws-security.md
+          echo "" >> aws-security-report/aws-security.md
+          echo "## To enable AWS security analysis:" >> aws-security-report/aws-security.md
+          echo "1. Set up an AWS OIDC role for GitHub Actions" >> aws-security-report/aws-security.md
+          echo "2. Update the AWS_ACCOUNT_ID environment variable in the workflow" >> aws-security-report/aws-security.md
+          echo "3. Ensure the role has appropriate read permissions for security analysis" >> aws-security-report/aws-security.md
+          echo "" >> aws-security-report/aws-security.md
+          echo "_This is not an error - many hardening pipelines don't require AWS access._" >> aws-security-report/aws-security.md
+        fi
 
     - name: Upload AWS security report
       uses: actions/upload-artifact@v4

@@ -76,11 +76,19 @@ Orchestrates comprehensive security scanning across the entire project.
    SLACK_WEBHOOK_URL (optional) - For Slack notifications
    ```
 
-2. **AWS IAM Role**
+2. **AWS IAM Role (Optional - Only for AWS Security Analysis)**
    - The workflows use OIDC for AWS authentication
+   - **Required only if you want AWS security configuration analysis**
+   - If not configured, the pipeline will continue without AWS analysis
    - Ensure the `github-oidc-role` has necessary permissions:
      - ECR read access for image scanning
      - Basic AWS resource read permissions for security assessment
+   - Update `AWS_ACCOUNT_ID` in the workflow if different from default
+
+3. **No AWS? No Problem!**
+   - The hardening pipeline works perfectly without AWS components
+   - All security scanning tools (SAST, container scanning, infrastructure analysis) work with any codebase
+   - AWS analysis is only triggered for infrastructure scans on the main branch
 
 ### Configuration
 
@@ -183,9 +191,19 @@ workflow_dispatch:
    - Check Dockerfile syntax and dependencies
    - Verify base image availability
 
-3. **AWS Permission Issues**
-   - Ensure IAM role has correct permissions
-   - Check OIDC trust relationship
+3. **AWS Credentials Issues**
+   - **"Credentials could not be loaded"** - This is expected if you don't have AWS resources
+   - The pipeline will continue and generate a report explaining the situation
+   - To enable AWS analysis:
+     - Set up AWS OIDC role for your repository
+     - Update `AWS_ACCOUNT_ID` in the workflow environment variables
+     - Ensure the role has read permissions for security analysis
+   - **"Missing id-token permission"** - Already fixed in this version
+
+4. **Not All Pipelines Need AWS**
+   - Many security hardening workflows don't require AWS components
+   - SAST, container scanning, and infrastructure analysis work without AWS
+   - AWS analysis only runs on main branch for infrastructure scans
 
 ### Debug Steps
 
