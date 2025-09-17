@@ -492,7 +492,7 @@ jobs:
         path: container-security-report.md
         retention-days: 30
 
-    - name: Comment PR with container scan results
+    - name: Comment PR with enhanced container security results
       if: github.event_name == 'pull_request'
       uses: actions/github-script@v8
       continue-on-error: true
@@ -500,6 +500,18 @@ jobs:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
           const fs = require('fs');
+          const path = require('path');
+          
+          // Import the enhanced comment generator
+          const enhancerPath = path.join(process.cwd(), '.github', 'scripts', 'enhance-pr-comments.js');
+          let enhancer;
+          
+          try {
+            enhancer = require(enhancerPath);
+          } catch (error) {
+            console.log('⚠️ Enhanced comment generator not found, falling back to basic comments');
+            enhancer = null;
+          }
           
           // Check if we have the necessary permissions and context
           console.log('Repository:', context.repo.owner + '/' + context.repo.repo);
@@ -516,15 +528,30 @@ jobs:
           
           try {
             const report = fs.readFileSync('container-security-report.md', 'utf8');
-            const truncatedReport = report.length > 65000 ?
-              report.substring(0, 65000) + '\n\n... (report truncated, see artifacts for full report)' :
-              report;
+            let commentBody;
+            
+            if (enhancer) {
+              // Use enhanced comment generator
+              console.log('📝 Generating enhanced PR comment...');
+              const containerData = enhancer.parseContainerReport(report);
+              const runId = context.runId;
+              const repoOwner = context.repo.owner;
+              const repoName = context.repo.repo;
+              
+              commentBody = enhancer.generateEnhancedContainerComment(containerData, runId, repoOwner, repoName);
+            } else {
+              // Fallback to basic comment
+              const truncatedReport = report.length > 65000 ?
+                report.substring(0, 65000) + '\n\n... (report truncated, see artifacts for full report)' :
+                report;
+              commentBody = `## 🐳 Container Security Analysis Results\n\n${truncatedReport}`;
+            }
 
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `## 🐳 Container Security Analysis Results\n\n${truncatedReport}`
+              body: commentBody
             });
             
             console.log('✅ Successfully posted container security summary comment');

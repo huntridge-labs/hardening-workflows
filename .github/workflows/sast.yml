@@ -724,7 +724,7 @@ jobs:
         path: sast-summary.md
         retention-days: 30
 
-    - name: Comment PR with SAST Results
+    - name: Comment PR with Enhanced SAST Results
       if: github.event_name == 'pull_request'
       uses: actions/github-script@v8
       continue-on-error: true  # Don't fail the workflow if commenting fails
@@ -732,6 +732,18 @@ jobs:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
           const fs = require('fs');
+          const path = require('path');
+          
+          // Import the enhanced comment generator
+          const enhancerPath = path.join(process.cwd(), '.github', 'scripts', 'enhance-pr-comments.js');
+          let enhancer;
+          
+          try {
+            enhancer = require(enhancerPath);
+          } catch (error) {
+            console.log('⚠️ Enhanced comment generator not found, falling back to basic comments');
+            enhancer = null;
+          }
           
           // Check if we have the necessary permissions and context
           console.log('Repository:', context.repo.owner + '/' + context.repo.repo);
@@ -748,12 +760,27 @@ jobs:
           
           try {
             const summary = fs.readFileSync('sast-summary.md', 'utf8');
+            let commentBody;
+            
+            if (enhancer) {
+              // Use enhanced comment generator
+              console.log('📝 Generating enhanced SAST PR comment...');
+              const sastData = enhancer.parseSASTReport(summary);
+              const runId = context.runId;
+              const repoOwner = context.repo.owner;
+              const repoName = context.repo.repo;
+              
+              commentBody = enhancer.generateEnhancedSASTComment(sastData, runId, repoOwner, repoName);
+            } else {
+              // Fallback to basic comment
+              commentBody = `## 🔍 SAST Analysis Results\n\n${summary}`;
+            }
 
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `## 🔍 SAST Analysis Results\n\n${summary}`
+              body: commentBody
             });
             
             console.log('✅ Successfully posted SAST summary comment');

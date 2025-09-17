@@ -1,0 +1,176 @@
+name: Security Overview
+
+on:
+  workflow_run:
+    workflows: ["SAST Security Analysis", "Container Security Scanning"]
+    types: [completed]
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+    types: [synchronize, opened, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+  security-events: read
+
+jobs:
+  security-overview:
+    name: Generate Security Overview
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request')
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Get PR number from workflow_run event
+      id: get_pr
+      if: github.event_name == 'workflow_run'
+      run: |
+        # Extract PR number from the workflow_run event
+        PR_NUMBER=$(gh pr list --state open --head "${{ github.event.workflow_run.head_branch }}" --json number --jq '.[0].number')
+        echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+        echo "🔍 Found PR number: $PR_NUMBER"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set PR number for pull_request event  
+      id: set_pr
+      if: github.event_name == 'pull_request'
+      run: |
+        echo "pr_number=${{ github.event.number }}" >> $GITHUB_OUTPUT
+        echo "🔍 PR number from event: ${{ github.event.number }}"
+
+    - name: Download SAST artifacts
+      uses: actions/download-artifact@v4
+      continue-on-error: true
+      with:
+        name: sast-summary
+        path: ./artifacts/sast/
+
+    - name: Download Container artifacts  
+      uses: actions/download-artifact@v4
+      continue-on-error: true
+      with:
+        name: container-security-summary
+        path: ./artifacts/container/
+
+    - name: Generate security overview comment
+      uses: actions/github-script@v8
+      continue-on-error: true
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Import the enhanced comment generator
+          const enhancerPath = path.join(process.cwd(), '.github', 'scripts', 'enhance-pr-comments.js');
+          let enhancer;
+          
+          try {
+            enhancer = require(enhancerPath);
+          } catch (error) {
+            console.log('⚠️ Enhanced comment generator not found');
+            return;
+          }
+          
+          const prNumber = '${{ steps.get_pr.outputs.pr_number }}' || '${{ steps.set_pr.outputs.pr_number }}';
+          
+          if (!prNumber) {
+            console.log('❌ No PR number found, skipping overview comment');
+            return;
+          }
+          
+          console.log(`🔍 Generating security overview for PR #${prNumber}`);
+          
+          let sastData = null;
+          let containerData = null;
+          
+          // Try to load SAST data
+          try {
+            const sastReport = fs.readFileSync('./artifacts/sast/sast-summary.md', 'utf8');
+            sastData = enhancer.parseSASTReport(sastReport);
+            console.log('✅ SAST data loaded');
+          } catch (error) {
+            console.log('⚠️ SAST data not available:', error.message);
+          }
+          
+          // Try to load container data
+          try {
+            const containerReport = fs.readFileSync('./artifacts/container/container-security-report.md', 'utf8');
+            containerData = enhancer.parseContainerReport(containerReport);
+            console.log('✅ Container data loaded');
+          } catch (error) {
+            console.log('⚠️ Container data not available:', error.message);
+          }
+          
+          // Only generate overview if we have at least one type of data
+          if (!sastData && !containerData) {
+            console.log('⚠️ No security scan data available, skipping overview');
+            return;
+          }
+          
+          // Generate the overview comment
+          const runId = context.runId;
+          const repoOwner = context.repo.owner;
+          const repoName = context.repo.repo;
+          
+          const overviewComment = enhancer.generateSecurityOverview(sastData, containerData, runId, repoOwner, repoName);
+          
+          // Check for existing security overview comments
+          const comments = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: prNumber
+          });
+          
+          const existingComment = comments.data.find(comment => 
+            comment.body.includes('🛡️ Security Hardening Pipeline') && 
+            comment.user.type === 'Bot'
+          );
+          
+          if (existingComment) {
+            // Update existing comment
+            console.log('🔄 Updating existing security overview comment');
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existingComment.id,
+              body: overviewComment
+            });
+          } else {
+            // Create new comment
+            console.log('📝 Creating new security overview comment');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: overviewComment
+            });
+          }
+          
+          console.log('✅ Security overview comment posted successfully');
+
+    - name: Set summary
+      run: |
+        echo "## 🛡️ Security Overview Generated" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f "./artifacts/sast/sast-summary.md" ]; then
+          echo "✅ SAST data processed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ SAST data not available" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ -f "./artifacts/container/container-security-report.md" ]; then
+          echo "✅ Container data processed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ Container data not available" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📋 Enhanced PR comment with collapsible sections and direct links posted to PR" >> $GITHUB_STEP_SUMMARY
