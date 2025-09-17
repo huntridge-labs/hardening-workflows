@@ -284,12 +284,7 @@ jobs:
 
     - name: Create comprehensive container security report
       run: |
-        echo "# Container Security Scan Report" > container-security-report.md
-        echo "" >> container-security-report.md
-        echo "**Generated:** $(date)" >> container-security-report.md
-        echo "**Repository:** ${{ github.repository }}" >> container-security-report.md
-        echo "**Branch:** ${{ github.ref_name }}" >> container-security-report.md
-        echo "**Commit:** ${{ github.sha }}" >> container-security-report.md
+        echo "# Container Security Scan Summary" > container-security-report.md
         echo "" >> container-security-report.md
 
         if [ "${{ needs.discover-containers.outputs.has_containers }}" != "true" ]; then
@@ -301,31 +296,161 @@ jobs:
           echo "1. Add Dockerfiles to your repository" >> container-security-report.md
           echo "2. Push changes to trigger container scanning" >> container-security-report.md
         else
+          echo "## Vulnerability Counts by Severity" >> container-security-report.md
+          echo "" >> container-security-report.md
+
+          # Enhanced table with vulnerability counts by severity per container
+          echo "| Container | Critical | High | Medium | Low | Total | Build Status |" >> container-security-report.md
+          echo "|-----------|----------|------|--------|-----|-------|--------------|" >> container-security-report.md
+
+          # Install jq if not available
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+
+          # Initialize totals
+          total_crit=0
+          total_high=0
+          total_med=0
+          total_low=0
+          total_all=0
+          scanned_containers=0
+          failed_builds=0
+
+          # Function to parse Trivy JSON results
+          parse_trivy() {
+            local file="$1"
+            if [ -f "$file" ] && [ -s "$file" ]; then
+              local crit=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' "$file" 2>/dev/null || echo 0)
+              local high=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' "$file" 2>/dev/null || echo 0)
+              local med=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length' "$file" 2>/dev/null || echo 0)
+              local low=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW")] | length' "$file" 2>/dev/null || echo 0)
+              echo "$crit $high $med $low"
+            else
+              echo "0 0 0 0"
+            fi
+          }
+
+          # Parse results for each container
+          if ls container-scan-results-* 1> /dev/null 2>&1; then
+            for container_dir in container-scan-results-*; do
+              if [ -d "$container_dir" ]; then
+                container_name=$(echo "$container_dir" | sed 's/container-scan-results-//')
+                trivy_json="$container_dir/trivy-${container_name}-results.json"
+                
+                # Check if container built successfully by looking for results
+                if [ -f "$trivy_json" ]; then
+                  counts=$(parse_trivy "$trivy_json")
+                  read crit high med low <<< "$counts"
+                  container_total=$((crit + high + med + low))
+                  
+                  echo "| $container_name | $crit | $high | $med | $low | $container_total | ✅ Success |" >> container-security-report.md
+                  
+                  # Add to totals
+                  total_crit=$((total_crit + crit))
+                  total_high=$((total_high + high))
+                  total_med=$((total_med + med))
+                  total_low=$((total_low + low))
+                  scanned_containers=$((scanned_containers + 1))
+                else
+                  echo "| $container_name | - | - | - | - | - | ❌ Build Failed |" >> container-security-report.md
+                  failed_builds=$((failed_builds + 1))
+                fi
+              fi
+            done
+          fi
+
+          total_all=$((total_crit + total_high + total_med + total_low))
+
+          echo "| **TOTAL** | **$total_crit** | **$total_high** | **$total_med** | **$total_low** | **$total_all** | - |" >> container-security-report.md
+          echo "" >> container-security-report.md
+
+          # Add scan overview
           echo "## Scan Overview" >> container-security-report.md
           echo "" >> container-security-report.md
-          echo "| Component | Status |" >> container-security-report.md
-          echo "|-----------|--------|" >> container-security-report.md
-          echo "| Container Discovery | ${{ needs.discover-containers.result }} |" >> container-security-report.md
-          echo "| Container Scanning | ${{ needs.build-and-scan.result }} |" >> container-security-report.md
+          echo "| Metric | Count |" >> container-security-report.md
+          echo "|--------|-------|" >> container-security-report.md
+          echo "| Containers Scanned | $scanned_containers |" >> container-security-report.md
+          echo "| Build Failures | $failed_builds |" >> container-security-report.md
+          echo "| Total Vulnerabilities | $total_all |" >> container-security-report.md
+          echo "| Discovery Status | ${{ needs.discover-containers.result }} |" >> container-security-report.md
+          echo "| Scanning Status | ${{ needs.build-and-scan.result }} |" >> container-security-report.md
           echo "" >> container-security-report.md
 
-          echo "## Scanned Containers" >> container-security-report.md
+          # Add priority recommendations based on actual vulnerability counts
+          if [ $total_crit -gt 0 ]; then
+            echo "## 🚨 CRITICAL PRIORITY" >> container-security-report.md
+            echo "" >> container-security-report.md
+            echo "**$total_crit critical vulnerabilities found!** These require immediate attention." >> container-security-report.md
+            echo "" >> container-security-report.md
+          fi
+
+          if [ $total_high -gt 0 ]; then
+            echo "## ⚠️ HIGH PRIORITY" >> container-security-report.md
+            echo "" >> container-security-report.md
+            echo "**$total_high high-severity vulnerabilities found.** Address these as soon as possible." >> container-security-report.md
+            echo "" >> container-security-report.md
+          fi
+
+          if [ $total_all -eq 0 ] && [ $scanned_containers -gt 0 ]; then
+            echo "## ✅ NO VULNERABILITIES DETECTED" >> container-security-report.md
+            echo "" >> container-security-report.md
+            echo "Great work! No security vulnerabilities were detected in the scanned containers." >> container-security-report.md
+            echo "" >> container-security-report.md
+          fi
+
+          # Build failure notes
+          if [ $failed_builds -gt 0 ]; then
+            echo "## ⚠️ BUILD FAILURES" >> container-security-report.md
+            echo "" >> container-security-report.md
+            echo "**$failed_builds container(s) failed to build.** This may be expected for intentionally vulnerable test containers." >> container-security-report.md
+            echo "" >> container-security-report.md
+          fi
+
+          echo "## Container Details" >> container-security-report.md
           echo "" >> container-security-report.md
 
-          # Include individual container summaries
+          # Include individual container summaries with enhanced details
           if ls container-scan-results-*/container-summary-*.md 1> /dev/null 2>&1; then
             for summary in container-scan-results-*/container-summary-*.md; do
               if [ -f "$summary" ]; then
                 container_name=$(basename "$summary" .md | sed 's/container-summary-//')
-                echo "### $container_name" >> container-security-report.md
+                echo "### 🐳 $container_name" >> container-security-report.md
+                
+                # Add vulnerability breakdown for this container
+                trivy_json="container-scan-results-${container_name}/trivy-${container_name}-results.json"
+                if [ -f "$trivy_json" ]; then
+                  counts=$(parse_trivy "$trivy_json")
+                  read crit high med low <<< "$counts"
+                  container_total=$((crit + high + med + low))
+                  
+                  echo "" >> container-security-report.md
+                  echo "**Vulnerability Summary:** $container_total total ($crit critical, $high high, $med medium, $low low)" >> container-security-report.md
+                  echo "" >> container-security-report.md
+                fi
+                
                 cat "$summary" >> container-security-report.md
                 echo "" >> container-security-report.md
               fi
             done
           else
-            echo "No individual container summaries available." >> container-security-report.md
+            echo "No detailed container summaries available." >> container-security-report.md
           fi
         fi
+
+        echo "## Security Reports Location" >> container-security-report.md
+        echo "" >> container-security-report.md
+        echo "🔍 **Container scan results are available in the following locations:**" >> container-security-report.md
+        echo "" >> container-security-report.md
+        echo "1. **Workflow Artifacts** - Download detailed reports from the Actions tab" >> container-security-report.md
+        echo "2. **GitHub Security Tab** - If GitHub Advanced Security is enabled" >> container-security-report.md
+        echo "3. **SARIF Files** - Available as artifacts for integration with other tools" >> container-security-report.md
+        echo "" >> container-security-report.md
+        echo "📋 **Available Report Formats:**" >> container-security-report.md
+        echo "- SARIF (for security tools integration)" >> container-security-report.md
+        echo "- JSON (for programmatic analysis)" >> container-security-report.md
+        echo "- Text (for human-readable output)" >> container-security-report.md
+        echo "" >> container-security-report.md
 
         echo "## Security Testing Notes" >> container-security-report.md
         echo "" >> container-security-report.md
@@ -336,18 +461,34 @@ jobs:
         echo "- **Build failures** on vulnerable containers may be expected due to intentional issues" >> container-security-report.md
         echo "" >> container-security-report.md
 
-        echo "## Security Recommendations" >> container-security-report.md
+        echo "## Recommendations" >> container-security-report.md
         echo "" >> container-security-report.md
-        echo "1. **Use Minimal Base Images**: Prefer Alpine or distroless images" >> container-security-report.md
-        echo "2. **Keep Dependencies Updated**: Regularly update packages and base images" >> container-security-report.md
-        echo "3. **Run as Non-root**: Use non-privileged users in containers" >> container-security-report.md
-        echo "4. **Multi-stage Builds**: Use multi-stage builds to reduce attack surface" >> container-security-report.md
-        echo "5. **Security Scanning**: Integrate container scanning into CI/CD pipelines" >> container-security-report.md
+        echo "1. **Download artifacts** to review detailed vulnerability findings" >> container-security-report.md
+        echo "2. **Address high and critical severity vulnerabilities** first" >> container-security-report.md
+        echo "3. **Update base images and dependencies** with known vulnerabilities" >> container-security-report.md
+        echo "4. **Use minimal base images** (Alpine, distroless) to reduce attack surface" >> container-security-report.md
+        echo "5. **Implement multi-stage builds** to minimize final image size" >> container-security-report.md
+        echo "6. **Run containers as non-root users** when possible" >> container-security-report.md
+        echo "7. **Consider enabling GitHub Advanced Security** for integrated security dashboard" >> container-security-report.md
+        echo "" >> container-security-report.md
+
+        echo "## GitHub Advanced Security" >> container-security-report.md
+        echo "" >> container-security-report.md
+        echo "ℹ️  **Note:** Some SARIF uploads may show warnings if GitHub Advanced Security is not enabled." >> container-security-report.md
+        echo "This doesn't affect the container scanning - all results are still available as downloadable artifacts." >> container-security-report.md
+        echo "" >> container-security-report.md
+        echo "To enable Code Security features:" >> container-security-report.md
+        echo "1. Go to repository Settings > Security & Analysis" >> container-security-report.md
+        echo "2. Enable 'Private vulnerability reporting'" >> container-security-report.md
+        echo "3. Enable 'Dependency review' (requires GitHub Advanced Security)" >> container-security-report.md
+        echo "4. Enable 'Code scanning' (requires GitHub Advanced Security)" >> container-security-report.md
+        echo "" >> container-security-report.md
+        echo "Generated on: $(date)" >> container-security-report.md
 
     - name: Upload container security report
       uses: actions/upload-artifact@v4
       with:
-        name: container-security-report
+        name: container-security-summary
         path: container-security-report.md
         retention-days: 30
 
@@ -356,13 +497,22 @@ jobs:
       uses: actions/github-script@v8
       continue-on-error: true
       with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
           const fs = require('fs');
           
+          // Check if we have the necessary permissions and context
           console.log('Repository:', context.repo.owner + '/' + context.repo.repo);
           console.log('Event name:', context.eventName);
+          console.log('Actor:', context.actor);
           console.log('PR number:', context.issue?.number);
           console.log('Is from fork:', context.payload.pull_request?.head?.repo?.fork || false);
+          
+          // Check if running from a fork
+          const isFromFork = context.payload.pull_request?.head?.repo?.fork || false;
+          if (isFromFork) {
+            console.log('⚠️  Running from a fork - PR commenting may be restricted');
+          }
           
           try {
             const report = fs.readFileSync('container-security-report.md', 'utf8');
@@ -374,12 +524,13 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `## 🐳 Container Security Scan Results\n\n${truncatedReport}`
+              body: `## 🐳 Container Security Analysis Results\n\n${truncatedReport}`
             });
             
-            console.log('✅ Successfully posted container scan comment');
+            console.log('✅ Successfully posted container security summary comment');
+            core.setOutput('comment_posted', 'true');
           } catch (error) {
-            console.log('❌ Failed to post container scan comment:', error.message);
+            console.log('❌ Failed to post container security comment:', error.message);
             console.log('Error status:', error.status);
             
             if (error.status === 403) {
@@ -391,5 +542,9 @@ jobs:
               console.log('🔍 Resource not found - check if PR exists');
             }
             
-            console.log('📋 Container scan report is still available in workflow artifacts');
+            console.log('📋 Container security report is still available in workflow artifacts');
+            
+            // Set step output to indicate comment failed
+            core.setOutput('comment_posted', 'false');
+            core.setOutput('comment_error', error.message);
           }
