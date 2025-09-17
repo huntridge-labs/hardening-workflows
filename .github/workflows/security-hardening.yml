@@ -27,6 +27,7 @@ permissions:
   security-events: write
   actions: read
   pull-requests: write
+  checks: write
 
 env:
   AWS_ACCOUNT_ID: 701186259805
