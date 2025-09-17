@@ -1,16 +1,17 @@
 name: SAST Security Analysis
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
+  # Remove direct PR/push triggers since this workflow is called by security-hardening.yml
+  # push:
+  #   branches: [ main, develop ]
+  # pull_request:
+  #   branches: [ main, develop ]
   # Commented out daily schedule to reduce noise - re-enable as needed
   # schedule:
   #   # Run SAST scan daily at 2 AM UTC
   #   - cron: '0 2 * * *'
-  workflow_dispatch:
-  workflow_call:
+  workflow_dispatch:  # Keep for manual testing
+  workflow_call:      # Keep for reusable workflow calls from security-hardening.yml
 
 permissions:
   contents: read
@@ -647,7 +648,6 @@ jobs:
         echo "| Checkov (Terraform) | $checkov_crit | $checkov_high | $checkov_med | $checkov_low | $checkov_total | ${{ needs.terraform-security.result }} |" >> sast-summary.md
         echo "| Hadolint (Docker) | $hadolint_crit | $hadolint_high | $hadolint_med | $hadolint_low | $hadolint_total | ${{ needs.dockerfile-security.result }} |" >> sast-summary.md
         echo "| Gitleaks (Secrets) | $gitleaks_crit | $gitleaks_high | $gitleaks_med | $gitleaks_low | $gitleaks_total | ${{ needs.secrets-detection.result }} |" >> sast-summary.md
-        echo "" >> sast-summary.md
 
         # Calculate totals across all tools
         total_crit=$((codeql_crit + opengrep_crit + bandit_crit + safety_crit + checkov_crit + hadolint_crit + gitleaks_crit))
@@ -753,7 +753,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: summary
+              body: `## 🔍 SAST Analysis Results\n\n${summary}`
             });
             
             console.log('✅ Successfully posted SAST summary comment');
