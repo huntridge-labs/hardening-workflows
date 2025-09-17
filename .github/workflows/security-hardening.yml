@@ -318,12 +318,7 @@ jobs:
 
     - name: Create comprehensive security report
       run: |
-        echo "# 🛡️ Security Analysis Results" > security-hardening-report.md
-        echo "" >> security-hardening-report.md
-        echo "**📅 Generated:** $(date)" >> security-hardening-report.md
-        echo "**📂 Repository:** ${{ github.repository }}" >> security-hardening-report.md
-        echo "**🌿 Branch:** ${{ github.ref_name }}" >> security-hardening-report.md
-        echo "**📋 Run ID:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> security-hardening-report.md
+        echo "# 🛡️ Security Analysis Summary" > security-hardening-report.md
         echo "" >> security-hardening-report.md
 
         # Initialize counters
@@ -332,22 +327,20 @@ jobs:
         MEDIUM_COUNT=0
         LOW_COUNT=0
         INFO_COUNT=0
-        TOTAL_ISSUES=0
 
-        echo "## 📊 Vulnerability Summary" >> security-hardening-report.md
-        echo "" >> security-hardening-report.md
+        # Track processed files to avoid duplicates
+        processed_files=""
 
-        # Analyze SARIF files for vulnerability counts
-        echo "### 🔍 Security Scan Results" >> security-hardening-report.md
-        echo "" >> security-hardening-report.md
-
-        # Process all SARIF files to count vulnerabilities
-        for sarif_file in $(find . -name "*.sarif" 2>/dev/null); do
+        # Process unique SARIF files only once
+        for sarif_file in $(find . -name "*.sarif" 2>/dev/null | sort -u); do
           if [ -f "$sarif_file" ] && [ -s "$sarif_file" ]; then
-            tool_name=$(basename "$sarif_file" .sarif)
-            echo "Analyzing $tool_name..." >&2
+            filename=$(basename "$sarif_file")
+            # Skip if already processed
+            if echo "$processed_files" | grep -q "$filename"; then
+              continue
+            fi
+            processed_files="$processed_files $filename"
             
-            # Count vulnerabilities by severity (SARIF format)
             if command -v jq >/dev/null 2>&1; then
               crit=$(jq -r '.runs[]?.results[]? | select(.level == "error" or .properties?.severity == "critical") | .ruleId' "$sarif_file" 2>/dev/null | wc -l || echo 0)
               high=$(jq -r '.runs[]?.results[]? | select(.level == "warning" or .properties?.severity == "high") | .ruleId' "$sarif_file" 2>/dev/null | wc -l || echo 0)
@@ -360,128 +353,51 @@ jobs:
               MEDIUM_COUNT=$((MEDIUM_COUNT + med))
               LOW_COUNT=$((LOW_COUNT + low))
               INFO_COUNT=$((INFO_COUNT + info))
-              
-              total=$((crit + high + med + low + info))
-              if [ "$total" -gt 0 ]; then
-                echo "**$tool_name:** 🔴 $crit critical, 🟠 $high high, 🟡 $med medium, 🔵 $low low, ℹ️ $info info" >> security-hardening-report.md
-              fi
-            else
-              # Fallback if jq not available - count lines
-              lines=$(grep -c '"level":\|"severity":' "$sarif_file" 2>/dev/null || echo 0)
-              if [ "$lines" -gt 0 ]; then
-                echo "**$tool_name:** $lines findings (severity breakdown requires jq)" >> security-hardening-report.md
-                TOTAL_ISSUES=$((TOTAL_ISSUES + lines))
-              fi
             fi
           fi
         done
 
-        # Process JSON reports for additional counts
-        for json_file in $(find . -name "*report*.json" -o -name "*results*.json" 2>/dev/null); do
-          if [ -f "$json_file" ] && [ -s "$json_file" ]; then
-            tool_name=$(basename "$json_file" .json)
-            if command -v jq >/dev/null 2>&1; then
-              findings=$(jq '. | length' "$json_file" 2>/dev/null || echo 0)
-              if [ "$findings" -gt 0 ]; then
-                echo "**$tool_name:** $findings findings" >> security-hardening-report.md
-                TOTAL_ISSUES=$((TOTAL_ISSUES + findings))
-              fi
-            fi
-          fi
-        done
+        TOTAL_ISSUES=$((CRITICAL_COUNT + HIGH_COUNT + MEDIUM_COUNT + LOW_COUNT + INFO_COUNT))
 
-        TOTAL_ISSUES=$((CRITICAL_COUNT + HIGH_COUNT + MEDIUM_COUNT + LOW_COUNT + INFO_COUNT + TOTAL_ISSUES))
-
+        echo "## � Security Score" >> security-hardening-report.md
         echo "" >> security-hardening-report.md
-        echo "### 📈 Overall Security Score" >> security-hardening-report.md
-        echo "" >> security-hardening-report.md
-        echo "| Severity | Count | Priority |" >> security-hardening-report.md
-        echo "|----------|-------|----------|" >> security-hardening-report.md
-        echo "| 🔴 Critical | $CRITICAL_COUNT | **IMMEDIATE** |" >> security-hardening-report.md
-        echo "| 🟠 High | $HIGH_COUNT | **Within 24h** |" >> security-hardening-report.md
-        echo "| 🟡 Medium | $MEDIUM_COUNT | Within 1 week |" >> security-hardening-report.md
-        echo "| 🔵 Low | $LOW_COUNT | Within 1 month |" >> security-hardening-report.md
-        echo "| ℹ️ Info | $INFO_COUNT | Review when convenient |" >> security-hardening-report.md
+        echo "| Severity | Count | Action Required |" >> security-hardening-report.md
+        echo "|----------|-------|-----------------|" >> security-hardening-report.md
+        echo "| 🔴 Critical | **$CRITICAL_COUNT** | Immediate |" >> security-hardening-report.md
+        echo "| 🟠 High | **$HIGH_COUNT** | Within 24h |" >> security-hardening-report.md
+        echo "| 🟡 Medium | **$MEDIUM_COUNT** | Within 1 week |" >> security-hardening-report.md
+        echo "| 🔵 Low | **$LOW_COUNT** | Within 1 month |" >> security-hardening-report.md
         echo "| **📊 Total** | **$TOTAL_ISSUES** | - |" >> security-hardening-report.md
         echo "" >> security-hardening-report.md
 
         # Risk assessment
         if [ "$CRITICAL_COUNT" -gt 0 ]; then
-          echo "🚨 **CRITICAL RISK:** $CRITICAL_COUNT critical vulnerabilities require immediate attention!" >> security-hardening-report.md
-        elif [ "$HIGH_COUNT" -gt 5 ]; then
-          echo "⚠️ **HIGH RISK:** $HIGH_COUNT high-severity issues need urgent review." >> security-hardening-report.md
-        elif [ "$HIGH_COUNT" -gt 0 ] || [ "$MEDIUM_COUNT" -gt 10 ]; then
-          echo "🟡 **MEDIUM RISK:** Some security issues need attention." >> security-hardening-report.md
+          echo "🚨 **CRITICAL RISK:** $CRITICAL_COUNT critical vulnerabilities need immediate attention!" >> security-hardening-report.md
+        elif [ "$HIGH_COUNT" -gt 0 ]; then
+          echo "⚠️ **HIGH RISK:** $HIGH_COUNT high-severity issues need review within 24h." >> security-hardening-report.md
+        elif [ "$MEDIUM_COUNT" -gt 5 ]; then
+          echo "🟡 **MEDIUM RISK:** $MEDIUM_COUNT medium-severity issues to address." >> security-hardening-report.md
         else
-          echo "✅ **LOW RISK:** Good security posture, minor issues to address." >> security-hardening-report.md
+          echo "✅ **LOW RISK:** Good security posture!" >> security-hardening-report.md
         fi
         echo "" >> security-hardening-report.md
 
-        echo "## 📦 Security Artifacts & Reports" >> security-hardening-report.md
-        echo "" >> security-hardening-report.md
-        echo "Download detailed reports from the [Actions run artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}):" >> security-hardening-report.md
-        echo "" >> security-hardening-report.md
-
-        # List artifacts with direct links and descriptions
-        artifacts_found=false
-        for dir in */; do
-          if [ -d "$dir" ]; then
-            artifacts_found=true
-            artifact_name="${dir%/}"
-            echo "### 📁 [$artifact_name](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> security-hardening-report.md
-            
-            # Add descriptions for known artifact types
-            case "$artifact_name" in
-              *"bandit"*) echo "_Python security analysis results_" >> security-hardening-report.md ;;
-              *"gitleaks"*) echo "_Secret detection results_" >> security-hardening-report.md ;;
-              *"opengrep"*) echo "_SAST analysis results_" >> security-hardening-report.md ;;
-              *"checkov"*) echo "_Infrastructure security results_" >> security-hardening-report.md ;;
-              *"safety"*) echo "_Python dependency vulnerability scan_" >> security-hardening-report.md ;;
-              *"hadolint"*) echo "_Docker security and best practices_" >> security-hardening-report.md ;;
-              *"codeql"*) echo "_GitHub CodeQL security analysis_" >> security-hardening-report.md ;;
-              *) echo "_Security analysis results_" >> security-hardening-report.md ;;
-            esac
-            
-            echo "" >> security-hardening-report.md
-            echo "**Files:**" >> security-hardening-report.md
-            find "$dir" -type f \( -name "*.sarif" -o -name "*.json" -o -name "*.txt" \) | head -5 | while read file; do
-              filename=$(basename "$file")
-              filesize=$(ls -lh "$file" | awk '{print $5}' 2>/dev/null || echo "")
-              echo "- \`$filename\` ($filesize)" >> security-hardening-report.md
-            done
-            echo "" >> security-hardening-report.md
-          fi
-        done
-
-        if [ "$artifacts_found" = false ]; then
-          echo "_No security artifacts were generated in this run._" >> security-hardening-report.md
-          echo "" >> security-hardening-report.md
-        fi
-
-        echo "## 🎯 Action Items" >> security-hardening-report.md
+        echo "## � Next Steps" >> security-hardening-report.md
         echo "" >> security-hardening-report.md
         
         if [ "$CRITICAL_COUNT" -gt 0 ]; then
-          echo "### 🚨 IMMEDIATE (Critical)" >> security-hardening-report.md
-          echo "1. 🔍 Download and review critical vulnerability reports" >> security-hardening-report.md
-          echo "2. 🛠️ Patch or mitigate critical vulnerabilities within 24 hours" >> security-hardening-report.md
-          echo "3. 🔒 Consider temporarily disabling affected features if patches unavailable" >> security-hardening-report.md
-          echo "" >> security-hardening-report.md
+          echo "1. � **URGENT:** Download security reports and patch critical vulnerabilities" >> security-hardening-report.md
+          echo "2. 🔍 Focus on: Container vulnerabilities, code security issues, exposed secrets" >> security-hardening-report.md
+        elif [ "$HIGH_COUNT" -gt 0 ]; then
+          echo "1. ⚡ **HIGH PRIORITY:** Review and patch high-severity findings within 24h" >> security-hardening-report.md
+        else
+          echo "1. 🔍 Review medium/low findings during next sprint planning" >> security-hardening-report.md
         fi
         
-        if [ "$HIGH_COUNT" -gt 0 ]; then
-          echo "### ⚡ URGENT (High Priority)" >> security-hardening-report.md
-          echo "1. 📋 Review high-severity findings in detail" >> security-hardening-report.md
-          echo "2. 📅 Schedule patches within 1 week" >> security-hardening-report.md
-          echo "3. 🔄 Update dependencies with known vulnerabilities" >> security-hardening-report.md
-          echo "" >> security-hardening-report.md
-        fi
-
-        echo "### 📈 Continuous Improvement" >> security-hardening-report.md
-        echo "1. 🤖 Enable [Dependabot](${{ github.server_url }}/${{ github.repository }}/settings/security_analysis) for automated dependency updates" >> security-hardening-report.md
-        echo "2. 🔍 Review medium/low findings during next sprint planning" >> security-hardening-report.md
-        echo "3. 📊 Track security metrics over time" >> security-hardening-report.md
-        echo "4. 🛡️ Consider enabling [GitHub Advanced Security](${{ github.server_url }}/${{ github.repository }}/settings/security_analysis) for enhanced features" >> security-hardening-report.md
+        echo "3. � **Download reports:** [View all artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> security-hardening-report.md
+        echo "4. 🤖 **Automation:** Enable [Dependabot](${{ github.server_url }}/${{ github.repository }}/settings/security_analysis) for dependency updates" >> security-hardening-report.md
+        echo "" >> security-hardening-report.md
+        echo "_Report generated: $(date)_" >> security-hardening-report.md
 
     - name: Upload comprehensive security report
       uses: actions/upload-artifact@v4
