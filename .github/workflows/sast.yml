@@ -126,26 +126,25 @@ jobs:
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
-    - name: Install OpenGrep
+    - name: Install OpenGrep/Semgrep
       run: |
-        # Download OpenGrep binary directly from GitHub releases (more secure)
-        wget -O opengrep https://github.com/opengrep/opengrep/releases/latest/download/opengrep_manylinux_x86
-        chmod +x opengrep
-        sudo mv opengrep /usr/local/bin/opengrep
+        # Use pip to install semgrep (more reliable than direct binary)
+        python -m pip install --upgrade pip
+        pip install semgrep
 
-    - name: Run OpenGrep Security Analysis
+    - name: Run OpenGrep/Semgrep Security Analysis
       run: |
-        echo "🔍 Running OpenGrep comprehensive security analysis..."
+        echo "🔍 Running Semgrep comprehensive security analysis..."
         mkdir -p opengrep-reports
-        # Run OpenGrep with comprehensive scanning
-        opengrep scan --sarif-output=opengrep-reports/opengrep.sarif . || true
-        opengrep scan --json-output=opengrep-reports/opengrep.json . || true
-        opengrep scan --text-output=opengrep-reports/opengrep.txt . || true
+        # Run Semgrep with comprehensive scanning
+        semgrep --config=auto --sarif --output=opengrep-reports/opengrep.sarif . || true
+        semgrep --config=auto --json --output=opengrep-reports/opengrep.json . || true
+        semgrep --config=auto --text --output=opengrep-reports/opengrep.txt . || true
 
         # Move files to root for artifact upload
         cp opengrep-reports/* . 2>/dev/null || true
       continue-on-error: true  # Continue even if security issues are found
-      # Note: OpenGrep provides all security rules for free, no paywalls
+      # Note: Semgrep provides all security rules for free, no paywalls
 
     - name: Check Code Security Status
       id: check-security
@@ -485,20 +484,202 @@ jobs:
       run: |
         echo "# SAST Security Analysis Summary" > sast-summary.md
         echo "" >> sast-summary.md
-        echo "## Scan Results" >> sast-summary.md
+        echo "## Vulnerability Counts by Severity" >> sast-summary.md
         echo "" >> sast-summary.md
 
-        # Check job statuses
-        echo "| Tool | Status |" >> sast-summary.md
-        echo "|------|--------|" >> sast-summary.md
-        echo "| CodeQL | ${{ needs.codeql-analysis.result }} |" >> sast-summary.md
-        echo "| OpenGrep | ${{ needs.opengrep-analysis.result }} |" >> sast-summary.md
-        echo "| Bandit | ${{ needs.bandit-analysis.result }} |" >> sast-summary.md
-        echo "| Safety | ${{ needs.safety-check.result }} |" >> sast-summary.md
-        echo "| Checkov (Terraform) | ${{ needs.terraform-security.result }} |" >> sast-summary.md
-        echo "| Hadolint (Docker) | ${{ needs.dockerfile-security.result }} |" >> sast-summary.md
-        echo "| Gitleaks (Secrets) | ${{ needs.secrets-detection.result }} |" >> sast-summary.md
+        # Enhanced table with vulnerability counts by severity
+        echo "| Tool | Critical | High | Medium | Low | Total | Status |" >> sast-summary.md
+        echo "|------|----------|------|--------|-----|-------|--------|" >> sast-summary.md
+
+        # Install jq if not available (usually is in GitHub runners)
+        if ! command -v jq >/dev/null 2>&1; then
+          sudo apt-get update && sudo apt-get install -y jq
+        fi
+
+        # Function to parse SARIF files for vulnerability counts
+        parse_sarif() {
+          local file="$1"
+          if [ -f "$file" ] && [ -s "$file" ]; then
+            local crit=$(jq -r '.runs[]?.results[]? | select(.level == "error" or .properties?.severity == "critical" or (.properties?."security-severity"? and (.properties."security-severity" | tonumber) >= 9.0)) | .ruleId' "$file" 2>/dev/null | wc -l || echo 0)
+            local high=$(jq -r '.runs[]?.results[]? | select(.level == "warning" or .properties?.severity == "high" or (.properties?."security-severity"? and (.properties."security-severity" | tonumber) >= 7.0 and (.properties."security-severity" | tonumber) < 9.0)) | .ruleId' "$file" 2>/dev/null | wc -l || echo 0)
+            local med=$(jq -r '.runs[]?.results[]? | select(.properties?.severity == "medium" or (.properties?."security-severity"? and (.properties."security-severity" | tonumber) >= 4.0 and (.properties."security-severity" | tonumber) < 7.0)) | .ruleId' "$file" 2>/dev/null | wc -l || echo 0)
+            local low=$(jq -r '.runs[]?.results[]? | select(.level == "note" or .properties?.severity == "low" or .properties?.severity == "info" or (.properties?."security-severity"? and (.properties."security-severity" | tonumber) < 4.0)) | .ruleId' "$file" 2>/dev/null | wc -l || echo 0)
+            echo "$crit $high $med $low"
+          else
+            echo "0 0 0 0"
+          fi
+        }
+
+        # Function to parse Bandit JSON format
+        parse_bandit() {
+          local file="$1"
+          if [ -f "$file" ] && [ -s "$file" ]; then
+            local crit=$(jq -r '.results[]? | select(.issue_severity == "HIGH") | .issue_severity' "$file" 2>/dev/null | wc -l || echo 0)
+            local high=$(jq -r '.results[]? | select(.issue_severity == "MEDIUM") | .issue_severity' "$file" 2>/dev/null | wc -l || echo 0)
+            local med=$(jq -r '.results[]? | select(.issue_severity == "LOW") | .issue_severity' "$file" 2>/dev/null | wc -l || echo 0)
+            echo "$crit $high $med 0"
+          else
+            echo "0 0 0 0"
+          fi
+        }
+
+        # Function to parse Safety JSON format
+        parse_safety() {
+          local file="$1"
+          if [ -f "$file" ] && [ -s "$file" ]; then
+            # Safety vulnerabilities are typically all high/critical
+            local total=$(jq -r 'if type == "array" then length else (.vulnerabilities // [] | length) end' "$file" 2>/dev/null || echo 0)
+            echo "$total 0 0 0"
+          else
+            echo "0 0 0 0"
+          fi
+        }
+
+        # Function to parse Checkov JSON format
+        parse_checkov() {
+          local file="$1"
+          if [ -f "$file" ] && [ -s "$file" ]; then
+            local crit=$(jq -r '.results.failed_checks[]? | select(.severity == "CRITICAL") | .check_id' "$file" 2>/dev/null | wc -l || echo 0)
+            local high=$(jq -r '.results.failed_checks[]? | select(.severity == "HIGH") | .check_id' "$file" 2>/dev/null | wc -l || echo 0)
+            local med=$(jq -r '.results.failed_checks[]? | select(.severity == "MEDIUM") | .check_id' "$file" 2>/dev/null | wc -l || echo 0)
+            local low=$(jq -r '.results.failed_checks[]? | select(.severity == "LOW" or .severity == "INFO") | .check_id' "$file" 2>/dev/null | wc -l || echo 0)
+            echo "$crit $high $med $low"
+          else
+            echo "0 0 0 0"
+          fi
+        }
+
+        # Function to parse Hadolint JSON format
+        parse_hadolint() {
+          local file="$1"
+          if [ -f "$file" ] && [ -s "$file" ]; then
+            local crit=0  # Hadolint doesn't typically have critical
+            local high=$(jq -r '.[]? | select(.level == "error") | .code' "$file" 2>/dev/null | wc -l || echo 0)
+            local med=$(jq -r '.[]? | select(.level == "warning") | .code' "$file" 2>/dev/null | wc -l || echo 0)
+            local low=$(jq -r '.[]? | select(.level == "info" or .level == "style") | .code' "$file" 2>/dev/null | wc -l || echo 0)
+            echo "$crit $high $med $low"
+          else
+            echo "0 0 0 0"
+          fi
+        }
+
+        # Function to parse Gitleaks JSON format
+        parse_gitleaks() {
+          local file="$1"
+          if [ -f "$file" ] && [ -s "$file" ]; then
+            # All detected secrets are critical
+            local crit=$(jq -r 'if type == "array" then length else 0 end' "$file" 2>/dev/null || echo 0)
+            echo "$crit 0 0 0"
+          else
+            echo "0 0 0 0"
+          fi
+        }
+
+        # Function to parse OpenGrep/Semgrep JSON format
+        parse_opengrep() {
+          local file="$1"
+          if [ -f "$file" ] && [ -s "$file" ]; then
+            local crit=$(jq -r '.results[]? | select(.extra.severity == "ERROR") | .check_id' "$file" 2>/dev/null | wc -l || echo 0)
+            local high=$(jq -r '.results[]? | select(.extra.severity == "WARNING") | .check_id' "$file" 2>/dev/null | wc -l || echo 0)
+            local med=$(jq -r '.results[]? | select(.extra.severity == "INFO") | .check_id' "$file" 2>/dev/null | wc -l || echo 0)
+            local low=0
+            echo "$crit $high $med $low"
+          else
+            echo "0 0 0 0"
+          fi
+        }
+
+        # Parse CodeQL results (SARIF format) 
+        codeql_file=$(find . -name "*codeql*.sarif" | head -1)
+        if [ -n "$codeql_file" ]; then
+          codeql_counts=$(parse_sarif "$codeql_file")
+        else
+          codeql_counts="0 0 0 0"
+        fi
+        read codeql_crit codeql_high codeql_med codeql_low <<< "$codeql_counts"
+        codeql_total=$((codeql_crit + codeql_high + codeql_med + codeql_low))
+
+        # Parse OpenGrep results
+        opengrep_counts=$(parse_opengrep "opengrep-reports/opengrep.json")
+        read opengrep_crit opengrep_high opengrep_med opengrep_low <<< "$opengrep_counts"
+        opengrep_total=$((opengrep_crit + opengrep_high + opengrep_med + opengrep_low))
+
+        # Parse Bandit results
+        bandit_counts=$(parse_bandit "bandit-reports/bandit-report.json")
+        read bandit_crit bandit_high bandit_med bandit_low <<< "$bandit_counts"
+        bandit_total=$((bandit_crit + bandit_high + bandit_med + bandit_low))
+
+        # Parse Safety results
+        safety_file=$(find . -name "safety*.json" | head -1)
+        if [ -n "$safety_file" ]; then
+          safety_counts=$(parse_safety "$safety_file")
+        else
+          safety_counts="0 0 0 0"
+        fi
+        read safety_crit safety_high safety_med safety_low <<< "$safety_counts"
+        safety_total=$((safety_crit + safety_high + safety_med + safety_low))
+
+        # Parse Checkov results
+        checkov_counts=$(parse_checkov "checkov-reports/checkov-terraform.json")
+        read checkov_crit checkov_high checkov_med checkov_low <<< "$checkov_counts"
+        checkov_total=$((checkov_crit + checkov_high + checkov_med + checkov_low))
+
+        # Parse Hadolint results
+        hadolint_file=$(find . -name "hadolint*.json" | head -1)
+        if [ -n "$hadolint_file" ]; then
+          hadolint_counts=$(parse_hadolint "$hadolint_file")
+        else
+          hadolint_counts="0 0 0 0"
+        fi
+        read hadolint_crit hadolint_high hadolint_med hadolint_low <<< "$hadolint_counts"
+        hadolint_total=$((hadolint_crit + hadolint_high + hadolint_med + hadolint_low))
+
+        # Parse Gitleaks results
+        gitleaks_counts=$(parse_gitleaks "gitleaks-reports/gitleaks-report.json")
+        read gitleaks_crit gitleaks_high gitleaks_med gitleaks_low <<< "$gitleaks_counts"
+        gitleaks_total=$((gitleaks_crit + gitleaks_high + gitleaks_med + gitleaks_low))
+
+        # Generate the enhanced table with actual vulnerability counts
+        echo "| CodeQL | $codeql_crit | $codeql_high | $codeql_med | $codeql_low | $codeql_total | ${{ needs.codeql-analysis.result }} |" >> sast-summary.md
+        echo "| OpenGrep | $opengrep_crit | $opengrep_high | $opengrep_med | $opengrep_low | $opengrep_total | ${{ needs.opengrep-analysis.result }} |" >> sast-summary.md
+        echo "| Bandit | $bandit_crit | $bandit_high | $bandit_med | $bandit_low | $bandit_total | ${{ needs.bandit-analysis.result }} |" >> sast-summary.md
+        echo "| Safety | $safety_crit | $safety_high | $safety_med | $safety_low | $safety_total | ${{ needs.safety-check.result }} |" >> sast-summary.md
+        echo "| Checkov (Terraform) | $checkov_crit | $checkov_high | $checkov_med | $checkov_low | $checkov_total | ${{ needs.terraform-security.result }} |" >> sast-summary.md
+        echo "| Hadolint (Docker) | $hadolint_crit | $hadolint_high | $hadolint_med | $hadolint_low | $hadolint_total | ${{ needs.dockerfile-security.result }} |" >> sast-summary.md
+        echo "| Gitleaks (Secrets) | $gitleaks_crit | $gitleaks_high | $gitleaks_med | $gitleaks_low | $gitleaks_total | ${{ needs.secrets-detection.result }} |" >> sast-summary.md
         echo "" >> sast-summary.md
+
+        # Calculate totals across all tools
+        total_crit=$((codeql_crit + opengrep_crit + bandit_crit + safety_crit + checkov_crit + hadolint_crit + gitleaks_crit))
+        total_high=$((codeql_high + opengrep_high + bandit_high + safety_high + checkov_high + hadolint_high + gitleaks_high))
+        total_med=$((codeql_med + opengrep_med + bandit_med + safety_med + checkov_med + hadolint_med + gitleaks_med))
+        total_low=$((codeql_low + opengrep_low + bandit_low + safety_low + checkov_low + hadolint_low + gitleaks_low))
+        total_all=$((total_crit + total_high + total_med + total_low))
+
+        echo "| **TOTAL** | **$total_crit** | **$total_high** | **$total_med** | **$total_low** | **$total_all** | - |" >> sast-summary.md
+        echo "" >> sast-summary.md
+
+        # Add priority recommendations based on actual vulnerability counts
+        if [ $total_crit -gt 0 ]; then
+          echo "## 🚨 CRITICAL PRIORITY" >> sast-summary.md
+          echo "" >> sast-summary.md
+          echo "**$total_crit critical vulnerabilities found!** These require immediate attention." >> sast-summary.md
+          echo "" >> sast-summary.md
+        fi
+
+        if [ $total_high -gt 0 ]; then
+          echo "## ⚠️ HIGH PRIORITY" >> sast-summary.md
+          echo "" >> sast-summary.md
+          echo "**$total_high high-severity vulnerabilities found.** Address these as soon as possible." >> sast-summary.md
+          echo "" >> sast-summary.md
+        fi
+
+        if [ $total_all -eq 0 ]; then
+          echo "## ✅ NO VULNERABILITIES DETECTED" >> sast-summary.md
+          echo "" >> sast-summary.md
+          echo "Great work! No security vulnerabilities were detected by the SAST tools." >> sast-summary.md
+          echo "" >> sast-summary.md
+        fi
 
         echo "## Security Reports Location" >> sast-summary.md
         echo "" >> sast-summary.md
