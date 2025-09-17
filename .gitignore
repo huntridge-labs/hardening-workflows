@@ -65,7 +65,6 @@ tmp/
 *.tfplan
 
 # local vuln scanner results
-vulnerability-dashboard/.defectdojo-token
 vulnerability-dashboard/docker-compose.override.yml
 vulnerability-dashboard/.env
 vulnerability-dashboard/.env.local
