@@ -39,6 +39,10 @@ jobs:
   code-quality-linting:
     name: Code Quality & Linting
     uses: ./.github/workflows/linting.yml
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
     # Never fail the pipeline on linting issues
 
   security-overview:
