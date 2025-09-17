@@ -470,14 +470,45 @@ jobs:
               report.substring(0, 65000) + '\n\n... (report truncated, download full report from artifacts)' :
               report;
 
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
+            const commentBody = `## 🛡️ Security Hardening Pipeline Results\n\n${summary}`;
+
+            // Check for existing security hardening comments to update instead of creating new ones
+            const comments = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `## 🛡️ Security Hardening Pipeline Results\n\n${summary}`
+              issue_number: context.issue.number
             });
             
-            console.log('✅ Successfully posted security hardening summary comment');
+            const existingComment = comments.data.find(comment => 
+              comment.body.includes('🛡️ Security Hardening Pipeline Results') && 
+              comment.user.type === 'Bot'
+            );
+            
+            if (existingComment) {
+              // Update existing comment with latest information
+              console.log('🔄 Updating existing security hardening comment');
+              const timestamp = new Date().toLocaleString();
+              const commitSha = context.sha.substring(0, 8);
+              const updatedBody = commentBody + `\n\n---\n*Last updated: ${timestamp} | Commit: ${commitSha} | [View Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
+              
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: updatedBody
+              });
+            } else {
+              // Create new comment
+              console.log('� Creating new security hardening comment');
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: commentBody
+              });
+            }
+            
+            console.log('✅ Successfully posted/updated security hardening summary comment');
           } catch (error) {
             console.log('❌ Failed to post security summary comment:', error.message);
             console.log('Error status:', error.status);

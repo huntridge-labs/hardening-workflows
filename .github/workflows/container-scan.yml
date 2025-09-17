@@ -553,14 +553,44 @@ jobs:
               commentBody = `## 🐳 Container Security Analysis Results\n\n${truncatedReport}`;
             }
 
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
+            // Check for existing container security comments to update instead of creating new ones
+            const comments = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: commentBody
+              issue_number: context.issue.number
             });
             
-            console.log('✅ Successfully posted container security summary comment');
+            const existingComment = comments.data.find(comment => 
+              (comment.body.includes('🐳 Container Security Analysis') || 
+               comment.body.includes('🐳 Container Security')) && 
+              comment.user.type === 'Bot'
+            );
+            
+            if (existingComment) {
+              // Update existing comment with latest information
+              console.log('🔄 Updating existing container security comment');
+              const timestamp = new Date().toLocaleString();
+              const commitSha = context.sha.substring(0, 8);
+              const updatedBody = commentBody + `\n\n---\n*Last updated: ${timestamp} | Commit: ${commitSha} | [View Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
+              
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: updatedBody
+              });
+            } else {
+              // Create new comment
+              console.log('📝 Creating new container security comment');
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: commentBody
+              });
+            }
+            
+            console.log('✅ Successfully posted/updated container security summary comment');
             core.setOutput('comment_posted', 'true');
           } catch (error) {
             console.log('❌ Failed to post container security comment:', error.message);
