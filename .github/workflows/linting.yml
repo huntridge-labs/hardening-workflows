@@ -77,7 +77,7 @@ jobs:
         
     - name: Upload YAML lint results
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: yaml-lint-results
         path: /tmp/yaml_issues.txt
@@ -141,7 +141,7 @@ jobs:
         
     - name: Upload JSON lint results
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: json-lint-results
         path: /tmp/json_issues.txt
@@ -226,7 +226,7 @@ jobs:
         
     - name: Upload Python lint results
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: python-lint-results
         path: /tmp/python_issues.txt
@@ -309,7 +309,7 @@ jobs:
         
     - name: Upload JavaScript lint results
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: js-lint-results
         path: /tmp/js_issues.txt
@@ -378,7 +378,7 @@ jobs:
         
     - name: Upload Dockerfile lint results
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: dockerfile-lint-results
         path: /tmp/docker_issues.txt
@@ -467,7 +467,7 @@ jobs:
         
     - name: Upload Terraform lint results
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: terraform-lint-results
         path: /tmp/terraform_issues.txt
@@ -554,7 +554,7 @@ jobs:
         
     - name: Upload combined lint report
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: combined-lint-report
         path: lint_report.md
