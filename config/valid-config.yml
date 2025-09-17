@@ -1,0 +1,106 @@
+---
+# Valid YAML configuration that should pass linting
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: secure-app-config
+  namespace: production
+  labels:
+    app: secure-application
+    version: "1.0.0"
+    environment: production
+data:
+  # Database configuration
+  database:
+    host: "${DB_HOST}"
+    port: 5432
+    name: "${DB_NAME}"
+    ssl_mode: require
+    connection_timeout: 30
+    max_connections: 20
+
+  # Security configuration
+  security:
+    encryption:
+      algorithm: "AES-256-GCM"
+      key_rotation_days: 90
+    authentication:
+      session_timeout: 1800  # 30 minutes
+      max_login_attempts: 3
+      lockout_duration: 900  # 15 minutes
+    cors:
+      allowed_origins:
+        - "https://app.example.com"
+        - "https://api.example.com"
+      allowed_methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+      allowed_headers:
+        - "Content-Type"
+        - "Authorization"
+        - "X-Requested-With"
+
+  # Application configuration
+  application:
+    name: "Secure Application"
+    version: "1.0.0"
+    environment: production
+    debug: false
+    log_level: "INFO"
+    features:
+      feature_a: true
+      feature_b: false
+      feature_c: true
+
+  # Rate limiting
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 60
+    burst_size: 10
+    cleanup_interval: 300
+
+  # Monitoring and health checks
+  monitoring:
+    health_check:
+      enabled: true
+      path: "/health"
+      interval: 30
+    metrics:
+      enabled: true
+      path: "/metrics"
+      port: 9090
+
+  # File upload restrictions
+  upload:
+    max_file_size: 10485760  # 10MB
+    allowed_extensions:
+      - ".jpg"
+      - ".jpeg"
+      - ".png"
+      - ".pdf"
+      - ".txt"
+    scan_for_malware: true
+
+# Service configuration
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: secure-app-service
+  labels:
+    app: secure-application
+spec:
+  selector:
+    app: secure-application
+  ports:
+    - name: https
+      port: 443
+      targetPort: 8443
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+  type: ClusterIP

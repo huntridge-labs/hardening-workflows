@@ -1,0 +1,113 @@
+---
+# Invalid YAML that should fail linting due to various issues
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vulnerable-app-config  
+  namespace: default
+  labels:
+    app: vulnerable-application
+    version: 1.0.0          # Should be quoted
+data:
+  # Hard-coded credentials (security issue)
+  database:
+    host: "localhost"
+    port: 5432
+    username: "admin"
+    password: "password123"  # Hard-coded password
+    connection_string: "postgresql://admin:password123@localhost:5432/mydb"
+  
+  # Insecure configuration
+  security:
+    encryption:
+      algorithm: "MD5"       # Weak algorithm
+      key: "12345"           # Hard-coded encryption key
+    authentication:
+      session_timeout: 86400 # 24 hours - too long
+      max_login_attempts: 100 # Too permissive
+      require_2fa: false     # Insecure
+    cors:
+      allowed_origins: 
+        - "*"                # Wildcard CORS - insecure
+      allowed_methods: 
+        - "GET"
+        - "POST"
+        - "PUT"
+        - "DELETE"
+        - "OPTIONS"
+        - "PATCH"
+        - "HEAD"
+  
+  # Debugging enabled in production
+  application:
+    name: Vulnerable Application    # Inconsistent quoting
+    version: '1.0.0'
+    environment: "production"
+    debug: true                     # Debug enabled in production
+    log_level: DEBUG               # Debug logging in production
+    admin_endpoints: true          # Admin endpoints enabled
+    
+  # No rate limiting
+  rate_limiting:
+    enabled: false                 # Rate limiting disabled
+    
+  # Overly permissive file uploads
+  upload:
+    max_file_size: 1073741824      # 1GB - too large
+    allowed_extensions: 
+      - "*"                        # All file types allowed
+    scan_for_malware: false        # No malware scanning
+    
+  # Exposed sensitive endpoints
+  monitoring:
+    debug_endpoint: "/debug"
+    admin_panel: "/admin"
+    database_console: "/db-console"
+    
+  # API keys and secrets (should not be in config)
+  api_keys:
+    stripe: "sk_live_1234567890"
+    aws_access_key: "AKIA1234567890"
+    aws_secret_key: "secretkey123456789"
+    jwt_secret: "my-secret-key"
+    
+  # Insecure network configuration
+  network:
+    allow_http: true               # HTTP allowed
+    ssl_verification: false        # SSL verification disabled
+    trust_all_certificates: true   # Trust all certs
+    
+# Line length violation - this comment is intentionally very long to exceed the YAML linting line length limit which is typically set to 120 characters or less in most configurations
+
+  # Inconsistent indentation below (will cause linting errors)
+    bad_indentation:
+  key1: value1
+      key2: value2
+   key3: value3
+
+  # Trailing whitespace and tabs (linting issues)  	
+  problematic_formatting:    
+    key_with_trailing_spaces: "value"   
+    key_with_tabs:	"value"
+
+  # Missing quotes around special characters
+  special_chars:
+    colon_in_value: http://example.com:8080/path
+    at_symbol: user@domain.com
+    
+  # Duplicate keys (YAML issue)
+  duplicate_test:
+    same_key: "value1"
+    same_key: "value2"
+    
+---
+# Another document with issues
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hardcoded-secrets
+data:
+  # Base64 encoded but still hardcoded secrets
+  api-key: c2stbGl2ZV8xMjM0NTY3ODkw        # sk_live_1234567890
+  password: cGFzc3dvcmQxMjM=                # password123
+  database-url: bW9uZ29kYjovL2FkbWluOnBhc3N3b3JkQGxvY2FsaG9zdDoyNzAxNy9teWRi  # mongodb://admin:password@localhost:27017/mydb

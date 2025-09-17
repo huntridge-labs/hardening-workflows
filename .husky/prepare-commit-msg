@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Cross-platform TODO and release-utils checker for Husky
+
+echo "Running .husky pre-commit-msg hook"
+
+# Run TODO checker (Node.js version for cross-platform compatibility)
+if [ -f ".husky/check-todos.js" ]; then
+    node .husky/check-todos.js
+else
+    echo "Warning: TODO checker script not found"
+fi
+
+npm run commitizen || true
+exec </dev/tty && npx git-cz --hook || true

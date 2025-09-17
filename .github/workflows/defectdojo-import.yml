@@ -1,0 +1,129 @@
+name: DefectDojo Integration
+
+on:
+  workflow_run:
+    workflows: ["SAST Security Analysis", "Container Security Scan"]
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      force_import:
+        description: 'Force import even if DefectDojo is not available'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  DEFECTDOJO_URL: http://localhost
+
+jobs:
+  import-to-defectdojo:
+    name: Import Security Scan Results
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch'
+    continue-on-error: true  # Don't fail the pipeline if DefectDojo is unavailable
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        cd vulnerability-dashboard
+        pip install -r requirements.txt
+
+    - name: Download security scan artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: security-*
+        path: ./scan-artifacts/
+        merge-multiple: true
+      continue-on-error: true
+
+    - name: List available artifacts
+      run: |
+        echo "📁 Available scan artifacts:"
+        find ./scan-artifacts/ -type f -name "*.json" | head -20
+        echo ""
+        echo "📊 Artifact summary:"
+        find ./scan-artifacts/ -type f -name "*.json" | wc -l | xargs echo "Total JSON files:"
+
+    - name: Check DefectDojo availability
+      id: check-defectdojo
+      run: |
+        if curl -s --connect-timeout 10 "$DEFECTDOJO_URL" > /dev/null; then
+          echo "available=true" >> $GITHUB_OUTPUT
+          echo "✅ DefectDojo is available at $DEFECTDOJO_URL"
+        else
+          echo "available=false" >> $GITHUB_OUTPUT
+          echo "⚠️ DefectDojo is not available at $DEFECTDOJO_URL"
+        fi
+
+    - name: Import scan results to DefectDojo
+      if: steps.check-defectdojo.outputs.available == 'true' || github.event.inputs.force_import == 'true'
+      run: |
+        cd vulnerability-dashboard
+
+        # Create temporary artifacts directory structure
+        mkdir -p temp-artifacts
+
+        # Copy and organize scan results
+        if [ -d "../scan-artifacts" ]; then
+          echo "📥 Organizing scan results..."
+
+          # Copy files with proper naming for our importer
+          find ../scan-artifacts -name "*bandit*" -type f -exec cp {} temp-artifacts/ \;
+          find ../scan-artifacts -name "*safety*" -type f -exec cp {} temp-artifacts/ \;
+          find ../scan-artifacts -name "*checkov*" -type f -exec cp {} temp-artifacts/ \;
+          find ../scan-artifacts -name "*gitleaks*" -type f -exec cp {} temp-artifacts/ \;
+          find ../scan-artifacts -name "*hadolint*" -type f -exec cp {} temp-artifacts/ \;
+          find ../scan-artifacts -name "*opengrep*" -type f -exec cp {} temp-artifacts/ \;
+          find ../scan-artifacts -name "*semgrep*" -type f -exec cp {} temp-artifacts/ \;
+          find ../scan-artifacts -name "*trivy*" -type f -exec cp {} temp-artifacts/ \;
+
+          echo "📋 Files prepared for import:"
+          ls -la temp-artifacts/
+        fi
+
+        # Import to DefectDojo
+        python import-scans.py \
+          --artifacts-dir temp-artifacts \
+          --defectdojo-url "$DEFECTDOJO_URL" \
+          --product-name "Agentic Automation VBA"
+
+    - name: Post import summary
+      if: steps.check-defectdojo.outputs.available == 'true'
+      run: |
+        echo "## 🛡️ DefectDojo Import Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Dashboard URL**: $DEFECTDOJO_URL" >> $GITHUB_STEP_SUMMARY
+        echo "**Product**: Agentic Automation VBA" >> $GITHUB_STEP_SUMMARY
+        echo "**Import Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ -d "vulnerability-dashboard/temp-artifacts" ]; then
+          file_count=$(find vulnerability-dashboard/temp-artifacts -type f -name "*.json" | wc -l)
+          echo "**Files Processed**: $file_count" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "View detailed results in DefectDojo dashboard." >> $GITHUB_STEP_SUMMARY
+
+    - name: DefectDojo unavailable notice
+      if: steps.check-defectdojo.outputs.available == 'false' && github.event.inputs.force_import != 'true'
+      run: |
+        echo "## ⚠️ DefectDojo Not Available" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "DefectDojo vulnerability dashboard is not currently available." >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Expected URL**: $DEFECTDOJO_URL" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "To enable automatic vulnerability import:" >> $GITHUB_STEP_SUMMARY
+        echo "1. Deploy DefectDojo instance" >> $GITHUB_STEP_SUMMARY
+        echo "2. Set repository variable \`DEFECTDOJO_URL\`" >> $GITHUB_STEP_SUMMARY
+        echo "3. Set repository secret \`DEFECTDOJO_API_KEY\`" >> $GITHUB_STEP_SUMMARY

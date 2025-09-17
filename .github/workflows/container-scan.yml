@@ -1,0 +1,374 @@
+name: Container Security Scanning
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - '**/Dockerfile*'
+      - '.github/workflows/container-scan.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - '**/Dockerfile*'
+      - '.github/workflows/container-scan.yml'
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  # Discover containers in this repository
+  discover-containers:
+    name: Discover Container Images
+    runs-on: ubuntu-latest
+    outputs:
+      containers: ${{ steps.discover.outputs.containers }}
+      has_containers: ${{ steps.discover.outputs.has_containers }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Discover Dockerfiles in repository
+      id: discover
+      run: |
+        echo "🔍 Discovering Dockerfiles in repository..."
+
+        # Find all Dockerfiles in the repository
+        DOCKERFILES=$(find . -name "Dockerfile*" -not -path "./.git/*" -type f)
+
+        if [ -z "$DOCKERFILES" ]; then
+          echo "ℹ️  No Dockerfiles found in repository"
+          echo "has_containers=false" >> $GITHUB_OUTPUT
+          echo "containers=[]" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        echo "Found Dockerfiles:"
+        echo "$DOCKERFILES"
+
+        # Create JSON array of containers to scan
+        containers="["
+        first=true
+
+        for dockerfile in $DOCKERFILES; do
+          # Extract directory and create container info
+          dir=$(dirname "$dockerfile")
+          name=$(basename "$dir")
+
+          # Handle special cases for naming
+          if [[ "$dockerfile" == *"vulnerable"* ]]; then
+            name="${name}-vulnerable"
+          elif [[ "$dockerfile" == *"secure"* ]]; then
+            name="${name}-secure"
+          fi
+
+          if [ "$first" = true ]; then
+            first=false
+          else
+            containers="$containers,"
+          fi
+
+          containers="$containers{\"dockerfile\":\"$dockerfile\",\"name\":\"$name\",\"context\":\"$dir\"}"
+        done
+
+        containers="$containers]"
+
+        echo "has_containers=true" >> $GITHUB_OUTPUT
+        echo "containers=$containers" >> $GITHUB_OUTPUT
+
+        echo "Container scan matrix:"
+        echo "$containers" | jq '.'
+
+  build-and-scan:
+    name: Build and Scan Container Images
+    runs-on: ubuntu-latest
+    needs: discover-containers
+    if: needs.discover-containers.outputs.has_containers == 'true'
+    timeout-minutes: 30
+    continue-on-error: true  # Allow pipeline to continue even if vulnerabilities found
+
+    strategy:
+      fail-fast: false
+      matrix:
+        container: ${{ fromJson(needs.discover-containers.outputs.containers) }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build container image
+      id: build
+      continue-on-error: true  # Don't fail if build has issues
+      run: |
+        # Generate image name and tag
+        IMAGE_NAME="hardening-test-$(echo '${{ matrix.container.name }}' | tr '/' '-' | tr '[:upper:]' '[:lower:]')"
+        IMAGE_TAG="scan-$(echo $GITHUB_SHA | cut -c1-8)"
+        FULL_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
+
+        echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
+        echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+        echo "full_image=$FULL_IMAGE" >> $GITHUB_OUTPUT
+
+        echo "🔨 Building image: $FULL_IMAGE"
+        echo "📄 Dockerfile: ${{ matrix.container.dockerfile }}"
+        echo "📁 Context: ${{ matrix.container.context }}"
+
+        # Build the image
+        if docker build \
+          --tag "$FULL_IMAGE" \
+          --file "${{ matrix.container.dockerfile }}" \
+          "${{ matrix.container.context }}"; then
+          echo "✅ Successfully built image: $FULL_IMAGE"
+          echo "build_success=true" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Failed to build image: $FULL_IMAGE"
+          echo "build_success=false" >> $GITHUB_OUTPUT
+          echo "::warning title=Build Failed::Failed to build ${{ matrix.container.name }} - this may be expected for vulnerable test containers"
+        fi
+
+    - name: Run Trivy vulnerability scanner (SARIF)
+      if: steps.build.outputs.build_success == 'true'
+      uses: aquasecurity/trivy-action@master
+      continue-on-error: true  # Never fail the pipeline
+      with:
+        image-ref: ${{ steps.build.outputs.full_image }}
+        format: 'sarif'
+        output: 'trivy-${{ matrix.container.name }}-results.sarif'
+
+    - name: Run Trivy vulnerability scanner (JSON)
+      if: steps.build.outputs.build_success == 'true'
+      uses: aquasecurity/trivy-action@master
+      continue-on-error: true  # Never fail the pipeline
+      with:
+        image-ref: ${{ steps.build.outputs.full_image }}
+        format: 'json'
+        output: 'trivy-${{ matrix.container.name }}-results.json'
+
+    - name: Run Trivy vulnerability scanner (Table)
+      if: steps.build.outputs.build_success == 'true'
+      uses: aquasecurity/trivy-action@master
+      continue-on-error: true  # Never fail the pipeline
+      with:
+        image-ref: ${{ steps.build.outputs.full_image }}
+        format: 'table'
+        output: 'trivy-${{ matrix.container.name }}-results.txt'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      if: steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act'
+      uses: github/codeql-action/upload-sarif@v3
+      continue-on-error: true  # Never fail the pipeline
+      with:
+        sarif_file: 'trivy-${{ matrix.container.name }}-results.sarif'
+
+    - name: Run Grype vulnerability scanner
+      if: steps.build.outputs.build_success == 'true'
+      uses: anchore/scan-action@v3
+      id: grype-scan
+      continue-on-error: true  # Never fail the pipeline
+      with:
+        image: ${{ steps.build.outputs.full_image }}
+        fail-build: false
+        output-format: sarif
+
+    - name: Upload Grype scan results
+      if: steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act'
+      uses: github/codeql-action/upload-sarif@v3
+      continue-on-error: true  # Never fail the pipeline
+      with:
+        sarif_file: ${{ steps.grype-scan.outputs.sarif }}
+
+    - name: Analyze scan results
+      if: always()
+      run: |
+        echo "📊 Container Security Analysis for ${{ matrix.container.name }}"
+        echo "=========================================="
+
+        if [ "${{ steps.build.outputs.build_success }}" != "true" ]; then
+          echo "⚠️  Container build failed - skipping security analysis"
+          echo "This may be expected for intentionally vulnerable test containers"
+          exit 0
+        fi
+
+        # Count vulnerabilities from Trivy JSON if available
+        if [ -f "trivy-${{ matrix.container.name }}-results.json" ]; then
+          CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' trivy-${{ matrix.container.name }}-results.json 2>/dev/null || echo "0")
+          HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' trivy-${{ matrix.container.name }}-results.json 2>/dev/null || echo "0")
+          MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length' trivy-${{ matrix.container.name }}-results.json 2>/dev/null || echo "0")
+          LOW=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW")] | length' trivy-${{ matrix.container.name }}-results.json 2>/dev/null || echo "0")
+
+          echo "🔍 Vulnerability Summary:"
+          echo "  Critical: $CRITICAL"
+          echo "  High: $HIGH"
+          echo "  Medium: $MEDIUM"
+          echo "  Low: $LOW"
+
+          TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
+
+          if [ "$TOTAL" -gt 0 ]; then
+            echo "⚠️  Found $TOTAL total vulnerabilities"
+            if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+              echo "::warning title=High Severity Vulnerabilities::Found $CRITICAL critical and $HIGH high severity vulnerabilities in ${{ matrix.container.name }}"
+            fi
+          else
+            echo "✅ No vulnerabilities found"
+          fi
+        fi
+
+        # Display sample of results if available
+        if [ -f "trivy-${{ matrix.container.name }}-results.txt" ]; then
+          echo ""
+          echo "📋 Sample Trivy Results:"
+          head -20 "trivy-${{ matrix.container.name }}-results.txt" || echo "Could not display results"
+        fi
+
+    - name: Create container scan summary
+      if: always()
+      run: |
+        echo "# Container Scan Summary - ${{ matrix.container.name }}" > container-summary-${{ matrix.container.name }}.md
+        echo "" >> container-summary-${{ matrix.container.name }}.md
+        echo "**Dockerfile:** ${{ matrix.container.dockerfile }}" >> container-summary-${{ matrix.container.name }}.md
+        echo "**Context:** ${{ matrix.container.context }}" >> container-summary-${{ matrix.container.name }}.md
+        echo "**Build Status:** ${{ steps.build.outputs.build_success == 'true' && 'Success' || 'Failed' }}" >> container-summary-${{ matrix.container.name }}.md
+
+        if [ "${{ steps.build.outputs.build_success }}" == "true" ]; then
+          echo "**Image:** ${{ steps.build.outputs.full_image }}" >> container-summary-${{ matrix.container.name }}.md
+        fi
+
+        echo "" >> container-summary-${{ matrix.container.name }}.md
+
+        if [ "${{ steps.build.outputs.build_success }}" == "true" ] && [ -f "trivy-${{ matrix.container.name }}-results.txt" ]; then
+          echo "## Security Scan Results" >> container-summary-${{ matrix.container.name }}.md
+          echo "\`\`\`" >> container-summary-${{ matrix.container.name }}.md
+          head -50 "trivy-${{ matrix.container.name }}-results.txt" >> container-summary-${{ matrix.container.name }}.md
+          echo "\`\`\`" >> container-summary-${{ matrix.container.name }}.md
+        elif [ "${{ steps.build.outputs.build_success }}" != "true" ]; then
+          echo "## Build Failed" >> container-summary-${{ matrix.container.name }}.md
+          echo "Container build failed. This may be expected for intentionally vulnerable test containers." >> container-summary-${{ matrix.container.name }}.md
+        else
+          echo "## No Scan Results" >> container-summary-${{ matrix.container.name }}.md
+          echo "No security scan results available." >> container-summary-${{ matrix.container.name }}.md
+        fi
+
+        echo "" >> container-summary-${{ matrix.container.name }}.md
+        echo "**Scan completed:** $(date)" >> container-summary-${{ matrix.container.name }}.md
+
+    - name: Archive vulnerability scan results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: container-scan-results-${{ matrix.container.name }}
+        path: |
+          trivy-${{ matrix.container.name }}-results.*
+          container-summary-${{ matrix.container.name }}.md
+        retention-days: 30
+
+  container-scan-summary:
+    name: Container Scan Summary
+    runs-on: ubuntu-latest
+    needs: [discover-containers, build-and-scan]
+    if: always()
+
+    steps:
+    - name: Download all scan artifacts
+      if: needs.discover-containers.outputs.has_containers == 'true'
+      uses: actions/download-artifact@v4
+      continue-on-error: true
+
+    - name: Create comprehensive container security report
+      run: |
+        echo "# Container Security Scan Report" > container-security-report.md
+        echo "" >> container-security-report.md
+        echo "**Generated:** $(date)" >> container-security-report.md
+        echo "**Repository:** ${{ github.repository }}" >> container-security-report.md
+        echo "**Branch:** ${{ github.ref_name }}" >> container-security-report.md
+        echo "**Commit:** ${{ github.sha }}" >> container-security-report.md
+        echo "" >> container-security-report.md
+
+        if [ "${{ needs.discover-containers.outputs.has_containers }}" != "true" ]; then
+          echo "## No Containers Found" >> container-security-report.md
+          echo "" >> container-security-report.md
+          echo "No Dockerfiles were found in this repository to scan." >> container-security-report.md
+          echo "" >> container-security-report.md
+          echo "To add container scanning:" >> container-security-report.md
+          echo "1. Add Dockerfiles to your repository" >> container-security-report.md
+          echo "2. Push changes to trigger container scanning" >> container-security-report.md
+        else
+          echo "## Scan Overview" >> container-security-report.md
+          echo "" >> container-security-report.md
+          echo "| Component | Status |" >> container-security-report.md
+          echo "|-----------|--------|" >> container-security-report.md
+          echo "| Container Discovery | ${{ needs.discover-containers.result }} |" >> container-security-report.md
+          echo "| Container Scanning | ${{ needs.build-and-scan.result }} |" >> container-security-report.md
+          echo "" >> container-security-report.md
+
+          echo "## Scanned Containers" >> container-security-report.md
+          echo "" >> container-security-report.md
+
+          # Include individual container summaries
+          if ls container-scan-results-*/container-summary-*.md 1> /dev/null 2>&1; then
+            for summary in container-scan-results-*/container-summary-*.md; do
+              if [ -f "$summary" ]; then
+                container_name=$(basename "$summary" .md | sed 's/container-summary-//')
+                echo "### $container_name" >> container-security-report.md
+                cat "$summary" >> container-security-report.md
+                echo "" >> container-security-report.md
+              fi
+            done
+          else
+            echo "No individual container summaries available." >> container-security-report.md
+          fi
+        fi
+
+        echo "## Security Testing Notes" >> container-security-report.md
+        echo "" >> container-security-report.md
+        echo "This repository contains both secure and vulnerable container examples for testing:" >> container-security-report.md
+        echo "" >> container-security-report.md
+        echo "- **Secure containers** should show minimal vulnerabilities" >> container-security-report.md
+        echo "- **Vulnerable containers** are intentionally insecure for testing detection capabilities" >> container-security-report.md
+        echo "- **Build failures** on vulnerable containers may be expected due to intentional issues" >> container-security-report.md
+        echo "" >> container-security-report.md
+
+        echo "## Security Recommendations" >> container-security-report.md
+        echo "" >> container-security-report.md
+        echo "1. **Use Minimal Base Images**: Prefer Alpine or distroless images" >> container-security-report.md
+        echo "2. **Keep Dependencies Updated**: Regularly update packages and base images" >> container-security-report.md
+        echo "3. **Run as Non-root**: Use non-privileged users in containers" >> container-security-report.md
+        echo "4. **Multi-stage Builds**: Use multi-stage builds to reduce attack surface" >> container-security-report.md
+        echo "5. **Security Scanning**: Integrate container scanning into CI/CD pipelines" >> container-security-report.md
+
+    - name: Upload container security report
+      uses: actions/upload-artifact@v4
+      with:
+        name: container-security-report
+        path: container-security-report.md
+        retention-days: 30
+
+    - name: Comment PR with container scan results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      continue-on-error: true
+      with:
+        script: |
+          const fs = require('fs');
+          try {
+            const report = fs.readFileSync('container-security-report.md', 'utf8');
+            const truncatedReport = report.length > 65000 ?
+              report.substring(0, 65000) + '\n\n... (report truncated, see artifacts for full report)' :
+              report;
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🐳 Container Security Scan Results\n\n${truncatedReport}`
+            });
+          } catch (error) {
+            console.log('Could not create PR comment:', error.message);
+          }

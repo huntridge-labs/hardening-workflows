@@ -1,0 +1,400 @@
+name: Security Hardening Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  # Reduced schedule frequency to reduce noise - now monthly instead of weekly
+  schedule:
+    # Run comprehensive security checks monthly on the first Sunday at 1 AM UTC
+    - cron: '0 1 1 * 0'
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: 'Type of security scan to run'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - sast-only
+          - container-only
+          - infrastructure-only
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+
+env:
+  AWS_ACCOUNT_ID: 701186259805
+  AWS_REGION: us-east-1
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  # Run linting first to catch basic code quality issues
+  code-quality-linting:
+    name: Code Quality & Linting
+    uses: ./.github/workflows/linting.yml
+    # Never fail the pipeline on linting issues
+
+  security-overview:
+    name: Security Overview
+    runs-on: ubuntu-latest
+    needs: [code-quality-linting]  # Wait for linting to complete
+    if: always()  # Run even if linting finds issues
+    outputs:
+      scan_type: ${{ steps.determine-scan.outputs.scan_type }}
+      should_run_sast: ${{ steps.determine-scan.outputs.should_run_sast }}
+      should_run_container: ${{ steps.determine-scan.outputs.should_run_container }}
+      should_run_infrastructure: ${{ steps.determine-scan.outputs.should_run_infrastructure }}
+      linting_status: ${{ needs.code-quality-linting.outputs.linting_status }}
+      linting_issues: ${{ needs.code-quality-linting.outputs.issues_found }}
+
+    steps:
+    - name: Determine scan type
+      id: determine-scan
+      run: |
+        SCAN_TYPE="${{ github.event.inputs.scan_type }}"
+        if [ -z "$SCAN_TYPE" ]; then
+          SCAN_TYPE="full"
+        fi
+
+        echo "scan_type=$SCAN_TYPE" >> $GITHUB_OUTPUT
+
+        # Display linting results
+        LINTING_STATUS="${{ needs.code-quality-linting.outputs.linting_status }}"
+        LINTING_ISSUES="${{ needs.code-quality-linting.outputs.issues_found }}"
+        
+        echo "📊 Code Quality Summary:"
+        echo "Linting Status: $LINTING_STATUS"
+        echo "Issues Found: $LINTING_ISSUES"
+        
+        if [ "$LINTING_ISSUES" != "0" ] && [ -n "$LINTING_ISSUES" ]; then
+          echo "::warning title=Code Quality Issues::Found $LINTING_ISSUES linting issues. Security scans will continue."
+        fi
+
+        case "$SCAN_TYPE" in
+          "full")
+            echo "should_run_sast=true" >> $GITHUB_OUTPUT
+            echo "should_run_container=true" >> $GITHUB_OUTPUT
+            echo "should_run_infrastructure=true" >> $GITHUB_OUTPUT
+            ;;
+          "sast-only")
+            echo "should_run_sast=true" >> $GITHUB_OUTPUT
+            echo "should_run_container=false" >> $GITHUB_OUTPUT
+            echo "should_run_infrastructure=false" >> $GITHUB_OUTPUT
+            ;;
+          "container-only")
+            echo "should_run_sast=false" >> $GITHUB_OUTPUT
+            echo "should_run_container=true" >> $GITHUB_OUTPUT
+            echo "should_run_infrastructure=false" >> $GITHUB_OUTPUT
+            ;;
+          "infrastructure-only")
+            echo "should_run_sast=false" >> $GITHUB_OUTPUT
+            echo "should_run_container=false" >> $GITHUB_OUTPUT
+            echo "should_run_infrastructure=true" >> $GITHUB_OUTPUT
+            ;;
+        esac
+
+  run-sast-pipeline:
+    name: Trigger SAST Pipeline
+    needs: security-overview
+    if: needs.security-overview.outputs.should_run_sast == 'true'
+    uses: ./.github/workflows/sast.yml
+    secrets: inherit
+
+  run-container-pipeline:
+    name: Trigger Container Security Pipeline
+    needs: security-overview
+    if: needs.security-overview.outputs.should_run_container == 'true'
+    uses: ./.github/workflows/container-scan.yml
+    secrets: inherit
+
+  infrastructure-security:
+    name: Infrastructure Security Analysis
+    runs-on: ubuntu-latest
+    needs: security-overview
+    if: needs.security-overview.outputs.should_run_infrastructure == 'true'
+    timeout-minutes: 20
+    continue-on-error: true  # Allow pipeline to continue even if security issues found
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Install security tools
+      run: |
+        # Install Checkov for Infrastructure as Code scanning
+        pip install checkov
+
+        # Install Terrascan
+        curl -L "$(curl -s https://api.github.com/repos/tenable/terrascan/releases/latest | grep -o -E "https://.+?_Linux_x86_64.tar.gz")" > terrascan.tar.gz
+        tar -xf terrascan.tar.gz terrascan && rm terrascan.tar.gz
+        sudo mv terrascan /usr/local/bin
+
+        # Install Trivy for infrastructure scanning
+        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+        echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+        sudo apt-get update && sudo apt-get install -y trivy
+
+    - name: Terraform Security Scan - Trivy
+      run: |
+        echo "🔍 Running Trivy infrastructure security scan..."
+        cd infrastructure
+        trivy config --format sarif --output trivy-results.sarif .
+        trivy config --format json --output trivy-results.json .
+        trivy config --output trivy-results.txt .
+      continue-on-error: true  # Continue even if security issues are found
+
+    - name: Terraform Security Scan - Checkov
+      run: |
+        echo "🏗️ Running Checkov infrastructure security scan..."
+        cd infrastructure
+        checkov -d . --framework terraform --output sarif --output-file-path checkov-results.sarif
+        checkov -d . --framework terraform --output json --output-file-path checkov-results.json
+        checkov -d . --framework terraform --output cli --output-file-path checkov-results.txt
+      continue-on-error: true  # Continue even if security issues are found
+
+    - name: Terraform Security Scan - Terrascan
+      run: |
+        echo "🔧 Running Terrascan infrastructure security scan..."
+        cd infrastructure
+        terrascan scan -i terraform -t all --sarif-output terrascan-results.sarif
+        terrascan scan -i terraform -t all --output json > terrascan-results.json
+        terrascan scan -i terraform -t all > terrascan-results.txt
+      continue-on-error: true  # Continue even if security issues are found
+
+    - name: Upload Trivy Results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always() && github.actor != 'nektos/act'
+      with:
+        sarif_file: infrastructure/trivy-results.sarif
+
+    - name: Upload Checkov Results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always() && github.actor != 'nektos/act'
+      with:
+        sarif_file: infrastructure/checkov-results.sarif
+
+    - name: Upload Terrascan Results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always() && github.actor != 'nektos/act'
+      with:
+        sarif_file: infrastructure/terrascan-results.sarif
+
+    - name: Archive infrastructure scan results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: infrastructure-security-results
+        path: |
+          infrastructure/*-results.*
+        retention-days: 30
+
+  aws-security-analysis:
+    name: AWS Security Configuration Analysis
+    runs-on: ubuntu-latest
+    needs: security-overview
+    if: needs.security-overview.outputs.should_run_infrastructure == 'true' && github.ref == 'refs/heads/main'
+    timeout-minutes: 15
+    continue-on-error: true  # Allow pipeline to continue even if security issues found
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: "arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-oidc-role"
+        aws-region: ${{ env.AWS_REGION }}
+        role-session-name: "github-actions-security-${{ github.run_id }}"
+
+    - name: Install AWS security tools
+      run: |
+        pip install awscli boto3
+
+        # Install Scout Suite for AWS security analysis
+        pip install scoutsuite
+
+    - name: Run AWS Security Assessment
+      run: |
+        # Create a basic AWS security report
+        mkdir -p aws-security-report
+
+        # Check S3 bucket security
+        echo "# AWS Security Assessment Report" > aws-security-report/aws-security.md
+        echo "" >> aws-security-report/aws-security.md
+
+        echo "## S3 Bucket Security" >> aws-security-report/aws-security.md
+        aws s3api list-buckets --query 'Buckets[].Name' --output table >> aws-security-report/aws-security.md || true
+
+        echo "" >> aws-security-report/aws-security.md
+        echo "## IAM Roles" >> aws-security-report/aws-security.md
+        aws iam list-roles --query 'Roles[?contains(RoleName, `form-extraction`) || contains(RoleName, `github`)].RoleName' --output table >> aws-security-report/aws-security.md || true
+
+        echo "" >> aws-security-report/aws-security.md
+        echo "## Lambda Functions" >> aws-security-report/aws-security.md
+        aws lambda list-functions --query 'Functions[?contains(FunctionName, `field`) || contains(FunctionName, `doc`) || contains(FunctionName, `image`)].FunctionName' --output table >> aws-security-report/aws-security.md || true
+
+    - name: Upload AWS security report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: aws-security-report
+        path: aws-security-report/
+        retention-days: 30
+
+  license-compliance:
+    name: License Compliance Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true  # Allow pipeline to continue even if license issues found
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install license checker
+      run: |
+        pip install pip-licenses
+
+    - name: Check Python package licenses
+      run: |
+        mkdir -p license-reports
+
+        # Check licenses for main requirements
+        if [ -f "backend/app/requirements.txt" ]; then
+          pip install -r backend/app/requirements.txt
+          pip-licenses --format json --output-file license-reports/app-licenses.json || true
+          pip-licenses --format plain --output-file license-reports/app-licenses.txt || true
+        fi
+
+        # Check licenses for lambda functions
+        find backend/aws/lambda -name "requirements.txt" | while read req_file; do
+          dir_name=$(dirname "$req_file" | sed 's|/|_|g')
+          pip install -r "$req_file" --quiet
+          pip-licenses --format json --output-file "license-reports/${dir_name}-licenses.json" || true
+          pip-licenses --format plain --output-file "license-reports/${dir_name}-licenses.txt" || true
+        done
+
+    - name: Upload license reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: license-compliance-reports
+        path: license-reports/
+        retention-days: 30
+
+  security-summary:
+    name: Security Hardening Summary
+    runs-on: ubuntu-latest
+    needs: [security-overview, run-sast-pipeline, run-container-pipeline, infrastructure-security, aws-security-analysis, license-compliance]
+    if: always()
+
+    steps:
+    - name: Download all security artifacts
+      uses: actions/download-artifact@v4
+
+    - name: Create comprehensive security report
+      run: |
+        echo "# Security Hardening Report" > security-hardening-report.md
+        echo "" >> security-hardening-report.md
+        echo "**Generated:** $(date)" >> security-hardening-report.md
+        echo "**Repository:** ${{ github.repository }}" >> security-hardening-report.md
+        echo "**Branch:** ${{ github.ref_name }}" >> security-hardening-report.md
+        echo "**Commit:** ${{ github.sha }}" >> security-hardening-report.md
+        echo "**Scan Type:** ${{ needs.security-overview.outputs.scan_type }}" >> security-hardening-report.md
+        echo "" >> security-hardening-report.md
+
+        echo "## Security Pipeline Status" >> security-hardening-report.md
+        echo "" >> security-hardening-report.md
+        echo "| Component | Status | Executed |" >> security-hardening-report.md
+        echo "|-----------|--------|----------|" >> security-hardening-report.md
+        echo "| SAST Pipeline | ${{ needs.run-sast-pipeline.result }} | ${{ needs.security-overview.outputs.should_run_sast }} |" >> security-hardening-report.md
+        echo "| Container Security | ${{ needs.run-container-pipeline.result }} | ${{ needs.security-overview.outputs.should_run_container }} |" >> security-hardening-report.md
+        echo "| Infrastructure Security | ${{ needs.infrastructure-security.result }} | ${{ needs.security-overview.outputs.should_run_infrastructure }} |" >> security-hardening-report.md
+        echo "| AWS Security Analysis | ${{ needs.aws-security-analysis.result }} | ${{ github.ref == 'refs/heads/main' }} |" >> security-hardening-report.md
+        echo "| License Compliance | ${{ needs.license-compliance.result }} | true |" >> security-hardening-report.md
+        echo "" >> security-hardening-report.md
+
+        echo "## Security Artifacts Generated" >> security-hardening-report.md
+        echo "" >> security-hardening-report.md
+        echo "The following security artifacts have been generated and uploaded:" >> security-hardening-report.md
+        echo "" >> security-hardening-report.md
+
+        # List all available artifacts
+        for dir in */; do
+          if [ -d "$dir" ]; then
+            echo "- **${dir%/}**" >> security-hardening-report.md
+            find "$dir" -name "*.md" -o -name "*.json" -o -name "*.txt" | head -5 | while read file; do
+              echo "  - $(basename "$file")" >> security-hardening-report.md
+            done
+          fi
+        done
+
+        echo "" >> security-hardening-report.md
+        echo "## Security Recommendations" >> security-hardening-report.md
+        echo "" >> security-hardening-report.md
+        echo "### Immediate Actions" >> security-hardening-report.md
+        echo "1. Review all CRITICAL and HIGH severity findings in the Security tab" >> security-hardening-report.md
+        echo "2. Update dependencies with known vulnerabilities" >> security-hardening-report.md
+        echo "3. Address container security issues in base images" >> security-hardening-report.md
+        echo "4. Review infrastructure security configurations" >> security-hardening-report.md
+        echo "" >> security-hardening-report.md
+        echo "### Long-term Improvements" >> security-hardening-report.md
+        echo "1. Implement automated dependency updates (Dependabot)" >> security-hardening-report.md
+        echo "2. Set up continuous security monitoring" >> security-hardening-report.md
+        echo "3. Establish security baseline and metrics" >> security-hardening-report.md
+        echo "4. Regular security training for development team" >> security-hardening-report.md
+        echo "5. Implement security policies as code" >> security-hardening-report.md
+        echo "" >> security-hardening-report.md
+        echo "### Compliance Considerations" >> security-hardening-report.md
+        echo "1. Review license compliance for all dependencies" >> security-hardening-report.md
+        echo "2. Ensure GDPR/privacy compliance for data processing" >> security-hardening-report.md
+        echo "3. Document security controls and procedures" >> security-hardening-report.md
+        echo "4. Regular security audits and penetration testing" >> security-hardening-report.md
+
+    - name: Upload comprehensive security report
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-hardening-report
+        path: security-hardening-report.md
+        retention-days: 90
+
+    - name: Comment PR with security summary
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          try {
+            const report = fs.readFileSync('security-hardening-report.md', 'utf8');
+            const summary = report.length > 65000 ?
+              report.substring(0, 65000) + '\n\n... (report truncated, download full report from artifacts)' :
+              report;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🛡️ Security Hardening Pipeline Results\n\n${summary}`
+            });
+          } catch (error) {
+            console.log('Error creating security summary comment:', error);
+          }

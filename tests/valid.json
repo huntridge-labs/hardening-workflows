@@ -1,0 +1,26 @@
+{
+  "name": "test-config",
+  "version": "1.0.0",
+  "description": "Valid JSON configuration for testing",
+  "author": "Security Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.0",
+    "helmet": "^6.0.0",
+    "bcrypt": "^5.1.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "jest",
+    "lint": "eslint .",
+    "security-audit": "npm audit"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "security",
+    "testing",
+    "hardening"
+  ]
+}

@@ -1,0 +1,2 @@
+echo "Running .husky pre-commit hook"
+pre-commit run --all-files --show-diff-on-failure

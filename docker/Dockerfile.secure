@@ -1,0 +1,69 @@
+# Secure Dockerfile following best practices
+# Multi-stage build for minimal attack surface
+FROM node:18-alpine AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Create non-root user early
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001
+
+# Copy package files and install dependencies
+COPY package*.json ./
+RUN npm ci --only=production && \
+    npm cache clean --force
+
+# Copy source code
+COPY --chown=nextjs:nodejs src/ ./src/
+COPY --chown=nextjs:nodejs config/ ./config/
+
+# Production stage
+FROM node:18-alpine AS production
+
+# Install security updates
+RUN apk update && \
+    apk upgrade && \
+    apk add --no-cache dumb-init && \
+    rm -rf /var/cache/apk/*
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001
+
+# Set working directory
+WORKDIR /app
+
+# Copy built application from builder stage
+COPY --from=builder --chown=nextjs:nodejs /app ./
+
+# Remove unnecessary packages and files
+RUN npm prune --production && \
+    rm -rf /tmp/* /var/tmp/* /root/.npm
+
+# Set security headers and configurations
+ENV NODE_ENV=production
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false
+ENV NPM_CONFIG_FUND=false
+
+# Use non-root user
+USER nextjs
+
+# Expose port (non-privileged)
+EXPOSE 3000
+
+# Use dumb-init for proper signal handling
+ENTRYPOINT ["dumb-init", "--"]
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD node healthcheck.js || exit 1
+
+# Start application
+CMD ["node", "src/secure_app.js"]
+
+# Security labels
+LABEL security.scan="enabled"
+LABEL security.non-root="true"
+LABEL security.readonly-rootfs="true"
+LABEL maintainer="security-team@example.com"

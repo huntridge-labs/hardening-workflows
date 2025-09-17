@@ -1,0 +1,30 @@
+name: "Security Configuration"
+
+disable-default-queries: false
+
+queries:
+  - name: security-and-quality
+    uses: security-and-quality
+
+paths-ignore:
+  - "**/*.md"
+  - "**/*.txt"
+  - "**/*.json"
+  - "**/node_modules/**"
+  - "**/venv/**"
+  - "**/__pycache__/**"
+  - "**/tests/**"
+  - "**/test_*.py"
+  - "**/*_test.py"
+  - "**/conftest.py"
+
+paths:
+  - "backend/"
+  - "infrastructure/"
+  - "scripts/"
+
+packs:
+  python:
+    - codeql/python-queries:AlertSuppression.ql
+    - codeql/python-queries:Security/
+    - codeql/python-queries:Correctness/
