@@ -23,12 +23,9 @@ paths:
   - "infrastructure/"
   - "scripts/"
 
+# Simplified packs configuration - use built-in query suites
 packs:
   javascript:
-    - codeql/javascript-queries:AlertSuppression.ql
-    - codeql/javascript-queries:Security/
-    - codeql/javascript-queries:Correctness/
+    - codeql/javascript-queries
   python:
-    - codeql/python-queries:AlertSuppression.ql
-    - codeql/python-queries:Security/
-    - codeql/python-queries:Correctness/
+    - codeql/python-queries
