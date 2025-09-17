@@ -110,6 +110,8 @@ jobs:
     needs: security-overview
     if: needs.security-overview.outputs.should_run_sast == 'true'
     uses: ./.github/workflows/sast.yml
+    with:
+      post_pr_comment: false
     permissions:
       contents: read
       security-events: write
@@ -122,6 +124,8 @@ jobs:
     needs: security-overview
     if: needs.security-overview.outputs.should_run_container == 'true'
     uses: ./.github/workflows/container-scan.yml
+    with:
+      post_pr_comment: false
     permissions:
       contents: read
       security-events: write

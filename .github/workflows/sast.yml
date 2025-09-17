@@ -12,6 +12,12 @@ on:
   #   - cron: '0 2 * * *'
   workflow_dispatch:  # Keep for manual testing
   workflow_call:      # Keep for reusable workflow calls from security-hardening.yml
+    inputs:
+      post_pr_comment:
+        description: 'Whether to post PR comments (disabled when called from other workflows)'
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -725,7 +731,7 @@ jobs:
         retention-days: 30
 
     - name: Comment PR with Enhanced SAST Results
-      if: github.event_name == 'pull_request'
+      if: github.event_name == 'pull_request' && (inputs.post_pr_comment == null || inputs.post_pr_comment == true)
       uses: actions/github-script@v8
       continue-on-error: true  # Don't fail the workflow if commenting fails
       with:
