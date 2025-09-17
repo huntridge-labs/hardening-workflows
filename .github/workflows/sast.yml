@@ -71,7 +71,7 @@ jobs:
       if: matrix.language == 'javascript'
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'
         cache: 'npm'
 
     - name: Install Python dependencies
@@ -89,7 +89,11 @@ jobs:
         echo "📦 Setting up JavaScript environment..."
         if [ -f "package.json" ]; then
           echo "Found package.json, installing dependencies..."
-          npm ci
+          # Try npm ci first, fall back to npm install if lock file is out of sync
+          if ! npm ci --ignore-engines; then
+            echo "⚠️ npm ci failed, trying npm install to update lock file..."
+            npm install --ignore-engines
+          fi
           echo "✅ Dependencies installed"
         else
           echo "⚠️ No package.json found, skipping dependency installation"

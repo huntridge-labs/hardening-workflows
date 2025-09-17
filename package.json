@@ -1,6 +1,6 @@
 {
   "engines": {
-    "node": ">=18.17.1"
+    "node": ">=20.0.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.0.0",
