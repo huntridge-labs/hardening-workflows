@@ -161,7 +161,7 @@ jobs:
         output: 'trivy-${{ matrix.container.name }}-results.txt'
 
     - name: Upload Trivy scan results to GitHub Security tab
-      if: steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act'
+      if: steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act' && hashFiles('trivy-${{ matrix.container.name }}-results.sarif') != ''
       uses: github/codeql-action/upload-sarif@v3
       continue-on-error: true  # Never fail the pipeline
       with:
@@ -178,7 +178,7 @@ jobs:
         output-format: sarif
 
     - name: Upload Grype scan results
-      if: steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act'
+      if: steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act' && steps.grype-scan.outputs.sarif != ''
       uses: github/codeql-action/upload-sarif@v3
       continue-on-error: true  # Never fail the pipeline
       with:

@@ -159,7 +159,7 @@ jobs:
       uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: opengrep.sarif
-      if: always() && github.actor != 'nektos/act'
+      if: always() && github.actor != 'nektos/act' && hashFiles('opengrep.sarif') != ''
       continue-on-error: true  # Don't fail if Code Security is not enabled
 
     - name: Upload OpenGrep artifacts
@@ -226,7 +226,7 @@ jobs:
       uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: bandit-report.sarif
-      if: always() && github.actor != 'nektos/act'
+      if: always() && github.actor != 'nektos/act' && hashFiles('bandit-report.sarif') != ''
       continue-on-error: true  # Don't fail if Code Security is not enabled
 
     - name: Upload Bandit artifacts
@@ -349,7 +349,7 @@ jobs:
       uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: checkov-terraform.sarif
-      if: always() && github.actor != 'nektos/act'
+      if: always() && github.actor != 'nektos/act' && hashFiles('checkov-terraform.sarif') != ''
       continue-on-error: true  # Don't fail if Code Security is not enabled
 
     - name: Upload Checkov artifacts
@@ -458,7 +458,7 @@ jobs:
       uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: gitleaks-report.sarif
-      if: always() && github.actor != 'nektos/act'
+      if: always() && github.actor != 'nektos/act' && hashFiles('gitleaks-report.sarif') != ''
       continue-on-error: true  # Don't fail if Code Security is not enabled
 
     - name: Upload Gitleaks artifacts

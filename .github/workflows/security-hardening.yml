@@ -174,29 +174,31 @@ jobs:
     - name: Terraform Security Scan - Terrascan
       run: |
         echo "🔧 Running Terrascan infrastructure security scan..."
-        cd infrastructure
-        terrascan scan -i terraform -t all --sarif-output terrascan-results.sarif
-        terrascan scan -i terraform -t all --output json > terrascan-results.json
-        terrascan scan -i terraform -t all > terrascan-results.txt
+        terrascan scan -i terraform -t all -d infrastructure --sarif-output infrastructure/terrascan-results.sarif
+        terrascan scan -i terraform -t all -d infrastructure --output json > infrastructure/terrascan-results.json
+        terrascan scan -i terraform -t all -d infrastructure > infrastructure/terrascan-results.txt
       continue-on-error: true  # Continue even if security issues are found
 
     - name: Upload Trivy Results
       uses: github/codeql-action/upload-sarif@v3
-      if: always() && github.actor != 'nektos/act'
+      if: always() && github.actor != 'nektos/act' && hashFiles('infrastructure/trivy-results.sarif') != ''
       with:
         sarif_file: infrastructure/trivy-results.sarif
+      continue-on-error: true
 
     - name: Upload Checkov Results
       uses: github/codeql-action/upload-sarif@v3
-      if: always() && github.actor != 'nektos/act'
+      if: always() && github.actor != 'nektos/act' && hashFiles('infrastructure/checkov-results.sarif') != ''
       with:
         sarif_file: infrastructure/checkov-results.sarif
+      continue-on-error: true
 
     - name: Upload Terrascan Results
       uses: github/codeql-action/upload-sarif@v3
-      if: always() && github.actor != 'nektos/act'
+      if: always() && github.actor != 'nektos/act' && hashFiles('infrastructure/terrascan-results.sarif') != ''
       with:
         sarif_file: infrastructure/terrascan-results.sarif
+      continue-on-error: true
 
     - name: Archive infrastructure scan results
       uses: actions/upload-artifact@v4
