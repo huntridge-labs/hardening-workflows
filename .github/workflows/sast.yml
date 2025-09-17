@@ -198,15 +198,15 @@ jobs:
         echo "🔍 Running Bandit Python security analysis..."
         mkdir -p bandit-reports
 
-        # Generate reports with explicit output verification
+        # Generate reports with explicit output verification, using pyproject.toml for exclusions
         echo "Generating SARIF report..."
-        bandit -r . -f sarif -o bandit-reports/bandit-report.sarif || true
+        bandit -r . --exclude .husky,.github -f sarif -o bandit-reports/bandit-report.sarif || true
 
         echo "Generating JSON report..."
-        bandit -r . -f json -o bandit-reports/bandit-report.json || true
+        bandit -r . --exclude .husky,.github -f json -o bandit-reports/bandit-report.json || true
 
         echo "Generating text report..."
-        bandit -r . -f txt -o bandit-reports/bandit-report.txt || true
+        bandit -r . --exclude .husky,.github -f txt -o bandit-reports/bandit-report.txt || true
 
         # Copy and verify files
         cp bandit-reports/* . 2>/dev/null || true

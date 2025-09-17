@@ -16,6 +16,9 @@ paths-ignore:
   - "**/test_*.py"
   - "**/*_test.py"
   - "**/conftest.py"
+  # Exclude internal tooling directories (not customer-facing)
+  - ".husky/**"
+  - ".github/**"
 
 paths:
   - "src/"
