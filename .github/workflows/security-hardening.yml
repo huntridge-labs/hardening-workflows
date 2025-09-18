@@ -470,7 +470,7 @@ jobs:
               report.substring(0, 65000) + '\n\n... (report truncated, download full report from artifacts)' :
               report;
 
-            const commentBody = `## 🛡️ Security Hardening Pipeline Results\n\n${summary}`;
+            const commentBody = `## 🛡️ Security Hardening Pipeline Results\n\n<!-- security-hardening-comment-marker -->\n\n${summary}`;
 
             // Check for existing security hardening comments to update instead of creating new ones
             const comments = await github.rest.issues.listComments({
@@ -479,10 +479,14 @@ jobs:
               issue_number: context.issue.number
             });
             
-            const existingComment = comments.data.find(comment => 
-              comment.body.includes('🛡️ Security Hardening Pipeline Results') && 
-              comment.user.type === 'Bot'
-            );
+            console.log('🔍 Found', comments.data.length, 'existing comments');
+            
+            const existingComment = comments.data.find(comment => {
+              const hasMarker = comment.body.includes('security-hardening-comment-marker');
+              const isGitHubActions = comment.user.login === 'github-actions[bot]' || comment.user.type === 'Bot';
+              console.log('Comment from', comment.user.login, 'type:', comment.user.type, 'has marker:', hasMarker);
+              return hasMarker && isGitHubActions;
+            });
             
             if (existingComment) {
               // Update existing comment with latest information
