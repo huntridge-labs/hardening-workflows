@@ -30,6 +30,29 @@ on:
       GITHUB_TOKEN:
         description: 'GitHub token for API access'
         required: false
+  # Add manual trigger for testing the reusable workflow directly
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: 'Type of security scan to run'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - sast-only
+          - container-only
+          - infrastructure-only
+      python_version:
+        description: 'Python version to use'
+        required: false
+        default: '3.12'
+        type: string
+      aws_region:
+        description: 'AWS region for infrastructure scans'
+        required: false
+        default: 'us-east-1'
+        type: string
 
 permissions:
   contents: read
@@ -41,8 +64,8 @@ permissions:
 
 env:
   AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-  AWS_REGION: ${{ inputs.aws_region }}
-  PYTHON_VERSION: ${{ inputs.python_version }}
+  AWS_REGION: ${{ inputs.aws_region || github.event.inputs.aws_region }}
+  PYTHON_VERSION: ${{ inputs.python_version || github.event.inputs.python_version }}
 
 jobs:
   # Run linting first to catch basic code quality issues
@@ -71,7 +94,7 @@ jobs:
     - name: Determine scan type
       id: determine-scan
       run: |
-        SCAN_TYPE="${{ inputs.scan_type }}"
+        SCAN_TYPE="${{ inputs.scan_type || github.event.inputs.scan_type }}"
         if [ -z "$SCAN_TYPE" ]; then
           SCAN_TYPE="full"
         fi
@@ -156,7 +179,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: ${{ inputs.python_version }}
+        python-version: ${{ inputs.python_version || github.event.inputs.python_version }}
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
@@ -253,7 +276,7 @@ jobs:
         retention-days: 90
 
     - name: Comment PR with security summary
-      if: github.event_name == 'pull_request' && inputs.post_pr_comment == true
+      if: github.event_name == 'pull_request' && (inputs.post_pr_comment == true || inputs.post_pr_comment == null)
       uses: actions/github-script@v8
       continue-on-error: true
       with:
