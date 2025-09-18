@@ -49,15 +49,14 @@ ENV NPM_CONFIG_FUND=false
 # Use non-root user
 USER nextjs
 
-# Expose port (non-privileged)
+# Expose only necessary port
 EXPOSE 3000
 
-# Use dumb-init for proper signal handling
+# Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD node healthcheck.js || exit 1
+# Start the application
+CMD ["node", "src/server.js"]
 
 # Start application
 CMD ["node", "src/secure_app.js"]

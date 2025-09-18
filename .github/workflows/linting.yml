@@ -9,11 +9,12 @@ on:
       issues_found:
         description: "Number of issues found"
         value: ${{ jobs.linting-summary.outputs.issues_found }}
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
-  workflow_dispatch:
+  # Remove direct PR/push triggers since this workflow is called by security-hardening.yml
+  # push:
+  #   branches: [ main, develop ]
+  # pull_request:
+  #   branches: [ main, develop ]
+  workflow_dispatch:  # Keep for manual testing
 
 env:
   PYTHON_VERSION: '3.12'
