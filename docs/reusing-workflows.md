@@ -173,6 +173,14 @@ uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-har
 2. Require security checks to pass before merging
 3. Set up organization-wide security policies
 
+## 🐕 Dogfooding Example
+
+This repository itself demonstrates the reusable workflow in action! Check out:
+- **Main workflow**: `.github/workflows/security-hardening.yml` (reference implementation)
+- **Reusable demo**: `.github/workflows/security-reusable-demo.yml` (uses the reusable workflow)
+
+You can manually run the demo workflow to see the reusable workflow in action and compare results.
+
 ## 🔧 Customization Examples
 
 ### Example 1: Python-only Project

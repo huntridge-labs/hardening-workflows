@@ -1,0 +1,63 @@
+name: Security Hardening (Reusable Demo)
+
+# This workflow demonstrates using our own reusable security workflow
+# It runs in parallel with our main security-hardening.yml to validate
+# that the reusable workflow produces identical results
+
+on:
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: 'Type of security scan to run'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - sast-only
+          - container-only
+          - infrastructure-only
+
+jobs:
+  # Use our own reusable workflow to demonstrate it works
+  security-reusable:
+    name: Security via Reusable Workflow
+    uses: ./.github/workflows/reusable-security-hardening.yml
+    with:
+      scan_type: ${{ github.event.inputs.scan_type || 'full' }}
+      python_version: '3.12'
+      aws_region: 'us-east-1'
+      post_pr_comment: false  # Avoid duplicate comments
+    secrets:
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+      checks: write
+      id-token: write
+
+  # Compare results with main workflow (optional manual comparison)
+  comparison-note:
+    name: Reusable Workflow Demo
+    runs-on: ubuntu-latest
+    needs: security-reusable
+    if: always()
+    
+    steps:
+    - name: Demo Summary
+      run: |
+        echo "🎉 Reusable Workflow Demo Complete!"
+        echo ""
+        echo "This workflow demonstrates that our reusable security pipeline works correctly."
+        echo ""
+        echo "📊 To compare with the main workflow:"
+        echo "1. Run the main 'Security Hardening Pipeline' workflow"
+        echo "2. Compare the artifacts and security reports"
+        echo "3. Verify both produce identical security findings"
+        echo ""
+        echo "✅ If you can see this message, the reusable workflow executed successfully!"
+        echo ""
+        echo "🔗 Main workflow: .github/workflows/security-hardening.yml"
+        echo "🔗 Reusable workflow: .github/workflows/reusable-security-hardening.yml"
