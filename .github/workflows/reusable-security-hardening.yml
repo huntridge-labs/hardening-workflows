@@ -1,0 +1,274 @@
+name: Reusable Security Hardening Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      scan_type:
+        description: 'Type of security scan to run'
+        required: false
+        default: 'full'
+        type: string
+      python_version:
+        description: 'Python version to use'
+        required: false
+        default: '3.12'
+        type: string
+      aws_region:
+        description: 'AWS region for infrastructure scans'
+        required: false
+        default: 'us-east-1'
+        type: string
+      post_pr_comment:
+        description: 'Whether to post PR comments'
+        required: false
+        default: true
+        type: boolean
+    secrets:
+      AWS_ACCOUNT_ID:
+        description: 'AWS Account ID for infrastructure scans'
+        required: false
+      GITHUB_TOKEN:
+        description: 'GitHub token for API access'
+        required: false
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+  checks: write
+  id-token: write
+
+env:
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  AWS_REGION: ${{ inputs.aws_region }}
+  PYTHON_VERSION: ${{ inputs.python_version }}
+
+jobs:
+  # Run linting first to catch basic code quality issues
+  code-quality-linting:
+    name: Code Quality & Linting
+    uses: ./.github/workflows/linting.yml
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+
+  scan-coordinator:
+    name: Scan Coordinator
+    runs-on: ubuntu-latest
+    needs: [code-quality-linting]
+    if: always()
+    outputs:
+      scan_type: ${{ steps.determine-scan.outputs.scan_type }}
+      should_run_sast: ${{ steps.determine-scan.outputs.should_run_sast }}
+      should_run_container: ${{ steps.determine-scan.outputs.should_run_container }}
+      should_run_infrastructure: ${{ steps.determine-scan.outputs.should_run_infrastructure }}
+      linting_status: ${{ needs.code-quality-linting.outputs.linting_status }}
+      linting_issues: ${{ needs.code-quality-linting.outputs.issues_found }}
+
+    steps:
+    - name: Determine scan type
+      id: determine-scan
+      run: |
+        SCAN_TYPE="${{ inputs.scan_type }}"
+        if [ -z "$SCAN_TYPE" ]; then
+          SCAN_TYPE="full"
+        fi
+
+        echo "scan_type=$SCAN_TYPE" >> $GITHUB_OUTPUT
+
+        # Display linting results
+        LINTING_STATUS="${{ needs.code-quality-linting.outputs.linting_status }}"
+        LINTING_ISSUES="${{ needs.code-quality-linting.outputs.issues_found }}"
+        
+        echo "📊 Code Quality Summary:"
+        echo "Linting Status: $LINTING_STATUS"
+        echo "Issues Found: $LINTING_ISSUES"
+        
+        if [ "$LINTING_ISSUES" != "0" ] && [ -n "$LINTING_ISSUES" ]; then
+          echo "::warning title=Code Quality Issues::Found $LINTING_ISSUES linting issues. Security scans will continue."
+        fi
+
+        case "$SCAN_TYPE" in
+          "full")
+            echo "should_run_sast=true" >> $GITHUB_OUTPUT
+            echo "should_run_container=true" >> $GITHUB_OUTPUT
+            echo "should_run_infrastructure=true" >> $GITHUB_OUTPUT
+            ;;
+          "sast-only")
+            echo "should_run_sast=true" >> $GITHUB_OUTPUT
+            echo "should_run_container=false" >> $GITHUB_OUTPUT
+            echo "should_run_infrastructure=false" >> $GITHUB_OUTPUT
+            ;;
+          "container-only")
+            echo "should_run_sast=false" >> $GITHUB_OUTPUT
+            echo "should_run_container=true" >> $GITHUB_OUTPUT
+            echo "should_run_infrastructure=false" >> $GITHUB_OUTPUT
+            ;;
+          "infrastructure-only")
+            echo "should_run_sast=false" >> $GITHUB_OUTPUT
+            echo "should_run_container=false" >> $GITHUB_OUTPUT
+            echo "should_run_infrastructure=true" >> $GITHUB_OUTPUT
+            ;;
+        esac
+
+  run-sast-pipeline:
+    name: Trigger SAST Pipeline
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.should_run_sast == 'true'
+    uses: ./.github/workflows/sast.yml
+    with:
+      post_pr_comment: ${{ inputs.post_pr_comment }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+    secrets: inherit
+
+  run-container-pipeline:
+    name: Trigger Container Security Pipeline
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.should_run_container == 'true'
+    uses: ./.github/workflows/container-scan.yml
+    with:
+      post_pr_comment: ${{ inputs.post_pr_comment }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+    secrets: inherit
+
+  infrastructure-security:
+    name: Infrastructure Security Analysis
+    runs-on: ubuntu-latest
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.should_run_infrastructure == 'true'
+    timeout-minutes: 20
+    continue-on-error: true
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ inputs.python_version }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Install security tools
+      run: |
+        pip install checkov
+        curl -L "$(curl -s https://api.github.com/repos/tenable/terrascan/releases/latest | grep -o -E "https://.+?_Linux_x86_64.tar.gz")" > terrascan.tar.gz
+        tar -xf terrascan.tar.gz terrascan && rm terrascan.tar.gz
+        sudo mv terrascan /usr/local/bin
+        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+        echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+        sudo apt-get update && sudo apt-get install -y trivy
+
+    - name: Run Infrastructure Security Scans
+      run: |
+        if [ -d "infrastructure" ]; then
+          cd infrastructure
+          echo "🔍 Running Trivy infrastructure security scan..."
+          trivy config --format sarif --output trivy-results.sarif . || true
+          
+          echo "🏗️ Running Checkov infrastructure security scan..."
+          checkov -d . --framework terraform --output sarif --output-file-path checkov-results.sarif || true
+          
+          echo "🔧 Running Terrascan infrastructure security scan..."
+          terrascan scan -i terraform -t all -d . --sarif-output terrascan-results.sarif || true
+        else
+          echo "No infrastructure directory found, skipping infrastructure scans"
+        fi
+      continue-on-error: true
+
+    - name: Upload Infrastructure Security Results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always() && github.actor != 'nektos/act'
+      with:
+        sarif_file: infrastructure/*.sarif
+      continue-on-error: true
+
+  security-summary:
+    name: Security Hardening Summary
+    runs-on: ubuntu-latest
+    needs: [scan-coordinator, run-sast-pipeline, run-container-pipeline, infrastructure-security]
+    if: always()
+
+    steps:
+    - name: Download all security artifacts
+      uses: actions/download-artifact@v5
+      continue-on-error: true
+
+    - name: Create comprehensive security report
+      run: |
+        echo "# 🛡️ Security Analysis Summary" > security-hardening-report.md
+        echo "" >> security-hardening-report.md
+        echo "**Repository:** ${{ github.repository }}" >> security-hardening-report.md
+        echo "**Branch:** ${{ github.ref_name }}" >> security-hardening-report.md
+        echo "**Generated:** $(date)" >> security-hardening-report.md
+        echo "" >> security-hardening-report.md
+
+        # Count security issues from SARIF files
+        TOTAL_ISSUES=0
+        if command -v jq >/dev/null 2>&1; then
+          for sarif_file in $(find . -name "*.sarif" 2>/dev/null); do
+            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ]; then
+              issues=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l || echo 0)
+              TOTAL_ISSUES=$((TOTAL_ISSUES + issues))
+            fi
+          done
+        fi
+
+        echo "## 📊 Security Score" >> security-hardening-report.md
+        echo "" >> security-hardening-report.md
+        echo "**Total Issues Found:** $TOTAL_ISSUES" >> security-hardening-report.md
+        echo "" >> security-hardening-report.md
+
+        if [ "$TOTAL_ISSUES" -eq 0 ]; then
+          echo "✅ **Excellent!** No security issues detected." >> security-hardening-report.md
+        elif [ "$TOTAL_ISSUES" -lt 5 ]; then
+          echo "🟡 **Good** - Few issues found, review recommended." >> security-hardening-report.md
+        else
+          echo "🔴 **Attention Required** - Multiple security issues found." >> security-hardening-report.md
+        fi
+
+        echo "" >> security-hardening-report.md
+        echo "## 📋 Next Steps" >> security-hardening-report.md
+        echo "1. Download and review security reports from workflow artifacts" >> security-hardening-report.md
+        echo "2. Address any critical or high-severity findings" >> security-hardening-report.md
+        echo "3. Consider enabling automated dependency updates" >> security-hardening-report.md
+
+    - name: Upload comprehensive security report
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-hardening-report
+        path: security-hardening-report.md
+        retention-days: 90
+
+    - name: Comment PR with security summary
+      if: github.event_name == 'pull_request' && inputs.post_pr_comment == true
+      uses: actions/github-script@v8
+      continue-on-error: true
+      with:
+        script: |
+          const fs = require('fs');
+          try {
+            const report = fs.readFileSync('security-hardening-report.md', 'utf8');
+            const commentBody = `## 🛡️ Security Hardening Pipeline Results\n\n${report}`;
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: commentBody
+            });
+          } catch (error) {
+            console.log('Failed to post security summary comment:', error.message);
+          }

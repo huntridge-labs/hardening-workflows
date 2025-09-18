@@ -1,6 +1,49 @@
-# Security Hardening Workflows Test Files
+# Security Hardening Workflows
 
-This repository contains test files designed to evaluate security hardening workflows. The files are organized into categories that will either **pass** or **fail** various security checks and pipeline validations.
+This repository provides a comprehensive security hardening pipeline for modern software development. It includes both test files for validation and **reusable workflows** that can be easily integrated into other projects.
+
+## 🚀 Quick Start - Reuse This Pipeline
+
+**Want to use this security pipeline in your project?** You don't need to copy-paste anything!
+
+```yaml
+# Add this to your .github/workflows/security.yml
+name: Security Pipeline
+on: [push, pull_request]
+
+jobs:
+  security:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
+    with:
+      scan_type: 'full'
+      python_version: '3.11'
+    secrets:
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+```
+
+**That's it!** You now have a complete security pipeline. 📖 [See full documentation](docs/reusing-workflows.md)
+
+## 📋 Table of Contents
+
+1. [Reusing This Pipeline](#-reusing-this-pipeline)
+2. [Test Files Structure](#test-files-structure) 
+3. [Security Features](#-security-features)
+4. [Example Outputs](#-example-outputs)
+5. [Contributing](#-contributing)
+
+## 🔄 Reusing This Pipeline
+
+### Three Ways to Reuse:
+
+1. **Reusable Workflow** (Recommended) - Call our workflow from your repo
+2. **Composite Actions** - Use individual security tools
+3. **Workflow Templates** - Organization-wide standards
+
+👉 **[Complete Reuse Guide](docs/reusing-workflows.md)**
 
 ## Directory Structure
 
