@@ -1,10 +1,11 @@
 name: Security Overview
 
 on:
-  workflow_run:
-    workflows: ["SAST Security Analysis", "Container Security Scanning"]
-    types: [completed]
-    branches: [main, develop]
+  # Remove workflow_run triggers to prevent cascade with security-hardening.yml
+  # workflow_run:
+  #   workflows: ["SAST Security Analysis", "Container Security Scanning"]
+  #   types: [completed]
+  #   branches: [main, develop]
   # Remove direct pull_request trigger to avoid duplicates with security-hardening.yml
   # pull_request:
   #   branches: [main, develop]
@@ -21,20 +22,18 @@ jobs:
   security-overview:
     name: Generate Security Overview
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request'
+    # Only run on manual dispatch since security-hardening.yml is the orchestrator
+    if: github.event_name == 'workflow_dispatch'
     
     steps:
     - name: Checkout repository
       uses: actions/checkout@v5
 
-    - name: Get PR number from workflow_run event
+    - name: Get PR number for manual runs
       id: get_pr
-      if: github.event_name == 'workflow_run'
       run: |
-        # Extract PR number from the workflow_run event
-        PR_NUMBER=$(gh pr list --state open --head "${{ github.event.workflow_run.head_branch }}" --json number --jq '.[0].number')
-        echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-        echo "🔍 Found PR number: $PR_NUMBER"
+        echo "⚠️ Manual workflow dispatch - PR number must be provided manually"
+        echo "pr_number=" >> $GITHUB_OUTPUT
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
