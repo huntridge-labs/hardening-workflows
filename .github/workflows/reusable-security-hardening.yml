@@ -27,9 +27,6 @@ on:
       AWS_ACCOUNT_ID:
         description: 'AWS Account ID for infrastructure scans'
         required: false
-      GITHUB_TOKEN:
-        description: 'GitHub token for API access'
-        required: false
   # Add manual trigger for testing the reusable workflow directly
   workflow_dispatch:
     inputs:

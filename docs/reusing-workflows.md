@@ -75,7 +75,8 @@ jobs:
 | Secret | Required | Description |
 |--------|----------|-------------|
 | `AWS_ACCOUNT_ID` | Optional | AWS Account ID for infrastructure scans |
-| `GITHUB_TOKEN` | Optional | GitHub token for API access (usually automatic) |
+
+**Note:** `GITHUB_TOKEN` is automatically provided by GitHub Actions and doesn't need to be explicitly passed.
 
 ## 🧩 Composite Action
 
