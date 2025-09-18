@@ -69,6 +69,7 @@ jobs:
 | `python_version` | string | `'3.12'` | Python version to use for scans |
 | `aws_region` | string | `'us-east-1'` | AWS region for infrastructure scans |
 | `post_pr_comment` | boolean | `true` | Whether to post security summary as PR comment |
+| `codeql_languages` | string | `'python,javascript'` | Comma-separated list of languages for CodeQL analysis (e.g., `'python'`, `'javascript'`, `'python,javascript'`) |
 
 ### 🔐 Required Secrets
 
@@ -215,6 +216,27 @@ jobs:
     with:
       scan_type: 'container-only'
       post_pr_comment: false  # Handle reporting differently
+```
+
+### Example 4: Python-only Project (Skip JavaScript CodeQL)
+```yaml
+jobs:
+  security:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
+    with:
+      scan_type: 'full'
+      codeql_languages: 'python'  # Only analyze Python code
+      python_version: '3.11'
+```
+
+### Example 5: JavaScript/TypeScript Project
+```yaml
+jobs:
+  security:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
+    with:
+      scan_type: 'sast-only'
+      codeql_languages: 'javascript'  # Only analyze JavaScript/TypeScript
 ```
 
 ## 🚀 Getting Started

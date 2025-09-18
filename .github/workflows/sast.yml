@@ -18,6 +18,11 @@ on:
         required: false
         type: boolean
         default: true
+      codeql_languages:
+        description: 'Comma-separated list of languages for CodeQL analysis (e.g., "python,javascript" or "python")'
+        required: false
+        type: string
+        default: 'python,javascript'
 
 permissions:
   contents: read
@@ -29,9 +34,43 @@ env:
   PYTHON_VERSION: '3.12'
 
 jobs:
+  generate-codeql-matrix:
+    name: Generate CodeQL Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - name: Generate matrix
+      id: set-matrix
+      run: |
+        # Parse the codeql_languages input (comma-separated)
+        LANGUAGES="${{ inputs.codeql_languages }}"
+        if [ -z "$LANGUAGES" ]; then
+          LANGUAGES="python,javascript"
+        fi
+        
+        echo "Input languages: $LANGUAGES"
+        
+        # Validate languages and remove spaces
+        LANGUAGES=$(echo "$LANGUAGES" | tr -d ' ')
+        
+        # Convert comma-separated string to JSON array
+        MATRIX_JSON=$(echo "$LANGUAGES" | sed 's/,/","/g' | sed 's/^/["/' | sed 's/$/"]/')
+        echo "Generated matrix: $MATRIX_JSON"
+        
+        # Validate JSON syntax
+        if ! echo "$MATRIX_JSON" | python3 -m json.tool > /dev/null 2>&1; then
+          echo "Error: Invalid JSON generated: $MATRIX_JSON"
+          echo "Falling back to default languages"
+          MATRIX_JSON='["python","javascript"]'
+        fi
+        
+        echo "matrix={\"language\":$MATRIX_JSON}" >> $GITHUB_OUTPUT
+
   codeql-analysis:
     name: CodeQL Analysis
     runs-on: ubuntu-latest
+    needs: generate-codeql-matrix
     timeout-minutes: 45
     continue-on-error: true  # Allow pipeline to continue even if security issues found
     # Skip CodeQL in Act - it requires GitHub's infrastructure
@@ -43,8 +82,7 @@ jobs:
 
     strategy:
       fail-fast: false
-      matrix:
-        language: [ 'python', 'javascript' ]
+      matrix: ${{ fromJson(needs.generate-codeql-matrix.outputs.matrix) }}
 
     steps:
     - name: Checkout repository

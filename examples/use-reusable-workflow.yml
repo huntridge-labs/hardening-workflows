@@ -31,6 +31,7 @@ jobs:
       python_version: '3.11'
       aws_region: 'us-west-2'
       post_pr_comment: true
+      codeql_languages: 'python'  # Only analyze Python, skip JavaScript
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
     permissions:

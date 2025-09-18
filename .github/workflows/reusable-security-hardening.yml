@@ -23,6 +23,11 @@ on:
         required: false
         default: true
         type: boolean
+      codeql_languages:
+        description: 'Comma-separated list of languages for CodeQL analysis (e.g., "python,javascript" or "python")'
+        required: false
+        default: 'python,javascript'
+        type: string
     secrets:
       AWS_ACCOUNT_ID:
         description: 'AWS Account ID for infrastructure scans'
@@ -117,6 +122,7 @@ jobs:
     uses: ./.github/workflows/sast.yml
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
+      codeql_languages: ${{ inputs.codeql_languages }}
     permissions:
       contents: read
       security-events: write
