@@ -1,18 +1,19 @@
 name: Container Security Scanning
 
 on:
-  push:
-    branches: [ main, develop ]
-    paths:
-      - '**/Dockerfile*'
-      - '.github/workflows/container-scan.yml'
-  pull_request:
-    branches: [ main, develop ]
-    paths:
-      - '**/Dockerfile*'
-      - '.github/workflows/container-scan.yml'
-  workflow_dispatch:
-  workflow_call:
+  # Remove direct PR triggers since this workflow is called by security-hardening.yml
+  # push:
+  #   branches: [ main, develop ]
+  #   paths:
+  #     - '**/Dockerfile*'
+  #     - '.github/workflows/container-scan.yml'
+  # pull_request:
+  #   branches: [ main, develop ]
+  #   paths:
+  #     - '**/Dockerfile*'
+  #     - '.github/workflows/container-scan.yml'
+  workflow_dispatch:  # Keep for manual testing
+  workflow_call:      # Keep for reusable workflow calls from security-hardening.yml
     inputs:
       post_pr_comment:
         description: 'Whether to post PR comments (disabled when called from other workflows)'

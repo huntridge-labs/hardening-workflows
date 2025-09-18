@@ -5,9 +5,10 @@ on:
     workflows: ["SAST Security Analysis", "Container Security Scanning"]
     types: [completed]
     branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
-    types: [synchronize, opened, reopened]
+  # Remove direct pull_request trigger to avoid duplicates with security-hardening.yml
+  # pull_request:
+  #   branches: [main, develop]
+  #   types: [synchronize, opened, reopened]
   workflow_dispatch:
 
 permissions:
@@ -20,7 +21,7 @@ jobs:
   security-overview:
     name: Generate Security Overview
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request')
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request'
     
     steps:
     - name: Checkout repository
@@ -37,12 +38,13 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Set PR number for pull_request event  
-      id: set_pr
-      if: github.event_name == 'pull_request'
-      run: |
-        echo "pr_number=${{ github.event.number }}" >> $GITHUB_OUTPUT
-        echo "🔍 PR number from event: ${{ github.event.number }}"
+    # Note: Since we removed direct pull_request triggers, this step is no longer needed
+    # - name: Set PR number for pull_request event  
+    #   id: set_pr
+    #   if: github.event_name == 'pull_request'
+    #   run: |
+    #     echo "pr_number=${{ github.event.number }}" >> $GITHUB_OUTPUT
+    #     echo "🔍 PR number from event: ${{ github.event.number }}"
 
     - name: Download SAST artifacts
       uses: actions/download-artifact@v4
@@ -78,7 +80,7 @@ jobs:
             return;
           }
           
-          const prNumber = '${{ steps.get_pr.outputs.pr_number }}' || '${{ steps.set_pr.outputs.pr_number }}';
+          const prNumber = '${{ steps.get_pr.outputs.pr_number }}';
           
           if (!prNumber) {
             console.log('❌ No PR number found, skipping overview comment');
