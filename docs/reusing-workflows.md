@@ -44,7 +44,7 @@ on:
 
 jobs:
   security:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@v0.1.0
     with:
       scan_type: ${{ github.event.inputs.scan_type || 'full' }}
       python_version: '3.11'
@@ -102,7 +102,7 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - uses: huntridge-labs/hardening-workflows/.github/actions/sast-scan@main
+    - uses: huntridge-labs/hardening-workflows/.github/actions/sast-scan@v0.1.0
       with:
         python-version: ${{ inputs.python-version }}
         post-results: ${{ inputs.post-results }}
@@ -130,7 +130,7 @@ on:
 
 jobs:
   security:
-    uses: your-org/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
+    uses: your-org/hardening-workflows/.github/workflows/reusable-security-hardening.yml@v0.1.0
     with:
       scan_type: 'full'
     secrets: inherit
@@ -189,7 +189,7 @@ You can manually run the demo workflow to see the reusable workflow in action an
 ```yaml
 jobs:
   security:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@v0.1.0
     with:
       scan_type: 'sast-only'
       python_version: '3.11'
@@ -200,7 +200,7 @@ jobs:
 ```yaml
 jobs:
   security:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@v0.1.0
     with:
       scan_type: 'infrastructure-only'
       aws_region: 'us-west-2'
@@ -212,7 +212,7 @@ jobs:
 ```yaml
 jobs:
   security:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@v0.1.0
     with:
       scan_type: 'container-only'
       post_pr_comment: false  # Handle reporting differently
@@ -222,7 +222,7 @@ jobs:
 ```yaml
 jobs:
   security:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@v0.1.0
     with:
       scan_type: 'full'
       codeql_languages: 'python'  # Only analyze Python code
@@ -233,7 +233,7 @@ jobs:
 ```yaml
 jobs:
   security:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@v0.1.0
     with:
       scan_type: 'sast-only'
       codeql_languages: 'javascript'  # Only analyze JavaScript/TypeScript
