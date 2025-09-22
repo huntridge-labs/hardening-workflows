@@ -11,6 +11,10 @@ jobs:
   release-preview:
     name: Release Preview
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
 
     steps:
       - name: Checkout PR
