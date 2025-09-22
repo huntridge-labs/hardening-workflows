@@ -4,7 +4,7 @@
 
 exclude_dirs = [
     ".husky",
-    ".github", 
+    ".github",
     "tests",
     "docs",
     "__pycache__",

@@ -344,15 +344,15 @@ jobs:
               if [ -d "$container_dir" ]; then
                 container_name=$(echo "$container_dir" | sed 's/container-scan-results-//')
                 trivy_json="$container_dir/trivy-${container_name}-results.json"
-                
+
                 # Check if container built successfully by looking for results
                 if [ -f "$trivy_json" ]; then
                   counts=$(parse_trivy "$trivy_json")
                   read crit high med low <<< "$counts"
                   container_total=$((crit + high + med + low))
-                  
+
                   echo "| $container_name | $crit | $high | $med | $low | $container_total | ✅ Success |" >> container-security-report.md
-                  
+
                   # Add to totals
                   total_crit=$((total_crit + crit))
                   total_high=$((total_high + high))
@@ -423,19 +423,19 @@ jobs:
               if [ -f "$summary" ]; then
                 container_name=$(basename "$summary" .md | sed 's/container-summary-//')
                 echo "### 🐳 $container_name" >> container-security-report.md
-                
+
                 # Add vulnerability breakdown for this container
                 trivy_json="container-scan-results-${container_name}/trivy-${container_name}-results.json"
                 if [ -f "$trivy_json" ]; then
                   counts=$(parse_trivy "$trivy_json")
                   read crit high med low <<< "$counts"
                   container_total=$((crit + high + med + low))
-                  
+
                   echo "" >> container-security-report.md
                   echo "**Vulnerability Summary:** $container_total total ($crit critical, $high high, $med medium, $low low)" >> container-security-report.md
                   echo "" >> container-security-report.md
                 fi
-                
+
                 cat "$summary" >> container-security-report.md
                 echo "" >> container-security-report.md
               fi
@@ -508,35 +508,35 @@ jobs:
         script: |
           const fs = require('fs');
           const path = require('path');
-          
+
           // Import the enhanced comment generator
           const enhancerPath = path.join(process.cwd(), '.github', 'scripts', 'enhance-pr-comments.js');
           let enhancer;
-          
+
           try {
             enhancer = require(enhancerPath);
           } catch (error) {
             console.log('⚠️ Enhanced comment generator not found, falling back to basic comments');
             enhancer = null;
           }
-          
+
           // Check if we have the necessary permissions and context
           console.log('Repository:', context.repo.owner + '/' + context.repo.repo);
           console.log('Event name:', context.eventName);
           console.log('Actor:', context.actor);
           console.log('PR number:', context.issue?.number);
           console.log('Is from fork:', context.payload.pull_request?.head?.repo?.fork || false);
-          
+
           // Check if running from a fork
           const isFromFork = context.payload.pull_request?.head?.repo?.fork || false;
           if (isFromFork) {
             console.log('⚠️  Running from a fork - PR commenting may be restricted');
           }
-          
+
           try {
             const report = fs.readFileSync('container-security-report.md', 'utf8');
             let commentBody;
-            
+
             if (enhancer) {
               // Use enhanced comment generator
               console.log('📝 Generating enhanced PR comment...');
@@ -544,7 +544,7 @@ jobs:
               const runId = context.runId;
               const repoOwner = context.repo.owner;
               const repoName = context.repo.repo;
-              
+
               commentBody = enhancer.generateEnhancedContainerComment(containerData, runId, repoOwner, repoName);
             } else {
               // Fallback to basic comment
@@ -560,20 +560,20 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.issue.number
             });
-            
-            const existingComment = comments.data.find(comment => 
-              (comment.body.includes('🐳 Container Security Analysis') || 
-               comment.body.includes('🐳 Container Security')) && 
+
+            const existingComment = comments.data.find(comment =>
+              (comment.body.includes('🐳 Container Security Analysis') ||
+               comment.body.includes('🐳 Container Security')) &&
               comment.user.type === 'Bot'
             );
-            
+
             if (existingComment) {
               // Update existing comment with latest information
               console.log('🔄 Updating existing container security comment');
               const timestamp = new Date().toLocaleString();
               const commitSha = context.sha.substring(0, 8);
               const updatedBody = commentBody + `\n\n---\n*Last updated: ${timestamp} | Commit: ${commitSha} | [View Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
-              
+
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -590,13 +590,13 @@ jobs:
                 body: commentBody
               });
             }
-            
+
             console.log('✅ Successfully posted/updated container security summary comment');
             core.setOutput('comment_posted', 'true');
           } catch (error) {
             console.log('❌ Failed to post container security comment:', error.message);
             console.log('Error status:', error.status);
-            
+
             if (error.status === 403) {
               console.log('🔒 Permission denied - this can happen when:');
               console.log('   • Running on a fork (security restriction)');
@@ -605,9 +605,9 @@ jobs:
             } else if (error.status === 404) {
               console.log('🔍 Resource not found - check if PR exists');
             }
-            
+
             console.log('📋 Container security report is still available in workflow artifacts');
-            
+
             // Set step output to indicate comment failed
             core.setOutput('comment_posted', 'false');
             core.setOutput('comment_error', error.message);

@@ -128,7 +128,7 @@ resource "aws_rds_instance" "vulnerable_db" {
   engine         = "mysql"
   engine_version = "5.7"  # Outdated version
   instance_class = "db.t2.micro"
-  
+
   db_name  = "myapp"
   username = "admin"
   password = "password123"  # Hardcoded password
@@ -138,7 +138,7 @@ resource "aws_rds_instance" "vulnerable_db" {
 
   publicly_accessible = true  # Public access
   skip_final_snapshot = true
-  
+
   vpc_security_group_ids = [aws_security_group.vulnerable_sg.id]
 
   # No backup retention

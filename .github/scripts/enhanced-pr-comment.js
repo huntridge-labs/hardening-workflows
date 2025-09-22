@@ -9,12 +9,12 @@
 function generateContainerSecurityComment(reportData, runId, repoInfo) {
   const { containers, vulnerabilities, buildFailures } = reportData;
   const { owner, repo } = repoInfo;
-  
+
   // Calculate totals and risk level
   const totalVulns = vulnerabilities.critical + vulnerabilities.high + vulnerabilities.medium + vulnerabilities.low;
   const riskLevel = getRiskLevel(vulnerabilities.critical, vulnerabilities.high);
   const riskEmoji = getRiskEmoji(riskLevel);
-  
+
   return `## 🐳 Container Security Analysis ${riskEmoji}
 
 ### 📊 Quick Summary
@@ -35,7 +35,7 @@ ${generateActionItems(vulnerabilities)}
 
 | Container | Critical | High | Medium | Low | Total | Status |
 |-----------|----------|------|--------|-----|-------|---------|
-${containers.details.map(c => 
+${containers.details.map(c =>
   `| ${c.name} | ${c.vulnerabilities.critical} | ${c.vulnerabilities.high} | ${c.vulnerabilities.medium} | ${c.vulnerabilities.low} | ${c.total} | ${c.buildStatus} |`
 ).join('\n')}
 
@@ -72,11 +72,11 @@ ${vulnerabilities.high > 0 ? `
 function generateSASTComment(reportData, runId, repoInfo) {
   const { tools, vulnerabilities } = reportData;
   const { owner, repo } = repoInfo;
-  
+
   const totalVulns = vulnerabilities.critical + vulnerabilities.high + vulnerabilities.medium + vulnerabilities.low;
   const riskLevel = getRiskLevel(vulnerabilities.critical, vulnerabilities.high);
   const riskEmoji = getRiskEmoji(riskLevel);
-  
+
   return `## 🔍 SAST Security Analysis ${riskEmoji}
 
 ### 📊 Quick Summary
@@ -98,7 +98,7 @@ ${generateActionItems(vulnerabilities)}
 
 | Tool | Critical | High | Medium | Low | Status |
 |------|----------|------|--------|-----|--------|
-${tools.map(t => 
+${tools.map(t =>
   `| ${t.name} | ${t.vulnerabilities.critical} | ${t.vulnerabilities.high} | ${t.vulnerabilities.medium} | ${t.vulnerabilities.low} | ${t.status} |`
 ).join('\n')}
 
@@ -137,17 +137,17 @@ Great work! All SAST tools passed without detecting security vulnerabilities.
 function generateSecurityOverviewComment(allReports, runId, repoInfo) {
   const { owner, repo } = repoInfo;
   const { sast, container, infrastructure } = allReports;
-  
+
   // Calculate aggregate metrics
   const totalCritical = (sast?.vulnerabilities.critical || 0) + (container?.vulnerabilities.critical || 0);
   const totalHigh = (sast?.vulnerabilities.high || 0) + (container?.vulnerabilities.high || 0);
   const totalMedium = (sast?.vulnerabilities.medium || 0) + (container?.vulnerabilities.medium || 0);
   const totalLow = (sast?.vulnerabilities.low || 0) + (container?.vulnerabilities.low || 0);
   const totalVulns = totalCritical + totalHigh + totalMedium + totalLow;
-  
+
   const riskLevel = getRiskLevel(totalCritical, totalHigh);
   const riskEmoji = getRiskEmoji(riskLevel);
-  
+
   return `## 🛡️ Security Hardening Pipeline ${riskEmoji}
 
 ### 🎯 Security Score
@@ -174,7 +174,7 @@ ${generateActionItems({critical: totalCritical, high: totalHigh, medium: totalMe
 #### 🔍 SAST Analysis
 ${sast ? generateSASTSummary(sast) : '⏳ Running...'}
 
-#### 🐳 Container Security  
+#### 🐳 Container Security
 ${container ? generateContainerSummary(container) : '⏳ Running...'}
 
 #### 🏗️ Infrastructure Security
@@ -218,7 +218,7 @@ function getRiskBadge(riskLevel) {
 
 function generateActionItems(vulnerabilities) {
   const items = [];
-  
+
   if (vulnerabilities.critical > 0) {
     items.push(`🚨 **URGENT**: ${vulnerabilities.critical} critical issues need immediate attention`);
   }
@@ -231,7 +231,7 @@ function generateActionItems(vulnerabilities) {
   if (vulnerabilities.critical === 0 && vulnerabilities.high === 0 && vulnerabilities.medium === 0) {
     items.push(`✅ **GREAT JOB**: No high-priority security issues found!`);
   }
-  
+
   return items.length > 0 ? items.join('\n') : '';
 }
 

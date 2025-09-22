@@ -30,7 +30,7 @@ jobs:
 ## 📋 Table of Contents
 
 1. [Reusing This Pipeline](#-reusing-this-pipeline)
-2. [Test Files Structure](#test-files-structure) 
+2. [Test Files Structure](#test-files-structure)
 3. [Security Features](#-security-features)
 4. [Example Outputs](#-example-outputs)
 5. [Contributing](#-contributing)

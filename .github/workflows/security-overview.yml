@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     # Only run on manual dispatch since security-hardening.yml is the orchestrator
     if: github.event_name == 'workflow_dispatch'
-    
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v5
@@ -38,7 +38,7 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     # Note: Since we removed direct pull_request triggers, this step is no longer needed
-    # - name: Set PR number for pull_request event  
+    # - name: Set PR number for pull_request event
     #   id: set_pr
     #   if: github.event_name == 'pull_request'
     #   run: |
@@ -52,7 +52,7 @@ jobs:
         name: sast-summary
         path: ./artifacts/sast/
 
-    - name: Download Container artifacts  
+    - name: Download Container artifacts
       uses: actions/download-artifact@v4
       continue-on-error: true
       with:
@@ -67,30 +67,30 @@ jobs:
         script: |
           const fs = require('fs');
           const path = require('path');
-          
+
           // Import the enhanced comment generator
           const enhancerPath = path.join(process.cwd(), '.github', 'scripts', 'enhance-pr-comments.js');
           let enhancer;
-          
+
           try {
             enhancer = require(enhancerPath);
           } catch (error) {
             console.log('⚠️ Enhanced comment generator not found');
             return;
           }
-          
+
           const prNumber = '${{ steps.get_pr.outputs.pr_number }}';
-          
+
           if (!prNumber) {
             console.log('❌ No PR number found, skipping overview comment');
             return;
           }
-          
+
           console.log(`🔍 Generating security overview for PR #${prNumber}`);
-          
+
           let sastData = null;
           let containerData = null;
-          
+
           // Try to load SAST data
           try {
             const sastReport = fs.readFileSync('./artifacts/sast/sast-summary.md', 'utf8');
@@ -99,7 +99,7 @@ jobs:
           } catch (error) {
             console.log('⚠️ SAST data not available:', error.message);
           }
-          
+
           // Try to load container data
           try {
             const containerReport = fs.readFileSync('./artifacts/container/container-security-report.md', 'utf8');
@@ -108,39 +108,39 @@ jobs:
           } catch (error) {
             console.log('⚠️ Container data not available:', error.message);
           }
-          
+
           // Only generate overview if we have at least one type of data
           if (!sastData && !containerData) {
             console.log('⚠️ No security scan data available, skipping overview');
             return;
           }
-          
+
           // Generate the overview comment
           const runId = context.runId;
           const repoOwner = context.repo.owner;
           const repoName = context.repo.repo;
-          
+
           const overviewComment = enhancer.generateSecurityOverview(sastData, containerData, runId, repoOwner, repoName);
-          
+
           // Check for existing security overview comments
           const comments = await github.rest.issues.listComments({
             owner: context.repo.owner,
             repo: context.repo.repo,
             issue_number: prNumber
           });
-          
-          const existingComment = comments.data.find(comment => 
-            comment.body.includes('🛡️ Security Hardening Pipeline') && 
+
+          const existingComment = comments.data.find(comment =>
+            comment.body.includes('🛡️ Security Hardening Pipeline') &&
             comment.user.type === 'Bot'
           );
-          
+
           if (existingComment) {
             // Update existing comment with latest information
             console.log('🔄 Updating existing security overview comment');
             const timestamp = new Date().toLocaleString();
             const commitSha = context.sha.substring(0, 8);
             const updatedBody = overviewComment + `\n\n---\n*Last updated: ${timestamp} | Commit: ${commitSha} | [View Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
-            
+
             await github.rest.issues.updateComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -157,25 +157,25 @@ jobs:
               body: overviewComment
             });
           }
-          
+
           console.log('✅ Security overview comment posted successfully');
 
     - name: Set summary
       run: |
         echo "## 🛡️ Security Overview Generated" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        
+
         if [ -f "./artifacts/sast/sast-summary.md" ]; then
           echo "✅ SAST data processed" >> $GITHUB_STEP_SUMMARY
         else
           echo "⚠️ SAST data not available" >> $GITHUB_STEP_SUMMARY
         fi
-        
+
         if [ -f "./artifacts/container/container-security-report.md" ]; then
           echo "✅ Container data processed" >> $GITHUB_STEP_SUMMARY
         else
           echo "⚠️ Container data not available" >> $GITHUB_STEP_SUMMARY
         fi
-        
+
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "📋 Enhanced PR comment with collapsible sections and direct links posted to PR" >> $GITHUB_STEP_SUMMARY

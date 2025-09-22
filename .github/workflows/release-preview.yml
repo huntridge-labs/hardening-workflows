@@ -11,7 +11,7 @@ jobs:
   release-preview:
     name: Release Preview
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout PR
         uses: actions/checkout@v4
@@ -33,23 +33,23 @@ jobs:
         run: |
           echo "## 🚀 Release Preview" > preview.md
           echo "" >> preview.md
-          
+
           # Get the base branch commit
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-          
+
           # Get commits in this PR
           git log --oneline ${BASE_SHA}..${HEAD_SHA} > pr_commits.txt
-          
+
           # Analyze PR commits for conventional format
           echo "### 📝 Changes in this PR" >> preview.md
           echo "" >> preview.md
-          
+
           # Check for conventional commits in this PR
           FEAT_COUNT=$(git log ${BASE_SHA}..${HEAD_SHA} --grep="^feat" --oneline | wc -l | tr -d ' ')
           FIX_COUNT=$(git log ${BASE_SHA}..${HEAD_SHA} --grep="^fix" --oneline | wc -l | tr -d ' ')
           BREAKING_COUNT=$(git log ${BASE_SHA}..${HEAD_SHA} --grep="BREAKING CHANGE" --oneline | wc -l | tr -d ' ')
-          
+
           # Determine version bump
           if [ "$BREAKING_COUNT" -gt 0 ]; then
             echo "**Impact:** 🔴 Major version bump (breaking changes detected)" >> preview.md
@@ -64,14 +64,14 @@ jobs:
             echo "**Impact:** ⚪ No version bump (no conventional commits)" >> preview.md
             BUMP_TYPE="none"
           fi
-          
+
           echo "" >> preview.md
-          
+
           # Show PR-specific commits that will affect release
           if [ "$BUMP_TYPE" != "none" ]; then
             echo "**Commits that will appear in changelog:**" >> preview.md
             echo "" >> preview.md
-            
+
             # Features
             if [ "$FEAT_COUNT" -gt 0 ]; then
               echo "🆕 **Features ($FEAT_COUNT):**" >> preview.md
@@ -79,7 +79,7 @@ jobs:
               echo "" >> preview.md
               echo "" >> preview.md
             fi
-            
+
             # Fixes
             if [ "$FIX_COUNT" -gt 0 ]; then
               echo "🐛 **Bug Fixes ($FIX_COUNT):**" >> preview.md
@@ -87,7 +87,7 @@ jobs:
               echo "" >> preview.md
               echo "" >> preview.md
             fi
-            
+
             # Breaking changes
             if [ "$BREAKING_COUNT" -gt 0 ]; then
               echo "💥 **Breaking Changes ($BREAKING_COUNT):**" >> preview.md
@@ -99,14 +99,14 @@ jobs:
             echo "ℹ️ This PR contains only non-release commits (docs, chore, style, etc.)" >> preview.md
             echo "" >> preview.md
           fi
-          
+
           # Show all PR commits for reference
           echo "**All commits in this PR:**" >> preview.md
           echo '```' >> preview.md
           cat pr_commits.txt >> preview.md
           echo '```' >> preview.md
           echo "" >> preview.md
-          
+
           echo "### 💡 Quick Reference" >> preview.md
           echo "- \`feat:\` → minor bump • \`fix:\` → patch bump • \`BREAKING CHANGE:\` → major bump" >> preview.md
           echo "- \`docs:\`, \`chore:\`, \`style:\`, \`test:\` → no release" >> preview.md
@@ -117,19 +117,19 @@ jobs:
           script: |
             const fs = require('fs');
             const previewContent = fs.readFileSync('preview.md', 'utf8');
-            
+
             // Find existing comment
             const comments = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
             });
-            
-            const botComment = comments.data.find(comment => 
-              comment.user.type === 'Bot' && 
+
+            const botComment = comments.data.find(comment =>
+              comment.user.type === 'Bot' &&
               comment.body.includes('🚀 Release Preview')
             );
-            
+
             if (botComment) {
               // Update existing comment
               await github.rest.issues.updateComment({

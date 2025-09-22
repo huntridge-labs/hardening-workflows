@@ -83,11 +83,11 @@ jobs:
         # Display linting results
         LINTING_STATUS="${{ needs.code-quality-linting.outputs.linting_status }}"
         LINTING_ISSUES="${{ needs.code-quality-linting.outputs.issues_found }}"
-        
+
         echo "📊 Code Quality Summary:"
         echo "Linting Status: $LINTING_STATUS"
         echo "Issues Found: $LINTING_ISSUES"
-        
+
         if [ "$LINTING_ISSUES" != "0" ] && [ -n "$LINTING_ISSUES" ]; then
           echo "::warning title=Code Quality Issues::Found $LINTING_ISSUES linting issues. Security scans will continue."
         fi
@@ -180,10 +180,10 @@ jobs:
           cd infrastructure
           echo "🔍 Running Trivy infrastructure security scan..."
           trivy config --format sarif --output trivy-results.sarif . || true
-          
+
           echo "🏗️ Running Checkov infrastructure security scan..."
           checkov -d . --framework terraform --output sarif --output-file-path checkov-results.sarif || true
-          
+
           echo "🔧 Running Terrascan infrastructure security scan..."
           terrascan scan -i terraform -t all -d . --sarif-output terrascan-results.sarif || true
         else
@@ -262,11 +262,11 @@ jobs:
       with:
         script: |
           const fs = require('fs');
-          
+
           console.log('Repository:', context.repo.owner + '/' + context.repo.repo);
           console.log('Event name:', context.eventName);
           console.log('PR number:', context.issue?.number);
-          
+
           try {
             const report = fs.readFileSync('security-hardening-report.md', 'utf8');
             const summary = report.length > 65000 ?
@@ -281,23 +281,23 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.issue.number
             });
-            
+
             console.log('🔍 Found', comments.data.length, 'existing comments');
-            
+
             const existingComment = comments.data.find(comment => {
               const hasMarker = comment.body.includes('security-hardening-comment-marker');
               const isGitHubActions = comment.user.login === 'github-actions[bot]' || comment.user.type === 'Bot';
               console.log('Comment from', comment.user.login, 'type:', comment.user.type, 'has marker:', hasMarker);
               return hasMarker && isGitHubActions;
             });
-            
+
             if (existingComment) {
               // Update existing comment with latest information
               console.log('🔄 Updating existing security hardening comment');
               const timestamp = new Date().toLocaleString();
               const commitSha = context.sha.substring(0, 8);
               const updatedBody = commentBody + `\n\n---\n*Last updated: ${timestamp} | Commit: ${commitSha} | [View Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
-              
+
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -314,12 +314,12 @@ jobs:
                 body: commentBody
               });
             }
-            
+
             console.log('✅ Successfully posted/updated security hardening summary comment');
           } catch (error) {
             console.log('❌ Failed to post security summary comment:', error.message);
             console.log('Error status:', error.status);
-            
+
             if (error.status === 403) {
               console.log('🔒 Permission denied - this can happen when:');
               console.log('   • Running on a fork (security restriction)');
@@ -328,6 +328,6 @@ jobs:
             } else if (error.status === 404) {
               console.log('🔍 Resource not found - check if PR exists');
             }
-            
+
             console.log('📋 Security hardening report is still available in workflow artifacts');
           }
