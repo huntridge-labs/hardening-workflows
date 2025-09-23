@@ -4,10 +4,6 @@
     "commitMessage": "chore(release): v${version}",
     "tagName": "${version}",
     "requireCleanWorkingDir": false,
-    "requireBranch": [
-      "main",
-      "master"
-    ],
     "requireUpstream": true,
     "addUntrackedFiles": false
   },
@@ -82,16 +78,16 @@
       "strictSemVer": true
     },
     "@j-ulrich/release-it-regex-bumper": {
-      "files": [
+      "in": "version.yaml",
+      "out": [
+        "version.yaml",
         {
           "file": "docs/reusing-workflows.md",
-          "versionKey": "version",
-          "replacements": [
-            {
-              "search": "huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@v\\d+\\.\\d+\\.\\d+",
-              "replace": "huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@v${version}"
-            }
-          ]
+          "search": {
+            "pattern": "reusable-security-hardening.yml@\\d+\\.\\d+\\.\\d+",
+            "flags": "g"
+          },
+          "replace": "reusable-security-hardening.yml@{{version}}"
         }
       ]
     }
