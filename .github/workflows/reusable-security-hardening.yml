@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       scan_type:
-        description: 'Type of security scan to run'
+        description: 'Type of security scan to run (full, sast-only, codeql-only, container-only, infrastructure-only)'
         required: false
         default: 'full'
         type: string
@@ -28,6 +28,23 @@ on:
         required: false
         default: 'python,javascript'
         type: string
+      # Granular scanner controls (when not specified, scan_type determines behavior)
+      enable_codeql:
+        description: 'Enable CodeQL scanner (overrides scan_type when explicitly set)'
+        required: false
+        type: boolean
+      enable_semgrep:
+        description: 'Enable Semgrep scanner (overrides scan_type when explicitly set)'
+        required: false
+        type: boolean
+      enable_bandit:
+        description: 'Enable Bandit scanner (overrides scan_type when explicitly set)'
+        required: false
+        type: boolean
+      enable_gitleaks:
+        description: 'Enable Gitleaks scanner (overrides scan_type when explicitly set)'
+        required: false
+        type: boolean
     secrets:
       AWS_ACCOUNT_ID:
         description: 'AWS Account ID for infrastructure scans'
@@ -66,6 +83,11 @@ jobs:
       should_run_sast: ${{ steps.determine-scan.outputs.should_run_sast }}
       should_run_container: ${{ steps.determine-scan.outputs.should_run_container }}
       should_run_infrastructure: ${{ steps.determine-scan.outputs.should_run_infrastructure }}
+      # Granular scanner outputs
+      should_run_codeql: ${{ steps.determine-scan.outputs.should_run_codeql }}
+      should_run_semgrep: ${{ steps.determine-scan.outputs.should_run_semgrep }}
+      should_run_bandit: ${{ steps.determine-scan.outputs.should_run_bandit }}
+      should_run_gitleaks: ${{ steps.determine-scan.outputs.should_run_gitleaks }}
       linting_status: ${{ needs.code-quality-linting.outputs.linting_status }}
       linting_issues: ${{ needs.code-quality-linting.outputs.issues_found }}
 
@@ -83,38 +105,125 @@ jobs:
         # Display linting results
         LINTING_STATUS="${{ needs.code-quality-linting.outputs.linting_status }}"
         LINTING_ISSUES="${{ needs.code-quality-linting.outputs.issues_found }}"
-        
+
         echo "📊 Code Quality Summary:"
         echo "Linting Status: $LINTING_STATUS"
         echo "Issues Found: $LINTING_ISSUES"
-        
+
         if [ "$LINTING_ISSUES" != "0" ] && [ -n "$LINTING_ISSUES" ]; then
           echo "::warning title=Code Quality Issues::Found $LINTING_ISSUES linting issues. Security scans will continue."
         fi
 
+        # Initialize defaults based on scan_type
         case "$SCAN_TYPE" in
           "full")
             echo "should_run_sast=true" >> $GITHUB_OUTPUT
             echo "should_run_container=true" >> $GITHUB_OUTPUT
             echo "should_run_infrastructure=true" >> $GITHUB_OUTPUT
+            # For full scan, enable all SAST scanners by default
+            DEFAULT_CODEQL=true
+            DEFAULT_SEMGREP=true
+            DEFAULT_BANDIT=true
+            DEFAULT_GITLEAKS=true
             ;;
           "sast-only")
             echo "should_run_sast=true" >> $GITHUB_OUTPUT
             echo "should_run_container=false" >> $GITHUB_OUTPUT
             echo "should_run_infrastructure=false" >> $GITHUB_OUTPUT
+            # For SAST-only, enable all SAST scanners by default
+            DEFAULT_CODEQL=true
+            DEFAULT_SEMGREP=true
+            DEFAULT_BANDIT=true
+            DEFAULT_GITLEAKS=true
+            ;;
+          "codeql-only")
+            echo "should_run_sast=false" >> $GITHUB_OUTPUT
+            echo "should_run_container=false" >> $GITHUB_OUTPUT
+            echo "should_run_infrastructure=false" >> $GITHUB_OUTPUT
+            # For CodeQL-only, only enable CodeQL
+            DEFAULT_CODEQL=true
+            DEFAULT_SEMGREP=false
+            DEFAULT_BANDIT=false
+            DEFAULT_GITLEAKS=false
             ;;
           "container-only")
             echo "should_run_sast=false" >> $GITHUB_OUTPUT
             echo "should_run_container=true" >> $GITHUB_OUTPUT
             echo "should_run_infrastructure=false" >> $GITHUB_OUTPUT
+            # No SAST scanners for container-only
+            DEFAULT_CODEQL=false
+            DEFAULT_SEMGREP=false
+            DEFAULT_BANDIT=false
+            DEFAULT_GITLEAKS=false
             ;;
           "infrastructure-only")
             echo "should_run_sast=false" >> $GITHUB_OUTPUT
             echo "should_run_container=false" >> $GITHUB_OUTPUT
             echo "should_run_infrastructure=true" >> $GITHUB_OUTPUT
+            # No SAST scanners for infrastructure-only
+            DEFAULT_CODEQL=false
+            DEFAULT_SEMGREP=false
+            DEFAULT_BANDIT=false
+            DEFAULT_GITLEAKS=false
+            ;;
+          *)
+            echo "::warning title=Unknown Scan Type::Unknown scan type '$SCAN_TYPE', defaulting to 'full'"
+            echo "should_run_sast=true" >> $GITHUB_OUTPUT
+            echo "should_run_container=true" >> $GITHUB_OUTPUT
+            echo "should_run_infrastructure=true" >> $GITHUB_OUTPUT
+            DEFAULT_CODEQL=true
+            DEFAULT_SEMGREP=true
+            DEFAULT_BANDIT=true
+            DEFAULT_GITLEAKS=true
             ;;
         esac
 
+        # Apply granular scanner overrides (if explicitly set)
+        ENABLE_CODEQL="${{ inputs.enable_codeql }}"
+        ENABLE_SEMGREP="${{ inputs.enable_semgrep }}"
+        ENABLE_BANDIT="${{ inputs.enable_bandit }}"
+        ENABLE_GITLEAKS="${{ inputs.enable_gitleaks }}"
+
+        # Use explicit inputs if provided, otherwise use defaults
+        if [ "$ENABLE_CODEQL" = "true" ] || [ "$ENABLE_CODEQL" = "false" ]; then
+          echo "should_run_codeql=$ENABLE_CODEQL" >> $GITHUB_OUTPUT
+        else
+          echo "should_run_codeql=$DEFAULT_CODEQL" >> $GITHUB_OUTPUT
+        fi
+
+        if [ "$ENABLE_SEMGREP" = "true" ] || [ "$ENABLE_SEMGREP" = "false" ]; then
+          echo "should_run_semgrep=$ENABLE_SEMGREP" >> $GITHUB_OUTPUT
+        else
+          echo "should_run_semgrep=$DEFAULT_SEMGREP" >> $GITHUB_OUTPUT
+        fi
+
+        if [ "$ENABLE_BANDIT" = "true" ] || [ "$ENABLE_BANDIT" = "false" ]; then
+          echo "should_run_bandit=$ENABLE_BANDIT" >> $GITHUB_OUTPUT
+        else
+          echo "should_run_bandit=$DEFAULT_BANDIT" >> $GITHUB_OUTPUT
+        fi
+
+        if [ "$ENABLE_GITLEAKS" = "true" ] || [ "$ENABLE_GITLEAKS" = "false" ]; then
+          echo "should_run_gitleaks=$ENABLE_GITLEAKS" >> $GITHUB_OUTPUT
+        else
+          echo "should_run_gitleaks=$DEFAULT_GITLEAKS" >> $GITHUB_OUTPUT
+        fi
+
+        # Display configuration summary
+        echo ""
+        echo "🔧 Scan Configuration:"
+        echo "  Scan Type: $SCAN_TYPE"
+        echo "  SAST Pipeline: $(grep 'should_run_sast=' $GITHUB_OUTPUT | cut -d= -f2)"
+        echo "  Container Pipeline: $(grep 'should_run_container=' $GITHUB_OUTPUT | cut -d= -f2)"
+        echo "  Infrastructure Pipeline: $(grep 'should_run_infrastructure=' $GITHUB_OUTPUT | cut -d= -f2)"
+        echo ""
+        echo "🔍 Individual Scanners:"
+        echo "  CodeQL: $(grep 'should_run_codeql=' $GITHUB_OUTPUT | cut -d= -f2)"
+        echo "  Semgrep: $(grep 'should_run_semgrep=' $GITHUB_OUTPUT | cut -d= -f2)"
+        echo "  Bandit: $(grep 'should_run_bandit=' $GITHUB_OUTPUT | cut -d= -f2)"
+        echo "  Gitleaks: $(grep 'should_run_gitleaks=' $GITHUB_OUTPUT | cut -d= -f2)"
+
+  # Legacy SAST pipeline (for backward compatibility - includes all SAST scanners)
   run-sast-pipeline:
     name: Trigger SAST Pipeline
     needs: scan-coordinator
@@ -123,6 +232,64 @@ jobs:
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       codeql_languages: ${{ inputs.codeql_languages }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+    secrets: inherit
+
+  # Individual SAST Scanners (for granular control)
+  run-codeql-scanner:
+    name: CodeQL Security Scanner
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.should_run_codeql == 'true'
+    uses: ./.github/workflows/scanners/sast/codeql.yml
+    with:
+      post_pr_comment: ${{ inputs.post_pr_comment }}
+      codeql_languages: ${{ inputs.codeql_languages }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+    secrets: inherit
+
+  run-semgrep-scanner:
+    name: Semgrep Security Scanner
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.should_run_semgrep == 'true'
+    uses: ./.github/workflows/scanners/sast/semgrep.yml
+    with:
+      post_pr_comment: ${{ inputs.post_pr_comment }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+    secrets: inherit
+
+  run-bandit-scanner:
+    name: Bandit Python Security Scanner
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.should_run_bandit == 'true'
+    uses: ./.github/workflows/scanners/sast/bandit.yml
+    with:
+      post_pr_comment: ${{ inputs.post_pr_comment }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+    secrets: inherit
+
+  run-gitleaks-scanner:
+    name: Gitleaks Secrets Scanner
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.should_run_gitleaks == 'true'
+    uses: ./.github/workflows/scanners/secrets/gitleaks.yml
+    with:
+      post_pr_comment: ${{ inputs.post_pr_comment }}
     permissions:
       contents: read
       security-events: write
@@ -180,10 +347,10 @@ jobs:
           cd infrastructure
           echo "🔍 Running Trivy infrastructure security scan..."
           trivy config --format sarif --output trivy-results.sarif . || true
-          
+
           echo "🏗️ Running Checkov infrastructure security scan..."
           checkov -d . --framework terraform --output sarif --output-file-path checkov-results.sarif || true
-          
+
           echo "🔧 Running Terrascan infrastructure security scan..."
           terrascan scan -i terraform -t all -d . --sarif-output terrascan-results.sarif || true
         else
@@ -201,7 +368,16 @@ jobs:
   security-summary:
     name: Security Hardening Summary
     runs-on: ubuntu-latest
-    needs: [scan-coordinator, run-sast-pipeline, run-container-pipeline, infrastructure-security]
+    needs: [
+      scan-coordinator,
+      run-sast-pipeline,
+      run-codeql-scanner,
+      run-semgrep-scanner,
+      run-bandit-scanner,
+      run-gitleaks-scanner,
+      run-container-pipeline,
+      infrastructure-security
+    ]
     if: always()
 
     steps:
@@ -262,11 +438,11 @@ jobs:
       with:
         script: |
           const fs = require('fs');
-          
+
           console.log('Repository:', context.repo.owner + '/' + context.repo.repo);
           console.log('Event name:', context.eventName);
           console.log('PR number:', context.issue?.number);
-          
+
           try {
             const report = fs.readFileSync('security-hardening-report.md', 'utf8');
             const summary = report.length > 65000 ?
@@ -281,23 +457,23 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.issue.number
             });
-            
+
             console.log('🔍 Found', comments.data.length, 'existing comments');
-            
+
             const existingComment = comments.data.find(comment => {
               const hasMarker = comment.body.includes('security-hardening-comment-marker');
               const isGitHubActions = comment.user.login === 'github-actions[bot]' || comment.user.type === 'Bot';
               console.log('Comment from', comment.user.login, 'type:', comment.user.type, 'has marker:', hasMarker);
               return hasMarker && isGitHubActions;
             });
-            
+
             if (existingComment) {
               // Update existing comment with latest information
               console.log('🔄 Updating existing security hardening comment');
               const timestamp = new Date().toLocaleString();
               const commitSha = context.sha.substring(0, 8);
               const updatedBody = commentBody + `\n\n---\n*Last updated: ${timestamp} | Commit: ${commitSha} | [View Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
-              
+
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -314,12 +490,12 @@ jobs:
                 body: commentBody
               });
             }
-            
+
             console.log('✅ Successfully posted/updated security hardening summary comment');
           } catch (error) {
             console.log('❌ Failed to post security summary comment:', error.message);
             console.log('Error status:', error.status);
-            
+
             if (error.status === 403) {
               console.log('🔒 Permission denied - this can happen when:');
               console.log('   • Running on a fork (security restriction)');
@@ -328,6 +504,6 @@ jobs:
             } else if (error.status === 404) {
               console.log('🔍 Resource not found - check if PR exists');
             }
-            
+
             console.log('📋 Security hardening report is still available in workflow artifacts');
           }

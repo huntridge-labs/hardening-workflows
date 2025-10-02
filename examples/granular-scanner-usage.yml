@@ -1,0 +1,130 @@
+name: Example - Using Granular Scanner Controls
+
+on:
+  workflow_dispatch:
+    inputs:
+      scan_mode:
+        description: 'Choose scanning mode'
+        required: true
+        type: choice
+        options:
+          - 'Quick CodeQL Check'
+          - 'Full SAST Scan'
+          - 'Python Security Only'
+          - 'Secrets Detection Only'
+          - 'Custom Mix'
+        default: 'Quick CodeQL Check'
+
+jobs:
+  # Example 1: Quick CodeQL-only scan for rapid feedback
+  quick-codeql:
+    if: github.event.inputs.scan_mode == 'Quick CodeQL Check'
+    uses: ./.github/workflows/reusable-security-hardening.yml
+    with:
+      scan_type: 'codeql-only'
+      codeql_languages: 'python,javascript'
+      post_pr_comment: true
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+      checks: write
+      id-token: write
+
+  # Example 2: Full SAST scan with all static analysis tools
+  full-sast:
+    if: github.event.inputs.scan_mode == 'Full SAST Scan'
+    uses: ./.github/workflows/reusable-security-hardening.yml
+    with:
+      scan_type: 'sast-only'
+      post_pr_comment: true
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+      checks: write
+      id-token: write
+
+  # Example 3: Python-focused security (Bandit only, no CodeQL or Semgrep)
+  python-only:
+    if: github.event.inputs.scan_mode == 'Python Security Only'
+    uses: ./.github/workflows/reusable-security-hardening.yml
+    with:
+      scan_type: 'full'  # Start with full
+      # But disable everything except Bandit
+      enable_codeql: false
+      enable_semgrep: false
+      enable_bandit: true
+      enable_gitleaks: false
+      post_pr_comment: true
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+      checks: write
+      id-token: write
+
+  # Example 4: Only scan for secrets (useful for credential audits)
+  secrets-only:
+    if: github.event.inputs.scan_mode == 'Secrets Detection Only'
+    uses: ./.github/workflows/reusable-security-hardening.yml
+    with:
+      scan_type: 'full'
+      enable_codeql: false
+      enable_semgrep: false
+      enable_bandit: false
+      enable_gitleaks: true
+      post_pr_comment: true
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+      checks: write
+      id-token: write
+
+  # Example 5: Custom mix - CodeQL + Gitleaks only
+  custom-mix:
+    if: github.event.inputs.scan_mode == 'Custom Mix'
+    uses: ./.github/workflows/reusable-security-hardening.yml
+    with:
+      scan_type: 'full'
+      enable_codeql: true
+      enable_semgrep: false
+      enable_bandit: false
+      enable_gitleaks: true
+      post_pr_comment: true
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+      checks: write
+      id-token: write
+
+  # Example 6: Using individual scanner workflows directly
+  direct-codeql-call:
+    if: false  # Disabled by default - enable as needed
+    uses: ./.github/workflows/scanners/sast/codeql.yml
+    with:
+      codeql_languages: 'python'  # Only scan Python
+      post_pr_comment: false
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+
+  direct-semgrep-call:
+    if: false  # Disabled by default - enable as needed
+    uses: ./.github/workflows/scanners/sast/semgrep.yml
+    with:
+      post_pr_comment: false
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write

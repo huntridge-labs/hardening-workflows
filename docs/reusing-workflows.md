@@ -63,13 +63,28 @@ jobs:
 
 ### 🎛️ Configuration Options
 
+#### Scan Presets
+
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `scan_type` | string | `'full'` | Type of scan: `full`, `sast-only`, `container-only`, `infrastructure-only` |
+| `scan_type` | string | `'full'` | Scan preset: `full`, `sast-only`, `codeql-only`, `container-only`, `infrastructure-only` |
 | `python_version` | string | `'3.12'` | Python version to use for scans |
 | `aws_region` | string | `'us-east-1'` | AWS region for infrastructure scans |
 | `post_pr_comment` | boolean | `true` | Whether to post security summary as PR comment |
-| `codeql_languages` | string | `'python,javascript'` | Comma-separated list of languages for CodeQL analysis (e.g., `'python'`, `'javascript'`, `'python,javascript'`) |
+| `codeql_languages` | string | `'python,javascript'` | Languages for CodeQL analysis |
+
+#### Granular Scanner Controls (Optional)
+
+Override `scan_type` behavior by explicitly enabling/disabling individual scanners:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `enable_codeql` | boolean | - | Enable/disable CodeQL scanner |
+| `enable_semgrep` | boolean | - | Enable/disable Semgrep scanner |
+| `enable_bandit` | boolean | - | Enable/disable Bandit scanner |
+| `enable_gitleaks` | boolean | - | Enable/disable Gitleaks scanner |
+
+**When not specified, scanners follow the `scan_type` preset.**
 
 ### 🔐 Required Secrets
 
@@ -218,25 +233,36 @@ jobs:
       post_pr_comment: false  # Handle reporting differently
 ```
 
-### Example 4: Python-only Project (Skip JavaScript CodeQL)
+### Example 4: Fast CodeQL-Only Scan (NEW!)
 ```yaml
 jobs:
   security:
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
     with:
-      scan_type: 'full'
-      codeql_languages: 'python'  # Only analyze Python code
-      python_version: '3.11'
+      scan_type: 'codeql-only'  # Fast feedback during development
+      codeql_languages: 'python'
 ```
 
-### Example 5: JavaScript/TypeScript Project
+### Example 5: Custom Scanner Mix
+```yaml
+jobs:
+  security:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
+    with:
+      enable_codeql: true      # Enable
+      enable_bandit: true      # Enable
+      enable_gitleaks: true    # Enable
+      enable_semgrep: false    # Disable
+```
+
+### Example 6: Python-only Project
 ```yaml
 jobs:
   security:
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
     with:
       scan_type: 'sast-only'
-      codeql_languages: 'javascript'  # Only analyze JavaScript/TypeScript
+      codeql_languages: 'python'
 ```
 
 ## 🚀 Getting Started

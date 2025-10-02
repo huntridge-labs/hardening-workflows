@@ -1,0 +1,79 @@
+name: Bandit Python Security Scanner
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      post_pr_comment:
+        description: 'Whether to post PR comments'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+
+env:
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  bandit-analysis:
+    name: Bandit Python Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install Bandit
+      run: |
+        python -m pip install --upgrade pip
+        pip install bandit[toml]
+
+    - name: Run Bandit Security Scan
+      run: |
+        echo "🔍 Running Bandit Python security analysis..."
+        mkdir -p bandit-reports
+
+        echo "Generating SARIF report..."
+        bandit -r . --exclude .husky,.github -f sarif -o bandit-reports/bandit-report.sarif || true
+
+        echo "Generating JSON report..."
+        bandit -r . --exclude .husky,.github -f json -o bandit-reports/bandit-report.json || true
+
+        echo "Generating text report..."
+        bandit -r . --exclude .husky,.github -f txt -o bandit-reports/bandit-report.txt || true
+
+        cp bandit-reports/* . 2>/dev/null || true
+
+        echo "Generated Bandit files:"
+        ls -la bandit-reports/
+      continue-on-error: true
+
+    - name: Upload Bandit SARIF
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: bandit-report.sarif
+      if: always() && github.actor != 'nektos/act' && hashFiles('bandit-report.sarif') != ''
+      continue-on-error: true
+
+    - name: Upload Bandit artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: bandit-reports
+        path: |
+          bandit-report.json
+          bandit-report.txt
+          bandit-reports/
+        retention-days: 30
+      if: always()
