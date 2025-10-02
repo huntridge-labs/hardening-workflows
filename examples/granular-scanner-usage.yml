@@ -1,6 +1,6 @@
 name: Example - Using Granular Scanner Controls
 
-on:
+on:  # yamllint disable-line rule:truthy
   workflow_dispatch:
     inputs:
       scan_mode:

@@ -1,8 +1,9 @@
 # Example: How to use the reusable security hardening workflow in another project
 
+# yamllint disable rule:brackets
 name: Security Pipeline
 
-on:
+on:  # yamllint disable-line rule:truthy
   push:
     branches: [ main ]
   pull_request:
