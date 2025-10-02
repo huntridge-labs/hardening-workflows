@@ -12,8 +12,8 @@ app.use(express.json({ limit: '10mb' }));
 
 // Basic health check endpoint
 app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'healthy', 
+  res.status(200).json({
+    status: 'healthy',
     timestamp: new Date().toISOString(),
     version: process.env.npm_package_version || '1.0.0'
   });

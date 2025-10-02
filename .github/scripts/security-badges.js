@@ -2,7 +2,7 @@
 
 /**
  * Security Badge Generator
- * 
+ *
  * Utility to generate dynamic status badges and visual indicators
  * for security reports and PR comments.
  */
@@ -22,12 +22,12 @@ function generateBadge(label, message, color, style = 'flat') {
 function generateSeverityBadge(severity, count) {
   const colors = {
     'critical': 'red',
-    'high': 'orange', 
+    'high': 'orange',
     'medium': 'yellow',
     'low': 'green',
     'info': 'blue'
   };
-  
+
   const color = colors[severity.toLowerCase()] || 'gray';
   const emoji = {
     'critical': '🚨',
@@ -36,7 +36,7 @@ function generateSeverityBadge(severity, count) {
     'low': '🔵',
     'info': 'ℹ️'
   };
-  
+
   return `${emoji[severity.toLowerCase()] || ''} ${generateBadge(severity, count, color)}`;
 }
 
@@ -45,14 +45,14 @@ function generateSeverityBadge(severity, count) {
  */
 function generateRiskBadge(critical, high, medium, low) {
   let level, color, emoji;
-  
+
   if (critical > 0) {
     level = 'CRITICAL';
     color = 'red';
     emoji = '🚨';
   } else if (high > 5) {
     level = 'HIGH';
-    color = 'orange';  
+    color = 'orange';
     emoji = '⚠️';
   } else if (high > 0) {
     level = 'MODERATE';
@@ -67,7 +67,7 @@ function generateRiskBadge(critical, high, medium, low) {
     color = 'brightgreen';
     emoji = '✅';
   }
-  
+
   return `${emoji} ${generateBadge('Security Risk', level, color)}`;
 }
 
@@ -81,7 +81,7 @@ function generateCoverageBadge(percentage) {
   else if (percentage >= 60) color = 'yellow';
   else if (percentage >= 40) color = 'orange';
   else color = 'red';
-  
+
   return generateBadge('Coverage', `${percentage}%`, color);
 }
 
@@ -91,7 +91,7 @@ function generateCoverageBadge(percentage) {
 function generateWorkflowBadges(workflows) {
   return Object.entries(workflows)
     .map(([name, status]) => {
-      const color = status === 'success' ? 'brightgreen' : 
+      const color = status === 'success' ? 'brightgreen' :
                    status === 'failure' ? 'red' :
                    status === 'cancelled' ? 'lightgray' : 'yellow';
       return generateBadge(name, status, color);
@@ -104,23 +104,23 @@ function generateWorkflowBadges(workflows) {
  */
 function generateComplianceBadges(standards) {
   const badges = [];
-  
+
   if (standards.includes('SOX')) {
     badges.push(generateBadge('SOX', 'Compliant', 'blue'));
   }
-  
+
   if (standards.includes('PCI-DSS')) {
     badges.push(generateBadge('PCI-DSS', 'Compliant', 'blue'));
   }
-  
+
   if (standards.includes('GDPR')) {
     badges.push(generateBadge('GDPR', 'Compliant', 'blue'));
   }
-  
+
   if (standards.includes('ISO27001')) {
     badges.push(generateBadge('ISO 27001', 'Compliant', 'blue'));
   }
-  
+
   return badges.join(' ');
 }
 
@@ -129,21 +129,21 @@ function generateComplianceBadges(standards) {
  */
 function generateSecurityScore(vulnerabilities) {
   const { critical = 0, high = 0, medium = 0, low = 0 } = vulnerabilities;
-  
+
   // Calculate weighted score (0-100)
   const maxScore = 100;
   const criticalWeight = 10;
   const highWeight = 5;
   const mediumWeight = 2;
   const lowWeight = 1;
-  
-  const penalty = (critical * criticalWeight) + 
-                  (high * highWeight) + 
-                  (medium * mediumWeight) + 
+
+  const penalty = (critical * criticalWeight) +
+                  (high * highWeight) +
+                  (medium * mediumWeight) +
                   (low * lowWeight);
-  
+
   const score = Math.max(0, maxScore - penalty);
-  
+
   let grade, color;
   if (score >= 90) { grade = 'A+'; color = 'brightgreen'; }
   else if (score >= 80) { grade = 'A'; color = 'green'; }
@@ -151,7 +151,7 @@ function generateSecurityScore(vulnerabilities) {
   else if (score >= 60) { grade = 'C'; color = 'yellow'; }
   else if (score >= 50) { grade = 'D'; color = 'orange'; }
   else { grade = 'F'; color = 'red'; }
-  
+
   return {
     score,
     grade,
@@ -164,11 +164,11 @@ function generateSecurityScore(vulnerabilities) {
  */
 function generateProgressBar(current, total, width = 20) {
   if (total === 0) return '▓'.repeat(width) + ' (0/0)';
-  
+
   const percentage = Math.round((current / total) * 100);
   const filled = Math.round((current / total) * width);
   const empty = width - filled;
-  
+
   const blocks = '▓'.repeat(filled) + '░'.repeat(empty);
   return `${blocks} ${percentage}% (${current}/${total})`;
 }
@@ -178,7 +178,7 @@ function generateProgressBar(current, total, width = 20) {
  */
 function generateTrendingIndicator(current, previous) {
   if (previous === undefined || previous === null) return '';
-  
+
   const diff = current - previous;
   if (diff > 0) return `📈 +${diff}`;
   if (diff < 0) return `📉 ${diff}`;
@@ -189,21 +189,21 @@ function generateTrendingIndicator(current, previous) {
  * Generate security metrics dashboard
  */
 function generateSecurityDashboard(data) {
-  const { 
-    vulnerabilities = {}, 
-    workflows = {}, 
-    compliance = [], 
+  const {
+    vulnerabilities = {},
+    workflows = {},
+    compliance = [],
     previousScan = {}
   } = data;
-  
+
   const securityScore = generateSecurityScore(vulnerabilities);
   const riskBadge = generateRiskBadge(
     vulnerabilities.critical || 0,
-    vulnerabilities.high || 0, 
+    vulnerabilities.high || 0,
     vulnerabilities.medium || 0,
     vulnerabilities.low || 0
   );
-  
+
   return `
 ### 📊 Security Dashboard
 
@@ -243,7 +243,7 @@ module.exports = {
 if (require.main === module) {
   console.log('Security Badge Generator');
   console.log('=======================\n');
-  
+
   const exampleData = {
     vulnerabilities: {
       critical: 2,
@@ -264,6 +264,6 @@ if (require.main === module) {
       low: 5
     }
   };
-  
+
   console.log(generateSecurityDashboard(exampleData));
 }

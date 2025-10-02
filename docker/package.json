@@ -15,7 +15,11 @@
   "devDependencies": {
     "nodemon": "^3.0.1"
   },
-  "keywords": ["security", "testing", "hardening"],
+  "keywords": [
+    "security",
+    "testing",
+    "hardening"
+  ],
   "author": "Huntridge Labs",
   "license": "MIT"
 }

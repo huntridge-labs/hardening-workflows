@@ -4,7 +4,7 @@
 
 # Vulnerable package with known CVEs for testing
 django==2.0.1  # Has multiple security vulnerabilities
-requests==2.8.0  # Older version with known issues  
+requests==2.8.0  # Older version with known issues
 urllib3==1.21.1  # Contains security vulnerabilities
 Pillow==5.0.0  # Has image processing vulnerabilities
 flask==0.12  # Older version with security issues

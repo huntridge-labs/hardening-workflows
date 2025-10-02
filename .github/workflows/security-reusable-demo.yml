@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: security-reusable
     if: always()
-    
+
     steps:
     - name: Demo Summary
       run: |

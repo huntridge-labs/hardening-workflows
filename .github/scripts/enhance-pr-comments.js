@@ -2,7 +2,7 @@
 
 /**
  * Enhanced PR Comment Generator
- * 
+ *
  * This script demonstrates how to transform verbose security reports
  * into user-friendly, actionable PR comments with better UX.
  */
@@ -25,7 +25,7 @@ function parseSASTReport(reportContent) {
   const tableMatch = reportContent.match(/\| Tool \| Critical \| High \| Medium \| Low \| Total \| Status \|(.*?)(?=\n\n|\n\|)/s);
   if (tableMatch) {
     const rows = tableMatch[1].split('\n').filter(row => row.includes('|'));
-    
+
     rows.forEach(row => {
       const parts = row.split('|').map(p => p.trim()).filter(p => p);
       if (parts.length >= 7 && parts[0] !== '---') {
@@ -38,7 +38,7 @@ function parseSASTReport(reportContent) {
           total: parseInt(parts[5]) || 0,
           status: parts[6]
         };
-        
+
         // Skip total row
         if (!parts[0].includes('TOTAL')) {
           data.tools.push(tool);
@@ -115,7 +115,7 @@ function getRiskBadge(riskLevel) {
  */
 function generateActionItems(critical, high, medium) {
   const items = [];
-  
+
   if (critical > 0) {
     items.push(`🚨 **URGENT**: ${critical} critical vulnerabilities need immediate attention`);
   }
@@ -128,7 +128,7 @@ function generateActionItems(critical, high, medium) {
   if (critical === 0 && high === 0 && medium === 0) {
     items.push(`✅ **GREAT JOB**: No high-priority security issues found!`);
   }
-  
+
   return items.join('\n');
 }
 
@@ -140,7 +140,7 @@ function generateEnhancedSASTComment(sastData, runId, repoOwner, repoName) {
   const totalVulns = totalCritical + totalHigh + totalMedium + totalLow;
   const riskLevel = getRiskLevel(totalCritical, totalHigh);
   const riskEmoji = totalCritical > 0 ? '🚨' : totalHigh > 0 ? '⚠️' : '✅';
-  
+
   return `## 🔍 SAST Security Analysis ${riskEmoji}
 
 ### 📊 Quick Summary
@@ -201,7 +201,7 @@ function generateEnhancedContainerComment(containerData, runId, repoOwner, repoN
   const totalVulns = totalCritical + totalHigh + totalMedium + totalLow;
   const riskLevel = getRiskLevel(totalCritical, totalHigh);
   const riskEmoji = totalCritical > 0 ? '🚨' : totalHigh > 0 ? '⚠️' : '✅';
-  
+
   return `## 🐳 Container Security Analysis ${riskEmoji}
 
 ### 📊 Quick Summary
@@ -239,7 +239,7 @@ ${totalHigh > 0 ? `
 
 #### Best Practices
 - 🐧 Use minimal base images (Alpine, distroless)
-- 🏗️ Implement multi-stage builds  
+- 🏗️ Implement multi-stage builds
 - 👤 Run containers as non-root users
 - 🔒 Enable GitHub Advanced Security for integrated reporting
 
@@ -258,10 +258,10 @@ function generateSecurityOverview(sastData, containerData, runId, repoOwner, rep
   const totalMedium = (sastData?.totalMedium || 0) + (containerData?.totalMedium || 0);
   const totalLow = (sastData?.totalLow || 0) + (containerData?.totalLow || 0);
   const totalVulns = totalCritical + totalHigh + totalMedium + totalLow;
-  
+
   const riskLevel = getRiskLevel(totalCritical, totalHigh);
   const riskEmoji = totalCritical > 0 ? '🚨' : totalHigh > 0 ? '⚠️' : '✅';
-  
+
   // Try to load advanced features
   let advancedFeatures = null;
   try {
@@ -270,11 +270,11 @@ function generateSecurityOverview(sastData, containerData, runId, repoOwner, rep
   } catch (error) {
     // Fallback to basic overview if advanced features not available
   }
-  
+
   if (advancedFeatures) {
     return advancedFeatures.generateComprehensiveSecurityOverview(sastData, containerData, runId, repoOwner, repoName);
   }
-  
+
   // Fallback to original implementation
   return `## 🛡️ Security Hardening Pipeline ${riskEmoji}
 
@@ -303,7 +303,7 @@ ${generateActionItems(totalCritical, totalHigh, totalMedium)}
 if (require.main === module) {
   console.log('Enhanced PR Comment Generator');
   console.log('=============================\n');
-  
+
   // Sample SAST data
   const sastData = {
     tools: [
@@ -318,7 +318,7 @@ if (require.main === module) {
     totalMedium: 15,
     totalLow: 0
   };
-  
+
   // Sample Container data
   const containerData = {
     totalCritical: 74,
@@ -328,20 +328,20 @@ if (require.main === module) {
     scannedContainers: 2,
     buildFailures: 0
   };
-  
+
   const runId = '12345';
   const repoOwner = 'huntridge-labs';
   const repoName = 'hardening-workflows';
-  
+
   // Generate enhanced comments
   console.log('SAST Comment:');
   console.log(generateEnhancedSASTComment(sastData, runId, repoOwner, repoName));
   console.log('\n' + '='.repeat(80) + '\n');
-  
+
   console.log('Container Comment:');
   console.log(generateEnhancedContainerComment(containerData, runId, repoOwner, repoName));
   console.log('\n' + '='.repeat(80) + '\n');
-  
+
   console.log('Security Overview:');
   console.log(generateSecurityOverview(sastData, containerData, runId, repoOwner, repoName));
 }
