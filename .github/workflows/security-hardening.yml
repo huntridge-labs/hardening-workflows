@@ -3,8 +3,9 @@ name: Security Hardening Pipeline
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  # Disabled pull_request trigger - use pr-verification.yml for PR checks instead
+  # pull_request:
+  #   branches: [ main ]
   # Reduced schedule frequency to reduce noise - now monthly instead of weekly
   schedule:
     # Run comprehensive security checks monthly on the first Sunday at 1 AM UTC

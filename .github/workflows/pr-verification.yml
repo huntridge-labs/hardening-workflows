@@ -1,0 +1,259 @@
+name: PR Verification - Test Scanner Controls
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/reusable-security-hardening.yml'
+      - '.github/workflows/sast.yml'
+      - '.github/workflows/container-scan.yml'
+      - '.github/workflows/scanners/**'
+      - '.github/workflows/pr-verification.yml'
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+  checks: write
+
+jobs:
+  # Test 1: Verify codeql-only scan type
+  test-codeql-only:
+    name: Test CodeQL-Only Scan Type
+    uses: ./.github/workflows/reusable-security-hardening.yml
+    with:
+      scan_type: 'codeql-only'
+      codeql_languages: 'python'
+      post_pr_comment: false  # Don't spam PR with comments during tests
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+    secrets: inherit
+
+  # Test 2: Verify granular control - CodeQL + Gitleaks only
+  test-granular-codeql-gitleaks:
+    name: Test Granular Control (CodeQL + Gitleaks)
+    uses: ./.github/workflows/reusable-security-hardening.yml
+    with:
+      enable_codeql: true
+      enable_semgrep: false
+      enable_bandit: false
+      enable_gitleaks: true
+      codeql_languages: 'javascript'
+      post_pr_comment: false
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+    secrets: inherit
+
+  # Test 3: Verify granular control - Semgrep + Bandit only
+  test-granular-semgrep-bandit:
+    name: Test Granular Control (Semgrep + Bandit)
+    uses: ./.github/workflows/reusable-security-hardening.yml
+    with:
+      enable_codeql: false
+      enable_semgrep: true
+      enable_bandit: true
+      enable_gitleaks: false
+      post_pr_comment: false
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+    secrets: inherit
+
+  # Test 4: Verify container-only scan type
+  test-container-only:
+    name: Test Container-Only Scan Type
+    uses: ./.github/workflows/reusable-security-hardening.yml
+    with:
+      scan_type: 'container-only'
+      post_pr_comment: false
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+    secrets: inherit
+
+  # Test 5: Verify infrastructure-only scan type
+  test-infrastructure-only:
+    name: Test Infrastructure-Only Scan Type
+    uses: ./.github/workflows/reusable-security-hardening.yml
+    with:
+      scan_type: 'infrastructure-only'
+      post_pr_comment: false
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+    secrets: inherit
+
+  # Test 6: Verify sast-only scan type
+  test-sast-only:
+    name: Test SAST-Only Scan Type
+    uses: ./.github/workflows/reusable-security-hardening.yml
+    with:
+      scan_type: 'sast-only'
+      post_pr_comment: false
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+    secrets: inherit
+
+  # Verification Summary
+  verification-summary:
+    name: PR Verification Summary
+    runs-on: ubuntu-latest
+    needs: [
+      test-codeql-only,
+      test-granular-codeql-gitleaks,
+      test-granular-semgrep-bandit,
+      test-container-only,
+      test-infrastructure-only,
+      test-sast-only
+    ]
+    if: always()
+
+    steps:
+    - name: Check test results
+      run: |
+        echo "# 🧪 PR Verification Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Testing scanner control functionality..." >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        # Check each test result
+        CODEQL_ONLY="${{ needs.test-codeql-only.result }}"
+        GRANULAR_CQ_GL="${{ needs.test-granular-codeql-gitleaks.result }}"
+        GRANULAR_SG_BD="${{ needs.test-granular-semgrep-bandit.result }}"
+        CONTAINER="${{ needs.test-container-only.result }}"
+        INFRA="${{ needs.test-infrastructure-only.result }}"
+        SAST="${{ needs.test-sast-only.result }}"
+
+        echo "| Test | Result |" >> $GITHUB_STEP_SUMMARY
+        echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+
+        if [ "$CODEQL_ONLY" = "success" ]; then
+          echo "| ✅ CodeQL-Only Scan Type | Passed |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| ❌ CodeQL-Only Scan Type | Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [ "$GRANULAR_CQ_GL" = "success" ]; then
+          echo "| ✅ Granular Control (CodeQL + Gitleaks) | Passed |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| ❌ Granular Control (CodeQL + Gitleaks) | Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [ "$GRANULAR_SG_BD" = "success" ]; then
+          echo "| ✅ Granular Control (Semgrep + Bandit) | Passed |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| ❌ Granular Control (Semgrep + Bandit) | Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [ "$CONTAINER" = "success" ]; then
+          echo "| ✅ Container-Only Scan Type | Passed |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| ❌ Container-Only Scan Type | Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [ "$INFRA" = "success" ]; then
+          echo "| ✅ Infrastructure-Only Scan Type | Passed |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| ❌ Infrastructure-Only Scan Type | Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [ "$SAST" = "success" ]; then
+          echo "| ✅ SAST-Only Scan Type | Passed |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| ❌ SAST-Only Scan Type | Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        # Calculate pass rate
+        TOTAL=6
+        PASSED=0
+        [ "$CODEQL_ONLY" = "success" ] && PASSED=$((PASSED + 1))
+        [ "$GRANULAR_CQ_GL" = "success" ] && PASSED=$((PASSED + 1))
+        [ "$GRANULAR_SG_BD" = "success" ] && PASSED=$((PASSED + 1))
+        [ "$CONTAINER" = "success" ] && PASSED=$((PASSED + 1))
+        [ "$INFRA" = "success" ] && PASSED=$((INFRA + 1))
+        [ "$SAST" = "success" ] && PASSED=$((PASSED + 1))
+
+        echo "## Summary" >> $GITHUB_STEP_SUMMARY
+        echo "**$PASSED of $TOTAL tests passed**" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ $PASSED -eq $TOTAL ]; then
+          echo "✅ All scanner control features are working correctly!" >> $GITHUB_STEP_SUMMARY
+          echo "::notice title=PR Verification::All $TOTAL scanner control tests passed"
+          exit 0
+        else
+          FAILED=$((TOTAL - PASSED))
+          echo "❌ $FAILED test(s) failed. Please review the workflow logs." >> $GITHUB_STEP_SUMMARY
+          echo "::error title=PR Verification::$FAILED of $TOTAL tests failed"
+          exit 1
+        fi
+
+    - name: Comment PR with verification results
+      if: always() && github.event_name == 'pull_request'
+      uses: actions/github-script@v8
+      with:
+        script: |
+          const results = {
+            'CodeQL-Only': '${{ needs.test-codeql-only.result }}',
+            'Granular (CodeQL + Gitleaks)': '${{ needs.test-granular-codeql-gitleaks.result }}',
+            'Granular (Semgrep + Bandit)': '${{ needs.test-granular-semgrep-bandit.result }}',
+            'Container-Only': '${{ needs.test-container-only.result }}',
+            'Infrastructure-Only': '${{ needs.test-infrastructure-only.result }}',
+            'SAST-Only': '${{ needs.test-sast-only.result }}'
+          };
+
+          let passed = 0;
+          let total = Object.keys(results).length;
+
+          let table = '| Test | Result |\n|------|--------|\n';
+          for (const [test, result] of Object.entries(results)) {
+            const icon = result === 'success' ? '✅' : '❌';
+            const status = result === 'success' ? 'Passed' : 'Failed';
+            table += `| ${icon} ${test} | ${status} |\n`;
+            if (result === 'success') passed++;
+          }
+
+          const summary = passed === total
+            ? `✅ All ${total} scanner control tests passed!`
+            : `⚠️ ${passed}/${total} tests passed. ${total - passed} test(s) failed.`;
+
+          const body = `## 🧪 Scanner Control Verification Results\n\n${summary}\n\n${table}\n\n---\n*Verification run for commit ${context.sha.substring(0, 7)}*`;
+
+          // Find existing comment
+          const comments = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number
+          });
+
+          const existingComment = comments.data.find(comment =>
+            comment.body.includes('Scanner Control Verification Results') &&
+            comment.user.login === 'github-actions[bot]'
+          );
+
+          if (existingComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existingComment.id,
+              body: body
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+          }
