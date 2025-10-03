@@ -82,8 +82,9 @@ jobs:
   scan-coordinator:
     name: Scan Coordinator
     runs-on: ubuntu-latest
+    # Only depend on linting if it's not skipped
     needs: [code-quality-linting]
-    if: ${{ always() && !cancelled() }}
+    if: ${{ !cancelled() && (inputs.skip_linting || needs.code-quality-linting.result == 'success' || needs.code-quality-linting.result == 'failure') }}
     outputs:
       scan_type: ${{ steps.determine-scan.outputs.scan_type }}
       should_run_sast: ${{ steps.determine-scan.outputs.should_run_sast }}
