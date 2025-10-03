@@ -188,7 +188,6 @@ jobs:
       scan_type: 'codeql-only'
       codeql_languages: 'python'
       post_pr_comment: false
-      skip_linting: true  # Linting already ran in code-quality job
     permissions:
       contents: read
       security-events: write

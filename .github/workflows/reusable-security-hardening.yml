@@ -45,8 +45,8 @@ on:
         description: 'Enable Gitleaks scanner (overrides scan_type when explicitly set)'
         required: false
         type: boolean
-      skip_linting:
-        description: 'Skip linting checks (useful when linting already ran in parent workflow)'
+      enable_linting:
+        description: 'Enable code quality and linting checks (optional convenience - can also be called as separate workflow)'
         required: false
         default: false
         type: boolean
@@ -69,10 +69,11 @@ env:
   PYTHON_VERSION: ${{ inputs.python_version }}
 
 jobs:
-  # Run linting first to catch basic code quality issues (unless skipped)
+  # Optional linting job - only runs if enable_linting is true
+  # For better separation, use linting.yml as a separate job in your workflow
   code-quality-linting:
     name: Code Quality & Linting
-    if: ${{ !inputs.skip_linting }}
+    if: ${{ inputs.enable_linting }}
     uses: ./.github/workflows/linting.yml
     permissions:
       contents: read
@@ -82,9 +83,9 @@ jobs:
   scan-coordinator:
     name: Scan Coordinator
     runs-on: ubuntu-latest
-    # Only depend on linting if it's not skipped
+    # Only depend on linting if it's enabled
     needs: [code-quality-linting]
-    if: ${{ !cancelled() && (inputs.skip_linting || needs.code-quality-linting.result == 'success' || needs.code-quality-linting.result == 'failure') }}
+    if: ${{ !cancelled() && (always() || needs.code-quality-linting.result == 'success' || needs.code-quality-linting.result == 'failure') }}
     outputs:
       scan_type: ${{ steps.determine-scan.outputs.scan_type }}
       should_run_sast: ${{ steps.determine-scan.outputs.should_run_sast }}
@@ -109,16 +110,18 @@ jobs:
 
         echo "scan_type=$SCAN_TYPE" >> $GITHUB_OUTPUT
 
-        # Display linting results
-        LINTING_STATUS="${{ needs.code-quality-linting.outputs.linting_status }}"
-        LINTING_ISSUES="${{ needs.code-quality-linting.outputs.issues_found }}"
+        # Display linting results if linting was enabled
+        if [ "${{ inputs.enable_linting }}" = "true" ]; then
+          LINTING_STATUS="${{ needs.code-quality-linting.outputs.linting_status }}"
+          LINTING_ISSUES="${{ needs.code-quality-linting.outputs.issues_found }}"
 
-        echo "📊 Code Quality Summary:"
-        echo "Linting Status: $LINTING_STATUS"
-        echo "Issues Found: $LINTING_ISSUES"
+          echo "📊 Code Quality Summary:"
+          echo "Linting Status: $LINTING_STATUS"
+          echo "Issues Found: $LINTING_ISSUES"
 
-        if [ "$LINTING_ISSUES" != "0" ] && [ -n "$LINTING_ISSUES" ]; then
-          echo "::warning title=Code Quality Issues::Found $LINTING_ISSUES linting issues. Security scans will continue."
+          if [ "$LINTING_ISSUES" != "0" ] && [ -n "$LINTING_ISSUES" ]; then
+            echo "::warning title=Code Quality Issues::Found $LINTING_ISSUES linting issues. Security scans will continue."
+          fi
         fi
 
         # Initialize defaults based on scan_type

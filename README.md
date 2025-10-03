@@ -12,7 +12,18 @@ name: Security Pipeline
 on: [push, pull_request]
 
 jobs:
+  # Optional: Run code quality checks
+  linting:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@main
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+
+  # Required: Run security hardening
   security:
+    needs: linting  # Optional: wait for linting
+    if: always()    # Run even if linting fails
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
     with:
       scan_type: 'full'
@@ -25,7 +36,7 @@ jobs:
       pull-requests: write
 ```
 
-**That's it!** You now have a complete security pipeline. 📖 [See full documentation](docs/reusing-workflows.md)
+**That's it!** You now have linting + security scanning. 📖 [See full documentation](docs/reusing-workflows.md)
 
 ## 📋 Table of Contents
 

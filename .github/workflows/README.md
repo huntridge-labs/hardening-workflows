@@ -1,71 +1,163 @@
 # Security Hardening Workflows
 
-This directory contains comprehensive security workflows for the agentic-automation-vba project, implementing multiple layers of security scanning and analysis.
+This directory contains comprehensive security workflows implementing multiple layers of security scanning and analysis.
 
 ## Overview
 
-The security hardening pipeline consists of three main workflows:
+The security hardening pipeline consists of two main reusable workflows:
 
-1. **SAST (Static Application Security Testing)** - `sast.yml`
-2. **Container Security Scanning** - `container-scan.yml`
-3. **Comprehensive Security Hardening** - `security-hardening.yml`
+1. **Code Quality & Linting** - `linting.yml`
+2. **Security Hardening** - `reusable-security-hardening.yml`
+
+These workflows are designed to be called from other repositories, providing enterprise-grade security scanning with minimal configuration.
 
 ## Workflows Description
 
-### 1. SAST Workflow (`sast.yml`)
+### 1. Linting Workflow (`linting.yml`)
 
-Performs static code analysis on the codebase to identify security vulnerabilities in source code.
-
-**Tools Used:**
-- **CodeQL**: GitHub's semantic code analysis engine
-- **OpenGrep**: Fast static analysis for security bugs
-- **Bandit**: Python-specific security linter
-- **Safety**: Python dependency vulnerability scanner
-- **Checkov**: Infrastructure as Code (Terraform) security scanner
-- **Hadolint**: Dockerfile security linter
-- **Gitleaks**: Secrets detection
-
-**Triggers:**
-- Push to `main` or `develop` branches
-- Pull requests to `main` or `develop` branches
-- Manual trigger (daily schedule commented out to reduce noise)
-
-### 2. Container Security Workflow (`container-scan.yml`)
-
-Scans container images for vulnerabilities and security misconfigurations.
+Performs code quality checks and static analysis for style and best practices.
 
 **Tools Used:**
-- **Trivy**: Comprehensive vulnerability scanner
-- **Grype**: Container image vulnerability scanner
-- **AWS ECR Image Scanning**: Native AWS container scanning
+- **Ruff**: Fast Python linter and formatter
+- **ESLint**: JavaScript/TypeScript linting
+- **Prettier**: Code formatting
+- **markdownlint**: Markdown style checking
+- **yamllint**: YAML validation
 
 **Features:**
-- Automatically discovers Lambda Dockerfiles that are deployed
-- Smart scanning: Uses pre-built ECR images when available, local build as fallback
-- Scans images stored in AWS ECR with native scanning
-- Generates multiple report formats (SARIF, JSON, text)
-- Optimized for cost efficiency and speed
+- Language-specific linting with industry-standard tools
+- Automatic code formatting validation
+- PR comments with linting results
+- Artifact generation for detailed reports
 
-**Triggers:**
-- Push/PR with changes to Dockerfiles or requirements.txt
-- Manual trigger (daily schedule commented out to reduce noise)
+### 2. Security Hardening Workflow (`reusable-security-hardening.yml`)
 
-### 3. Security Hardening Workflow (`security-hardening.yml`)
+Orchestrates comprehensive security scanning across your entire project.
 
-Orchestrates comprehensive security scanning across the entire project.
+**Security Scanners:**
+- **CodeQL**: GitHub's semantic code analysis engine (SAST)
+- **Semgrep**: Fast pattern-based security scanning (SAST)
+- **Bandit**: Python-specific security linter (SAST)
+- **Gitleaks**: Secrets detection in code and history
+- **Trivy**: Container and infrastructure vulnerability scanning
+- **Checkov**: Infrastructure as Code (IaC) security scanner
+- **Terrascan**: Multi-cloud IaC security analysis
 
 **Features:**
-- Selective scanning (full, SAST-only, container-only, infrastructure-only)
-- Infrastructure security analysis with multiple tools
-- AWS security configuration assessment
-- License compliance checking
-- Comprehensive reporting and notifications
+- **Granular Scanner Control**: Enable/disable individual scanners
+- **Flexible Execution**: Full scan or selective scanning
+- **Optional Linting**: Include code quality checks with `enable_linting: true`
+- **Multi-language Support**: Python, JavaScript, Go, and more
+- **Container Scanning**: Docker image vulnerability analysis
+- **IaC Analysis**: Terraform, CloudFormation, Kubernetes manifests
+- **SARIF Integration**: Results appear in GitHub Security tab
+- **PR Comments**: Automatic security summaries on pull requests
 
-**Tools Used:**
-- All SAST and Container tools (via workflow calls) - 100% OSS
-- **Trivy**: Infrastructure security scanning (config analysis)
-- **Terrascan**: Multi-cloud security scanner
-- **pip-licenses**: Python license compliance
+## Usage Patterns
+
+### Option 1: Separate Workflows (Recommended)
+
+**Best for**: Maximum flexibility, parallel execution, clear separation of concerns
+
+```yaml
+name: CI Pipeline
+on: [push, pull_request]
+
+jobs:
+  linting:
+    name: Code Quality
+    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@v2
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+
+  security:
+    name: Security Scanning
+    needs: linting  # Optional: run after linting
+    if: always()    # Run even if linting fails
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@v2
+    with:
+      scan_type: 'full'
+      enable_codeql: true
+      enable_semgrep: true
+      enable_bandit: true
+      enable_gitleaks: true
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+```
+
+### Option 2: Combined with enable_linting Flag
+
+**Best for**: Simplicity, single job definition, straightforward pipelines
+
+```yaml
+name: Security Pipeline
+on: [push, pull_request]
+
+jobs:
+  security:
+    name: Security & Quality
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@v2
+    with:
+      enable_linting: true  # ✅ Include linting in this workflow
+      scan_type: 'full'
+      enable_codeql: true
+      enable_semgrep: true
+      enable_bandit: true
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+      checks: write
+```
+
+### Option 3: Security Only (No Linting)
+
+**Best for**: Projects with existing linting, fast security-only scans, targeted scanning
+
+```yaml
+name: Security Only
+on: [push, pull_request]
+
+jobs:
+  security:
+    name: Security Scanning
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@v2
+    with:
+      enable_linting: false  # Default: no linting
+      scan_type: 'full'
+      enable_codeql: true
+      enable_gitleaks: true
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+```
+
+### Granular Scanner Control
+
+Enable only the scanners you need:
+
+```yaml
+jobs:
+  security:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@v2
+    with:
+      # Choose your scanners
+      enable_codeql: true      # Deep semantic analysis
+      enable_semgrep: false    # Skip pattern-based scanning
+      enable_bandit: true      # Python security checks
+      enable_gitleaks: true    # Secrets detection
+
+      # Container/IaC scanning (triggered by file presence)
+      # These run automatically if relevant files exist:
+      # - Trivy: Scans Dockerfiles and IaC
+      # - Checkov: Scans Terraform, CloudFormation
+      # - Terrascan: Multi-cloud IaC analysis
+```
 
 ## Setup Instructions
 
@@ -118,66 +210,72 @@ The workflows generate comprehensive security reports:
 
 **Note**: All reports generated by open-source tools only
 
-## Usage
+## Input Parameters
 
-### Manual Execution
+### Security Hardening Workflow Inputs
 
-Run security scans manually:
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `enable_linting` | boolean | `false` | Include code quality checks in security workflow |
+| `scan_type` | string | `'full'` | Type of scan: `full`, `quick`, `targeted` |
+| `enable_codeql` | boolean | `true` | Enable CodeQL semantic analysis |
+| `enable_semgrep` | boolean | `true` | Enable Semgrep pattern scanning |
+| `enable_bandit` | boolean | `true` | Enable Bandit Python security checks |
+| `enable_gitleaks` | boolean | `true` | Enable Gitleaks secrets detection |
+| `python_version` | string | `'3.11'` | Python version for security tools |
+| `node_version` | string | `'20'` | Node.js version for JavaScript scanning |
 
-```yaml
-# Full security scan
-workflow_dispatch:
-  inputs:
-    scan_type: 'full'
+### Linting Workflow Inputs
 
-# SAST only
-workflow_dispatch:
-  inputs:
-    scan_type: 'sast-only'
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `python_version` | string | `'3.11'` | Python version for linting tools |
+| `node_version` | string | `'20'` | Node.js version for JavaScript linting |
 
-# Container scanning only
-workflow_dispatch:
-  inputs:
-    scan_type: 'container-only'
-
-# Infrastructure only
-workflow_dispatch:
-  inputs:
-    scan_type: 'infrastructure-only'
-```
-
-### Viewing Results
+## Viewing Results
 
 1. **GitHub Security Tab**: View SARIF results for all security findings
 2. **Workflow Artifacts**: Download detailed reports from workflow runs
-3. **PR Comments**: Automatic security summaries on pull requests
-4. **Slack Notifications**: Real-time alerts for security issues
+3. **PR Comments**: Automatic security and linting summaries on pull requests
+4. **Actions Summary**: View scan results in the workflow run summary
 
-## Security Baseline
+## Security Coverage
 
-### Critical Security Controls
+### SAST (Static Application Security Testing)
 
-1. **Supply Chain Security**
-   - Dependency vulnerability scanning (Safety)
-   - License compliance checking
-   - Container base image scanning
+| Tool | Purpose | Languages |
+|------|---------|-----------|
+| **CodeQL** | Deep semantic code analysis | Python, JavaScript, TypeScript, Go, Java, C++ |
+| **Semgrep** | Fast pattern-based security scanning | 30+ languages |
+| **Bandit** | Python-specific security issues | Python |
 
-2. **Code Security**
-   - Static analysis for security bugs (CodeQL, OpenGrep, Bandit)
-   - Secrets detection (Gitleaks)
-   - Infrastructure as Code scanning (Checkov, Trivy)
+### Secrets Detection
 
-3. **Runtime Security**
-   - Container vulnerability scanning
-   - AWS security configuration analysis
-   - Regular security assessments
+| Tool | Purpose | Coverage |
+|------|---------|----------|
+| **Gitleaks** | Find hardcoded secrets | Git history, current code |
+
+### Container Security
+
+| Tool | Purpose | Formats |
+|------|---------|---------|
+| **Trivy** | Container vulnerability scanning | Docker, OCI images |
+
+### Infrastructure as Code (IaC)
+
+| Tool | Purpose | Platforms |
+|------|---------|-----------|
+| **Checkov** | IaC security scanning | Terraform, CloudFormation, Kubernetes, Docker |
+| **Terrascan** | Multi-cloud IaC analysis | Terraform, Kubernetes, Helm, Dockerfiles |
+| **Trivy** | Config file security | Terraform, CloudFormation, Kubernetes |
 
 ### Compliance Features
 
-- **SARIF Support**: Industry-standard security report format
-- **Audit Trail**: All security scans logged and tracked
-- **Automated Remediation**: Integration with dependency update tools
-- **Continuous Monitoring**: Scheduled daily/weekly scans
+- **SARIF Support**: Industry-standard security report format integrated with GitHub Security
+- **Audit Trail**: All security scans logged and tracked in workflow runs
+- **Granular Control**: Enable/disable individual scanners based on project needs
+- **Multi-language**: Supports Python, JavaScript, TypeScript, Go, and more
+- **PR Integration**: Automatic security summaries on pull requests
 
 ## Troubleshooting
 
