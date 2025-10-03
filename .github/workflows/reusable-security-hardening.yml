@@ -45,6 +45,11 @@ on:
         description: 'Enable Gitleaks scanner (overrides scan_type when explicitly set)'
         required: false
         type: boolean
+      skip_linting:
+        description: 'Skip linting checks (useful when linting already ran in parent workflow)'
+        required: false
+        default: false
+        type: boolean
     secrets:
       AWS_ACCOUNT_ID:
         description: 'AWS Account ID for infrastructure scans'
@@ -64,9 +69,10 @@ env:
   PYTHON_VERSION: ${{ inputs.python_version }}
 
 jobs:
-  # Run linting first to catch basic code quality issues
+  # Run linting first to catch basic code quality issues (unless skipped)
   code-quality-linting:
     name: Code Quality & Linting
+    if: ${{ !inputs.skip_linting }}
     uses: ./.github/workflows/linting.yml
     permissions:
       contents: read
@@ -77,7 +83,7 @@ jobs:
     name: Scan Coordinator
     runs-on: ubuntu-latest
     needs: [code-quality-linting]
-    if: always()
+    if: ${{ always() && !cancelled() }}
     outputs:
       scan_type: ${{ steps.determine-scan.outputs.scan_type }}
       should_run_sast: ${{ steps.determine-scan.outputs.should_run_sast }}

@@ -188,6 +188,7 @@ jobs:
       scan_type: 'codeql-only'
       codeql_languages: 'python'
       post_pr_comment: false
+      skip_linting: true  # Linting already ran in code-quality job
     permissions:
       contents: read
       security-events: write
@@ -248,12 +249,6 @@ jobs:
           echo "| ✅ End-to-End Integration (CodeQL) | Passed |" >> $GITHUB_STEP_SUMMARY
         else
           echo "| ❌ End-to-End Integration (CodeQL) | Failed |" >> $GITHUB_STEP_SUMMARY
-        fi
-
-        if [ "$SAST" = "success" ]; then
-          echo "| ✅ SAST-Only Scan Type | Passed |" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "| ❌ SAST-Only Scan Type | Failed |" >> $GITHUB_STEP_SUMMARY
         fi
 
         echo "" >> $GITHUB_STEP_SUMMARY
