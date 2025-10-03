@@ -136,16 +136,11 @@ jobs:
             enable_semgrep: 'false'
             enable_bandit: 'false'
             enable_gitleaks: 'false'
-          - name: 'enable-codeql-gitleaks'
-            enable_codeql: 'true'
-            enable_semgrep: 'false'
-            enable_bandit: 'false'
-            enable_gitleaks: 'true'
-          - name: 'enable-semgrep-bandit'
+          - name: 'enable-semgrep-bandit-gitleaks'
             enable_codeql: 'false'
             enable_semgrep: 'true'
             enable_bandit: 'true'
-            enable_gitleaks: 'false'
+            enable_gitleaks: 'true'
 
     steps:
     - name: Checkout
