@@ -30,21 +30,25 @@ on:
         type: string
       # Granular scanner controls (when not specified, scan_type determines behavior)
       enable_codeql:
-        description: 'Enable CodeQL scanner (overrides scan_type when explicitly set)'
+        description: 'Enable CodeQL scanner (overrides scan_type when explicitly set to "true" or "false")'
         required: false
-        type: boolean
+        default: ''
+        type: string
       enable_semgrep:
-        description: 'Enable Semgrep scanner (overrides scan_type when explicitly set)'
+        description: 'Enable Semgrep scanner (overrides scan_type when explicitly set to "true" or "false")'
         required: false
-        type: boolean
+        default: ''
+        type: string
       enable_bandit:
-        description: 'Enable Bandit scanner (overrides scan_type when explicitly set)'
+        description: 'Enable Bandit scanner (overrides scan_type when explicitly set to "true" or "false")'
         required: false
-        type: boolean
+        default: ''
+        type: string
       enable_gitleaks:
-        description: 'Enable Gitleaks scanner (overrides scan_type when explicitly set)'
+        description: 'Enable Gitleaks scanner (overrides scan_type when explicitly set to "true" or "false")'
         required: false
-        type: boolean
+        default: ''
+        type: string
       enable_linting:
         description: 'Enable code quality and linting checks (optional convenience - can also be called as separate workflow)'
         required: false
