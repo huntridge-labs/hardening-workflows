@@ -233,6 +233,11 @@ jobs:
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       codeql_languages: ${{ inputs.codeql_languages }}
+      # Pass granular scanner controls to SAST workflow
+      enable_codeql: ${{ needs.scan-coordinator.outputs.should_run_codeql == 'true' }}
+      enable_semgrep: ${{ needs.scan-coordinator.outputs.should_run_semgrep == 'true' }}
+      enable_bandit: ${{ needs.scan-coordinator.outputs.should_run_bandit == 'true' }}
+      enable_gitleaks: ${{ needs.scan-coordinator.outputs.should_run_gitleaks == 'true' }}
     permissions:
       contents: read
       security-events: write

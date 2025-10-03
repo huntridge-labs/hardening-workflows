@@ -23,6 +23,27 @@ on:
         required: false
         type: string
         default: 'python,javascript'
+      # Granular scanner controls
+      enable_codeql:
+        description: 'Enable CodeQL scanner'
+        required: false
+        type: boolean
+        default: true
+      enable_semgrep:
+        description: 'Enable Semgrep scanner'
+        required: false
+        type: boolean
+        default: true
+      enable_bandit:
+        description: 'Enable Bandit scanner'
+        required: false
+        type: boolean
+        default: true
+      enable_gitleaks:
+        description: 'Enable Gitleaks scanner'
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -37,6 +58,7 @@ jobs:
   generate-codeql-matrix:
     name: Generate CodeQL Matrix
     runs-on: ubuntu-latest
+    if: ${{ inputs.enable_codeql }}
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -74,7 +96,7 @@ jobs:
     timeout-minutes: 45
     continue-on-error: true  # Allow pipeline to continue even if security issues found
     # Skip CodeQL in Act - it requires GitHub's infrastructure
-    if: github.actor != 'nektos/act'
+    if: ${{ inputs.enable_codeql && github.actor != 'nektos/act' }}
     permissions:
       actions: read
       contents: read
@@ -159,6 +181,7 @@ jobs:
   opengrep-analysis:
     name: OpenGrep SAST
     runs-on: ubuntu-latest
+    if: ${{ inputs.enable_semgrep }}
     timeout-minutes: 20
     continue-on-error: true  # Allow pipeline to continue even if security issues found
 
@@ -220,6 +243,7 @@ jobs:
   bandit-analysis:
     name: Bandit Python Security
     runs-on: ubuntu-latest
+    if: ${{ inputs.enable_bandit }}
     timeout-minutes: 15
     continue-on-error: true  # Allow pipeline to continue even if security issues found
 
@@ -453,6 +477,7 @@ jobs:
   secrets-detection:
     name: Secrets Detection - Gitleaks
     runs-on: ubuntu-latest
+    if: ${{ inputs.enable_gitleaks }}
     timeout-minutes: 10
     continue-on-error: true  # Allow pipeline to continue even if secrets found
 
