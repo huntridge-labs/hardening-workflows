@@ -29,6 +29,9 @@ jobs:
       contents: read
       security-events: write
       pull-requests: write
+      checks: write
+      actions: read
+      id-token: write
     secrets: inherit
 
   # Test 2: Verify granular control - CodeQL + Gitleaks only
@@ -46,6 +49,9 @@ jobs:
       contents: read
       security-events: write
       pull-requests: write
+      checks: write
+      actions: read
+      id-token: write
     secrets: inherit
 
   # Test 3: Verify granular control - Semgrep + Bandit only
@@ -62,6 +68,9 @@ jobs:
       contents: read
       security-events: write
       pull-requests: write
+      checks: write
+      actions: read
+      id-token: write
     secrets: inherit
 
   # Test 4: Verify container-only scan type
@@ -75,6 +84,9 @@ jobs:
       contents: read
       security-events: write
       pull-requests: write
+      checks: write
+      actions: read
+      id-token: write
     secrets: inherit
 
   # Test 5: Verify infrastructure-only scan type
@@ -88,6 +100,9 @@ jobs:
       contents: read
       security-events: write
       pull-requests: write
+      checks: write
+      actions: read
+      id-token: write
     secrets: inherit
 
   # Test 6: Verify sast-only scan type
@@ -101,6 +116,9 @@ jobs:
       contents: read
       security-events: write
       pull-requests: write
+      checks: write
+      actions: read
+      id-token: write
     secrets: inherit
 
   # Verification Summary
