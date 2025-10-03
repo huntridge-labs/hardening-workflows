@@ -223,73 +223,20 @@ jobs:
         echo "  Bandit: $(grep 'should_run_bandit=' $GITHUB_OUTPUT | cut -d= -f2)"
         echo "  Gitleaks: $(grep 'should_run_gitleaks=' $GITHUB_OUTPUT | cut -d= -f2)"
 
-  # Legacy SAST pipeline (for backward compatibility - includes all SAST scanners)
+  # SAST pipeline - runs when should_run_sast is true OR when any individual scanner is enabled
   run-sast-pipeline:
-    name: Trigger SAST Pipeline
+    name: SAST Security Pipeline
     needs: scan-coordinator
-    if: needs.scan-coordinator.outputs.should_run_sast == 'true'
+    if: |
+      needs.scan-coordinator.outputs.should_run_sast == 'true' ||
+      needs.scan-coordinator.outputs.should_run_codeql == 'true' ||
+      needs.scan-coordinator.outputs.should_run_semgrep == 'true' ||
+      needs.scan-coordinator.outputs.should_run_bandit == 'true' ||
+      needs.scan-coordinator.outputs.should_run_gitleaks == 'true'
     uses: ./.github/workflows/sast.yml
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       codeql_languages: ${{ inputs.codeql_languages }}
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-    secrets: inherit
-
-  # Individual SAST Scanners (for granular control)
-  run-codeql-scanner:
-    name: CodeQL Security Scanner
-    needs: scan-coordinator
-    if: needs.scan-coordinator.outputs.should_run_codeql == 'true'
-    uses: ./.github/workflows/scanners/sast/codeql.yml
-    with:
-      post_pr_comment: ${{ inputs.post_pr_comment }}
-      codeql_languages: ${{ inputs.codeql_languages }}
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-    secrets: inherit
-
-  run-semgrep-scanner:
-    name: Semgrep Security Scanner
-    needs: scan-coordinator
-    if: needs.scan-coordinator.outputs.should_run_semgrep == 'true'
-    uses: ./.github/workflows/scanners/sast/semgrep.yml
-    with:
-      post_pr_comment: ${{ inputs.post_pr_comment }}
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-    secrets: inherit
-
-  run-bandit-scanner:
-    name: Bandit Python Security Scanner
-    needs: scan-coordinator
-    if: needs.scan-coordinator.outputs.should_run_bandit == 'true'
-    uses: ./.github/workflows/scanners/sast/bandit.yml
-    with:
-      post_pr_comment: ${{ inputs.post_pr_comment }}
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-    secrets: inherit
-
-  run-gitleaks-scanner:
-    name: Gitleaks Secrets Scanner
-    needs: scan-coordinator
-    if: needs.scan-coordinator.outputs.should_run_gitleaks == 'true'
-    uses: ./.github/workflows/scanners/secrets/gitleaks.yml
-    with:
-      post_pr_comment: ${{ inputs.post_pr_comment }}
     permissions:
       contents: read
       security-events: write
@@ -371,10 +318,6 @@ jobs:
     needs: [
       scan-coordinator,
       run-sast-pipeline,
-      run-codeql-scanner,
-      run-semgrep-scanner,
-      run-bandit-scanner,
-      run-gitleaks-scanner,
       run-container-pipeline,
       infrastructure-security
     ]
