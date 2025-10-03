@@ -16,23 +16,23 @@ graph TB
     SC[SCAN COORDINATOR<br/>Evaluates inputs and sets outputs]
     
     SC --> |Legacy| PL[PIPELINES]
-    SC --> |Granular| SAST_DIR[SAST Scanners<br/>scanners/sast/]
-    SC --> |Granular| SEC_DIR[Secrets Scanners<br/>scanners/secrets/]
+    SC --> |Granular| SAST_DIR[SAST Scanners]
+    SC --> |Granular| SEC_DIR[Secrets Scanners]
     SC --> |Infrastructure| IF[Infrastructure Scanners]
     
     PL --> SAST[sast.yml<br/>monolithic]
     PL --> CS[container-scan.yml]
     
-    SAST_DIR --> CQ["🔵 🟢 🟡<br/>codeql.yml"]
-    SAST_DIR --> SG["🔵 🟢<br/>semgrep.yml"]
-    SAST_DIR --> BD["🔵 🟢<br/>bandit.yml"]
+    SAST_DIR --> CQ["🔵 🟢 🟡<br/>Codeql"]
+    SAST_DIR --> SG["🔵 🟢<br/>Semgrep"]
+    SAST_DIR --> BD["🔵 🟢<br/>Bandit"]
 
-    SEC_DIR --> GL["🔵 🟢<br/>gitleaks.yml"]
-
-    CS --> CT["🔵 🔴<br/>Container Scan"]
+    SEC_DIR --> GL["🔵 🟢<br/>Gitleaks"]
+    
+    CS --> TR1["🔵 🔴<br/>Trivy image scan"]
     IF --> CK["🔵 🟣<br/>Checkov"]
     IF --> TS["🔵 🟣<br/>Terrascan"]
-    IF --> TR["🔵 🟣<br/>Trivy"]
+    IF --> TR2["🔵 🟣<br/>Trivy config scan"]
     
 ```
 
