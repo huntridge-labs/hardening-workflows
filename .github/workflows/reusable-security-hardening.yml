@@ -176,26 +176,26 @@ jobs:
         ENABLE_BANDIT="${{ inputs.enable_bandit }}"
         ENABLE_GITLEAKS="${{ inputs.enable_gitleaks }}"
 
-        # Use explicit inputs if provided, otherwise use defaults
-        if [ "$ENABLE_CODEQL" = "true" ] || [ "$ENABLE_CODEQL" = "false" ]; then
+        # Use explicit inputs if provided (non-empty), otherwise use defaults
+        if [ -n "$ENABLE_CODEQL" ]; then
           echo "should_run_codeql=$ENABLE_CODEQL" >> $GITHUB_OUTPUT
         else
           echo "should_run_codeql=$DEFAULT_CODEQL" >> $GITHUB_OUTPUT
         fi
 
-        if [ "$ENABLE_SEMGREP" = "true" ] || [ "$ENABLE_SEMGREP" = "false" ]; then
+        if [ -n "$ENABLE_SEMGREP" ]; then
           echo "should_run_semgrep=$ENABLE_SEMGREP" >> $GITHUB_OUTPUT
         else
           echo "should_run_semgrep=$DEFAULT_SEMGREP" >> $GITHUB_OUTPUT
         fi
 
-        if [ "$ENABLE_BANDIT" = "true" ] || [ "$ENABLE_BANDIT" = "false" ]; then
+        if [ -n "$ENABLE_BANDIT" ]; then
           echo "should_run_bandit=$ENABLE_BANDIT" >> $GITHUB_OUTPUT
         else
           echo "should_run_bandit=$DEFAULT_BANDIT" >> $GITHUB_OUTPUT
         fi
 
-        if [ "$ENABLE_GITLEAKS" = "true" ] || [ "$ENABLE_GITLEAKS" = "false" ]; then
+        if [ -n "$ENABLE_GITLEAKS" ]; then
           echo "should_run_gitleaks=$ENABLE_GITLEAKS" >> $GITHUB_OUTPUT
         else
           echo "should_run_gitleaks=$DEFAULT_GITLEAKS" >> $GITHUB_OUTPUT
