@@ -54,10 +54,20 @@ jobs:
     - name: Set up Terraform
       uses: hashicorp/setup-terraform@v3
 
-    - name: Install security tools
+    - name: Prepare infrastructure scan directory
       run: |
-        python -m pip install --upgrade pip
-        pip install checkov
+        IAC_PATH="${{ inputs.iac_path }}"
+        if [ -z "$IAC_PATH" ]; then
+          IAC_PATH='infrastructure'
+        fi
+
+        if [ ! -d "$IAC_PATH" ]; then
+          echo "⚠️  Directory '$IAC_PATH' not found. Skipping infrastructure scans."
+          exit 0
+        fi
+
+        mkdir -p "$IAC_PATH"/security-reports
+        echo "📁 Created security reports directory: $IAC_PATH/security-reports"
 
     - name: Run Trivy Infrastructure Scan
       uses: aquasecurity/trivy-action@0.28.0
@@ -69,25 +79,14 @@ jobs:
         hide-progress: true
       continue-on-error: true
 
-    - name: Run infrastructure security scans
-      env:
-        IAC_PATH: ${{ inputs.iac_path }}
-      run: |
-        echo "🔍 Running infrastructure security scanners"
-        if [ -z "$IAC_PATH" ]; then
-          IAC_PATH='infrastructure'
-        fi
-
-        if [ ! -d "$IAC_PATH" ]; then
-          echo "⚠️  Directory '$IAC_PATH' not found. Skipping infrastructure scans."
-          exit 0
-        fi
-
-        mkdir -p "$IAC_PATH"/security-reports
-
-        echo "🏗️  Running Checkov scan"
-        checkov -d "$IAC_PATH" --framework terraform -o sarif --output-file-path "$IAC_PATH"/security-reports/checkov-results.sarif || true
-        checkov -d "$IAC_PATH" --framework terraform -o json --output-file-path "$IAC_PATH"/security-reports/checkov-results.json || true
+    - name: Run Checkov Infrastructure Scan
+      uses: bridgecrewio/checkov-action@master
+      with:
+        directory: ${{ inputs.iac_path }}
+        framework: terraform
+        output_format: sarif, json
+        output_file_path: ${{ inputs.iac_path }}/security-reports/checkov-results.sarif,${{ inputs.iac_path }}/security-reports/checkov-results.json
+      continue-on-error: true
 
     - name: Upload infrastructure SARIF results
       uses: github/codeql-action/upload-sarif@v3
