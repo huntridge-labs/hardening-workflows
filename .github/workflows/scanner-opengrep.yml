@@ -1,4 +1,4 @@
-name: Semgrep/OpenGrep Scanner
+name: OpenGrep Scanner
 
 on:
   workflow_dispatch:
@@ -35,23 +35,18 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v5
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-
-    - name: Install OpenGrep/Semgrep
+    - name: Install OpenGrep
       run: |
-        python -m pip install --upgrade pip
-        pip install semgrep
+        echo "🔧 Installing OpenGrep..."
+        curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
+        echo "$HOME/.opengrep/bin" >> $GITHUB_PATH
 
-    - name: Run OpenGrep/Semgrep Security Analysis
+    - name: Run OpenGrep Security Analysis
       run: |
-        echo "🔍 Running Semgrep comprehensive security analysis..."
+        echo "🔍 Running OpenGrep comprehensive security analysis..."
         mkdir -p opengrep-reports
-        semgrep --config=auto --sarif --output=opengrep-reports/opengrep.sarif . || true
-        semgrep --config=auto --json --output=opengrep-reports/opengrep.json . || true
-        semgrep --config=auto --text --output=opengrep-reports/opengrep.txt . || true
+        opengrep scan --config=auto --sarif --output=opengrep-reports/opengrep.sarif . || true
+        opengrep scan --config=auto --json --output=opengrep-reports/opengrep.json . || true
 
         cp opengrep-reports/* . 2>/dev/null || true
       continue-on-error: true

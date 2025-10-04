@@ -47,7 +47,7 @@ jobs:
       checks: write
       id-token: write
 
-  # Example 3: Python-focused security (Bandit only, no CodeQL or Semgrep)
+  # Example 3: Python-focused security (Bandit only, no CodeQL or OpenGrep)
   python-only:
     if: github.event.inputs.scan_mode == 'Python Security Only'
     uses: ./.github/workflows/reusable-security-hardening.yml
@@ -128,3 +128,6 @@ jobs:
       security-events: write
       actions: read
       pull-requests: write
+
+  direct-opengrep-call:
+    uses: ./.github/workflows/scanner-opengrep.yml

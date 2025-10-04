@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       scanners:
-        description: 'Comma-separated list of scanners to run (codeql, semgrep, bandit, gitleaks, container, infrastructure, lint, all, sast, secrets, etc.)'
+        description: 'Comma-separated list of scanners to run (codeql, opengrep, bandit, gitleaks, container, infrastructure, lint, all, sast, secrets, etc.)'
         required: false
         default: 'all'
         type: string
@@ -95,7 +95,7 @@ jobs:
           [lint]=false
         )
 
-        DEFAULT_SCANNERS=(codeql semgrep bandit gitleaks container infrastructure)
+        DEFAULT_SCANNERS=(codeql opengrep bandit gitleaks container infrastructure)
         SELECTED=()
 
         normalize() {
@@ -129,7 +129,7 @@ jobs:
               for key in "${DEFAULT_SCANNERS[@]}"; do add_scanner "$key"; done
               ;;
             sast|sast-only)
-              for key in codeql semgrep bandit gitleaks; do add_scanner "$key"; done
+              for key in codeql opengrep bandit gitleaks; do add_scanner "$key"; done
               ;;
             secrets|secrets-only)
               add_scanner gitleaks
@@ -138,7 +138,7 @@ jobs:
               add_scanner codeql
               ;;
             semgrep|opengrep|open-grep)
-              add_scanner semgrep
+              add_scanner opengrep
               ;;
             bandit)
               add_scanner bandit
@@ -270,11 +270,11 @@ jobs:
       pull-requests: write
     secrets: inherit
 
-  scanner-semgrep:
-    name: Semgrep Scanner
+  scanner-opengrep:
+    name: OpenGrep Scanner
     needs: scan-coordinator
-    if: needs.scan-coordinator.outputs.run_semgrep == 'true'
-    uses: ./.github/workflows/scanner-semgrep.yml
+    if: needs.scan-coordinator.outputs.run_opengrep == 'true'
+    uses: ./.github/workflows/scanner-opengrep.yml
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -353,7 +353,7 @@ jobs:
       - scan-coordinator
       - code-quality-linting
       - scanner-codeql
-      - scanner-semgrep
+      - scanner-opengrep
       - scanner-bandit
       - scanner-gitleaks
       - scanner-container

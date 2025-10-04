@@ -51,16 +51,16 @@ jobs:
             scanners: 'codeql'
             enable_code_security: 'true'
             expect_codeql: 'true'
-            expect_semgrep: 'false'
+            expect_opengrep: 'false'
             expect_bandit: 'false'
             expect_gitleaks: 'false'
             expect_container: 'false'
             expect_infrastructure: 'false'
           - name: 'sast-scanners'
-            scanners: 'codeql,semgrep,bandit,gitleaks'
+            scanners: 'codeql,opengrep,bandit,gitleaks'
             enable_code_security: 'true'
             expect_codeql: 'true'
-            expect_semgrep: 'true'
+            expect_opengrep: 'true'
             expect_bandit: 'true'
             expect_gitleaks: 'true'
             expect_container: 'false'
@@ -68,7 +68,7 @@ jobs:
           - name: 'container-only'
             scanners: 'container'
             expect_codeql: 'false'
-            expect_semgrep: 'false'
+            expect_opengrep: 'false'
             expect_bandit: 'false'
             expect_gitleaks: 'false'
             expect_container: 'true'
@@ -76,7 +76,7 @@ jobs:
           - name: 'infrastructure-only'
             scanners: 'infrastructure'
             expect_codeql: 'false'
-            expect_semgrep: 'false'
+            expect_opengrep: 'false'
             expect_bandit: 'false'
             expect_gitleaks: 'false'
             expect_container: 'false'
@@ -85,7 +85,7 @@ jobs:
             scanners: 'all'
             enable_code_security: 'true'
             expect_codeql: 'true'
-            expect_semgrep: 'true'
+            expect_opengrep: 'true'
             expect_bandit: 'true'
             expect_gitleaks: 'true'
             expect_container: 'true'
@@ -94,7 +94,7 @@ jobs:
             scanners: ''
             enable_code_security: 'true'
             expect_codeql: 'true'
-            expect_semgrep: 'true'
+            expect_opengrep: 'true'
             expect_bandit: 'true'
             expect_gitleaks: 'true'
             expect_container: 'true'
@@ -103,7 +103,7 @@ jobs:
             scanners: 'codeql'
             enable_code_security: 'false'
             expect_codeql: 'false'
-            expect_semgrep: 'false'
+            expect_opengrep: 'false'
             expect_bandit: 'false'
             expect_gitleaks: 'false'
             expect_container: 'false'
@@ -124,14 +124,14 @@ jobs:
         # Parse scanners (same logic as in the main workflow)
         declare -A RUN=(
           [codeql]=false
-          [semgrep]=false
+          [opengrep]=false
           [bandit]=false
           [gitleaks]=false
           [container]=false
           [infrastructure]=false
         )
 
-        DEFAULT_SCANNERS=(codeql semgrep bandit gitleaks container infrastructure)
+        DEFAULT_SCANNERS=(codeql opengrep bandit gitleaks container infrastructure)
         SELECTED=()
 
         normalize() {
@@ -159,15 +159,21 @@ jobs:
           IFS=',' read -ra TOKENS <<< "$SCANNERS"
           for token in "${TOKENS[@]}"; do
             token=$(normalize "$token")
-            if [[ "$token" == "all" ]]; then
-              # 'all' = run all default scanners
-              for scanner in "${DEFAULT_SCANNERS[@]}"; do
-                add_scanner "$scanner"
-              done
-              break
-            else
-              add_scanner "$token"
-            fi
+            case "$token" in
+              all)
+                # 'all' = run all default scanners
+                for scanner in "${DEFAULT_SCANNERS[@]}"; do
+                  add_scanner "$scanner"
+                done
+                break
+                ;;
+              semgrep|opengrep|open-grep)
+                add_scanner opengrep
+                ;;
+              *)
+                add_scanner "$token"
+                ;;
+            esac
           done
         fi
 
@@ -182,7 +188,7 @@ jobs:
 
         # Verify expectations
         echo "Expected CodeQL: ${{ matrix.test.expect_codeql }}, Got: ${RUN[codeql]}"
-        echo "Expected Semgrep: ${{ matrix.test.expect_semgrep }}, Got: ${RUN[semgrep]}"
+        echo "Expected OpenGrep: ${{ matrix.test.expect_opengrep }}, Got: ${RUN[opengrep]}"
         echo "Expected Bandit: ${{ matrix.test.expect_bandit }}, Got: ${RUN[bandit]}"
         echo "Expected Gitleaks: ${{ matrix.test.expect_gitleaks }}, Got: ${RUN[gitleaks]}"
         echo "Expected Container: ${{ matrix.test.expect_container }}, Got: ${RUN[container]}"
@@ -195,8 +201,8 @@ jobs:
           FAILED=true
         fi
 
-        if [ "${RUN[semgrep]}" != "${{ matrix.test.expect_semgrep }}" ]; then
-          echo "❌ Semgrep mismatch"
+        if [ "${RUN[opengrep]}" != "${{ matrix.test.expect_opengrep }}" ]; then
+          echo "❌ OpenGrep mismatch"
           FAILED=true
         fi
 
@@ -236,37 +242,37 @@ jobs:
       matrix:
         test:
           - name: 'mixed-case-scanners'
-            scanners: 'CodeQL,SEMgrep,BanDit'
+            scanners: 'CodeQL,OPENGREP,BanDit'
             enable_code_security: 'true'
             expect_codeql: 'true'
-            expect_semgrep: 'true'
+            expect_opengrep: 'true'
             expect_bandit: 'true'
             expect_gitleaks: 'false'
             expect_container: 'false'
             expect_infrastructure: 'false'
           - name: 'whitespace-handling'
-            scanners: ' codeql , semgrep , bandit '
+            scanners: ' codeql , opengrep , bandit '
             enable_code_security: 'true'
             expect_codeql: 'true'
-            expect_semgrep: 'true'
+            expect_opengrep: 'true'
             expect_bandit: 'true'
             expect_gitleaks: 'false'
             expect_container: 'false'
             expect_infrastructure: 'false'
           - name: 'duplicate-scanners'
-            scanners: 'codeql,codeql,semgrep,semgrep'
+            scanners: 'codeql,codeql,opengrep,opengrep'
             enable_code_security: 'true'
             expect_codeql: 'true'
-            expect_semgrep: 'true'
+            expect_opengrep: 'true'
             expect_bandit: 'false'
             expect_gitleaks: 'false'
             expect_container: 'false'
             expect_infrastructure: 'false'
           - name: 'unknown-scanner-ignored'
-            scanners: 'codeql,unknown_scanner,semgrep'
+            scanners: 'codeql,unknown_scanner,opengrep'
             enable_code_security: 'true'
             expect_codeql: 'true'
-            expect_semgrep: 'true'
+            expect_opengrep: 'true'
             expect_bandit: 'false'
             expect_gitleaks: 'false'
             expect_container: 'false'
@@ -287,14 +293,14 @@ jobs:
 
         declare -A RUN=(
           [codeql]=false
-          [semgrep]=false
+          [opengrep]=false
           [bandit]=false
           [gitleaks]=false
           [container]=false
           [infrastructure]=false
         )
 
-        DEFAULT_SCANNERS=(codeql semgrep bandit gitleaks container infrastructure)
+        DEFAULT_SCANNERS=(codeql opengrep bandit gitleaks container infrastructure)
         SELECTED=()
 
         normalize() {
@@ -320,14 +326,20 @@ jobs:
           IFS=',' read -ra TOKENS <<< "$SCANNERS"
           for token in "${TOKENS[@]}"; do
             token=$(normalize "$token")
-            if [[ "$token" == "all" ]]; then
-              for scanner in "${DEFAULT_SCANNERS[@]}"; do
-                add_scanner "$scanner"
-              done
-              break
-            else
-              add_scanner "$token"
-            fi
+            case "$token" in
+              all)
+                for scanner in "${DEFAULT_SCANNERS[@]}"; do
+                  add_scanner "$scanner"
+                done
+                break
+                ;;
+              semgrep|opengrep|open-grep)
+                add_scanner opengrep
+                ;;
+              *)
+                add_scanner "$token"
+                ;;
+            esac
           done
         fi
 
@@ -348,8 +360,8 @@ jobs:
           FAILED=true
         fi
 
-        if [ "${RUN[semgrep]}" != "${{ matrix.test.expect_semgrep }}" ]; then
-          echo "❌ Semgrep mismatch: expected ${{ matrix.test.expect_semgrep }}, got ${RUN[semgrep]}"
+        if [ "${RUN[opengrep]}" != "${{ matrix.test.expect_opengrep }}" ]; then
+          echo "❌ OpenGrep mismatch: expected ${{ matrix.test.expect_opengrep }}, got ${RUN[opengrep]}"
           FAILED=true
         fi
 
@@ -399,12 +411,12 @@ jobs:
       id-token: write
     secrets: inherit
 
-  integration-test-semgrep:
-    name: Integration Test - Semgrep Only
+  integration-test-opengrep:
+    name: Integration Test - OpenGrep Only
     needs: [code-quality, test-scanner-resolution, test-scanners-input-validation]
     uses: ./.github/workflows/reusable-security-hardening.yml
     with:
-      scanners: 'semgrep'
+      scanners: 'opengrep'
       post_pr_comment: false
     permissions:
       contents: read
@@ -456,7 +468,7 @@ jobs:
       test-scanner-resolution,
       test-scanners-input-validation,
       integration-test-codeql,
-      integration-test-semgrep,
+      integration-test-opengrep,
       integration-test-container,
       integration-test-infrastructure
     ]
@@ -475,7 +487,7 @@ jobs:
         SCANNER_RESOLUTION="${{ needs.test-scanner-resolution.result }}"
         INPUT_VALIDATION="${{ needs.test-scanners-input-validation.result }}"
         INTEGRATION_CODEQL="${{ needs.integration-test-codeql.result }}"
-        INTEGRATION_SEMGREP="${{ needs.integration-test-semgrep.result }}"
+        INTEGRATION_OPENGREP="${{ needs.integration-test-opengrep.result }}"
         INTEGRATION_CONTAINER="${{ needs.integration-test-container.result }}"
         INTEGRATION_INFRASTRUCTURE="${{ needs.integration-test-infrastructure.result }}"
 
@@ -506,10 +518,10 @@ jobs:
           echo "| ❌ Integration - CodeQL | Failed |" >> $GITHUB_STEP_SUMMARY
         fi
 
-        if [ "$INTEGRATION_SEMGREP" = "success" ]; then
-          echo "| ✅ Integration - Semgrep | Passed |" >> $GITHUB_STEP_SUMMARY
+        if [ "$INTEGRATION_OPENGREP" = "success" ]; then
+          echo "| ✅ Integration - OpenGrep | Passed |" >> $GITHUB_STEP_SUMMARY
         else
-          echo "| ❌ Integration - Semgrep | Failed |" >> $GITHUB_STEP_SUMMARY
+          echo "| ❌ Integration - OpenGrep | Failed |" >> $GITHUB_STEP_SUMMARY
         fi
 
         if [ "$INTEGRATION_CONTAINER" = "success" ]; then
@@ -533,7 +545,7 @@ jobs:
         [ "$SCANNER_RESOLUTION" = "success" ] && PASSED=$((PASSED + 1))
         [ "$INPUT_VALIDATION" = "success" ] && PASSED=$((PASSED + 1))
         [ "$INTEGRATION_CODEQL" = "success" ] && PASSED=$((PASSED + 1))
-        [ "$INTEGRATION_SEMGREP" = "success" ] && PASSED=$((PASSED + 1))
+        [ "$INTEGRATION_OPENGREP" = "success" ] && PASSED=$((PASSED + 1))
         [ "$INTEGRATION_CONTAINER" = "success" ] && PASSED=$((PASSED + 1))
         [ "$INTEGRATION_INFRASTRUCTURE" = "success" ] && PASSED=$((PASSED + 1))
 
@@ -567,7 +579,7 @@ jobs:
             'Scanner Resolution Logic (6 scenarios)': '${{ needs.test-scanner-resolution.result }}',
             'Scanners Input Validation (4 edge cases)': '${{ needs.test-scanners-input-validation.result }}',
             'Integration - CodeQL': '${{ needs.integration-test-codeql.result }}',
-            'Integration - Semgrep': '${{ needs.integration-test-semgrep.result }}',
+            'Integration - OpenGrep': '${{ needs.integration-test-opengrep.result }}',
             'Integration - Container': '${{ needs.integration-test-container.result }}',
             'Integration - Infrastructure': '${{ needs.integration-test-infrastructure.result }}'
           };

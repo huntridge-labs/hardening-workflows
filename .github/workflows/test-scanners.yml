@@ -30,7 +30,7 @@ jobs:
         # Parse scanners (simplified version of the logic)
         declare -A RUN=(
           [codeql]=false
-          [semgrep]=false
+          [opengrep]=false
           [bandit]=false
           [gitleaks]=false
           [container]=false
@@ -38,7 +38,7 @@ jobs:
           [lint]=false
         )
 
-        DEFAULT_SCANNERS=(codeql semgrep bandit gitleaks container infrastructure)
+        DEFAULT_SCANNERS=(codeql opengrep bandit gitleaks container infrastructure)
         SELECTED=()
 
         normalize() {
