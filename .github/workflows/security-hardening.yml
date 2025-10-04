@@ -427,8 +427,8 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: security-hardening-report
-        path: security-hardening-report.md
-        retention-days: 90
+        path: security-hardening-report-${{ github.job }}.md
+        retention-days: 30
 
     - name: Comment PR with security summary
       if: github.event_name == 'pull_request'
