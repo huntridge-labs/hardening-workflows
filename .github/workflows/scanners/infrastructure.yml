@@ -1,0 +1,127 @@
+name: Infrastructure Security Scanner
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      iac_path:
+        description: 'Relative path to the infrastructure-as-code directory to scan'
+        required: false
+        type: string
+        default: 'infrastructure'
+      python_version:
+        description: 'Python version to use for IaC scanners'
+        required: false
+        type: string
+        default: '3.12'
+      aws_region:
+        description: 'AWS region used for IaC tooling that requires region context'
+        required: false
+        type: string
+        default: 'us-east-1'
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+
+env:
+  PYTHON_VERSION: ${{ inputs.python_version }}
+  AWS_REGION: ${{ inputs.aws_region }}
+
+jobs:
+  infrastructure-security:
+    name: Infrastructure Security Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Install security tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install checkov
+
+        curl -sSL https://api.github.com/repos/tenable/terrascan/releases/latest \
+          | grep browser_download_url \
+          | grep Linux_x86_64.tar.gz \
+          | cut -d '"' -f4 \
+          | head -n1 \
+          | xargs -r curl -sSL -o terrascan.tar.gz
+
+        if [ -f terrascan.tar.gz ]; then
+          tar -xf terrascan.tar.gz terrascan
+          sudo mv terrascan /usr/local/bin/terrascan
+          rm terrascan.tar.gz
+        fi
+
+        sudo apt-get update
+        sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+        echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
+        sudo apt-get update
+        sudo apt-get install -y trivy
+
+    - name: Run infrastructure security scans
+      env:
+        IAC_PATH: ${{ inputs.iac_path }}
+      run: |
+        echo "🔍 Running infrastructure security scanners"
+        if [ -z "$IAC_PATH" ]; then
+          IAC_PATH='infrastructure'
+        fi
+
+        if [ ! -d "$IAC_PATH" ]; then
+          echo "⚠️  Directory '$IAC_PATH' not found. Skipping infrastructure scans."
+          exit 0
+        fi
+
+        mkdir -p "$IAC_PATH"/security-reports
+        cd "$IAC_PATH"
+
+        mkdir -p security-reports
+
+        echo "📦 Running Trivy config scan"
+        trivy config --format sarif --output security-reports/trivy-results.sarif . || true
+        trivy config --format json --output security-reports/trivy-results.json . || true
+
+        echo "🏗️  Running Checkov scan"
+        checkov -d . --framework terraform --output sarif --output-file-path security-reports/checkov-results.sarif || true
+        checkov -d . --framework terraform --output json --output-file-path security-reports/checkov-results.json || true
+        checkov -d . --framework terraform --output cli --output-file-path security-reports/checkov-results.txt || true
+
+        echo "🛡️  Running Terrascan"
+        terrascan scan -i terraform -t all -d . --sarif-output security-reports/terrascan-results.sarif || true
+        terrascan scan -i terraform -t all -d . --json-output security-reports/terrascan-results.json || true
+        terrascan scan -i terraform -t all -d . --output security-reports/terrascan-results.txt || true
+
+    - name: Upload infrastructure SARIF results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always() && github.actor != 'nektos/act'
+      with:
+        sarif_file: |
+          ${{ inputs.iac_path }}/security-reports/trivy-results.sarif
+          ${{ inputs.iac_path }}/security-reports/checkov-results.sarif
+          ${{ inputs.iac_path }}/security-reports/terrascan-results.sarif
+      continue-on-error: true
+
+    - name: Upload infrastructure artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: infrastructure-security-reports
+        path: |
+          ${{ inputs.iac_path }}/security-reports/
+        retention-days: 30

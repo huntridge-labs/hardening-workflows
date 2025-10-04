@@ -5,8 +5,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/reusable-security-hardening.yml'
-      - '.github/workflows/sast.yml'
-      - '.github/workflows/container-scan.yml'
+      - '.github/workflows/scanners/container-scan.yml'
+      - '.github/workflows/scanners/sast.yml'
       - '.github/workflows/scanners/**'
       - '.github/workflows/pr-verification.yml'
 
@@ -26,162 +26,368 @@ jobs:
       pull-requests: write
       checks: write
 
-  # Test scan coordinator logic directly
-  test-scan-coordinator:
-    name: Test Scan Coordinator Logic
+  # Test scanner resolution logic directly
+  test-scanner-resolution:
+    name: Test Scanner Resolution Logic
     runs-on: ubuntu-latest
     needs: code-quality
     strategy:
       matrix:
         test:
           - name: 'codeql-only'
-            scan_type: 'codeql-only'
+            scanners: 'codeql'
             expect_codeql: 'true'
             expect_semgrep: 'false'
             expect_bandit: 'false'
             expect_gitleaks: 'false'
-          - name: 'sast-only'
-            scan_type: 'sast-only'
+            expect_container: 'false'
+            expect_infrastructure: 'false'
+          - name: 'sast-scanners'
+            scanners: 'codeql,semgrep,bandit,gitleaks'
             expect_codeql: 'true'
             expect_semgrep: 'true'
             expect_bandit: 'true'
             expect_gitleaks: 'true'
+            expect_container: 'false'
+            expect_infrastructure: 'false'
           - name: 'container-only'
-            scan_type: 'container-only'
+            scanners: 'container'
             expect_codeql: 'false'
             expect_semgrep: 'false'
             expect_bandit: 'false'
             expect_gitleaks: 'false'
+            expect_container: 'true'
+            expect_infrastructure: 'false'
           - name: 'infrastructure-only'
-            scan_type: 'infrastructure-only'
+            scanners: 'infrastructure'
             expect_codeql: 'false'
             expect_semgrep: 'false'
             expect_bandit: 'false'
             expect_gitleaks: 'false'
+            expect_container: 'false'
+            expect_infrastructure: 'true'
+          - name: 'all-scanners'
+            scanners: 'all'
+            expect_codeql: 'true'
+            expect_semgrep: 'true'
+            expect_bandit: 'true'
+            expect_gitleaks: 'true'
+            expect_container: 'true'
+            expect_infrastructure: 'true'
+          - name: 'empty-defaults'
+            scanners: ''
+            expect_codeql: 'true'
+            expect_semgrep: 'true'
+            expect_bandit: 'true'
+            expect_gitleaks: 'true'
+            expect_container: 'true'
+            expect_infrastructure: 'true'
 
     steps:
     - name: Checkout
       uses: actions/checkout@v5
 
-    - name: Test scan type logic
+    - name: Test scanner resolution logic
       run: |
-        echo "Testing scan type: ${{ matrix.test.scan_type }}"
+        echo "Testing scanners input: ${{ matrix.test.scanners }}"
 
-        # Simulate the scan coordinator logic
-        SCAN_TYPE="${{ matrix.test.scan_type }}"
+        # Simulate the scanner resolution logic from reusable-security-hardening.yml
+        SCANNERS="${{ matrix.test.scanners }}"
+        echo "Input scanners: $SCANNERS"
 
-        case "$SCAN_TYPE" in
-          "full")
-            CODEQL=true; SEMGREP=true; BANDIT=true; GITLEAKS=true
-            ;;
-          "sast-only")
-            CODEQL=true; SEMGREP=true; BANDIT=true; GITLEAKS=true
-            ;;
-          "codeql-only")
-            CODEQL=true; SEMGREP=false; BANDIT=false; GITLEAKS=false
-            ;;
-          "container-only")
-            CODEQL=false; SEMGREP=false; BANDIT=false; GITLEAKS=false
-            ;;
-          "infrastructure-only")
-            CODEQL=false; SEMGREP=false; BANDIT=false; GITLEAKS=false
-            ;;
-        esac
+        # Parse scanners (same logic as in the main workflow)
+        declare -A RUN=(
+          [codeql]=false
+          [semgrep]=false
+          [bandit]=false
+          [gitleaks]=false
+          [container]=false
+          [infrastructure]=false
+        )
+
+        DEFAULT_SCANNERS=(codeql semgrep bandit gitleaks container infrastructure)
+        SELECTED=()
+
+        normalize() {
+          echo "$1" | tr '[:upper:]' '[:lower:]' | tr -d ' \t' | tr '_' '-'
+        }
+
+        add_scanner() {
+          local key="$1"
+          if [[ -z "${RUN[$key]+_}" ]]; then
+            echo "Warning: Unknown scanner '$key' ignored"
+            return
+          fi
+          RUN[$key]=true
+          SELECTED+=("$key")
+        }
+
+        # Process scanner input
+        if [[ -z "$SCANNERS" ]]; then
+          # Empty input = run all default scanners
+          for scanner in "${DEFAULT_SCANNERS[@]}"; do
+            add_scanner "$scanner"
+          done
+        else
+          # Parse comma-separated list
+          IFS=',' read -ra TOKENS <<< "$SCANNERS"
+          for token in "${TOKENS[@]}"; do
+            token=$(normalize "$token")
+            if [[ "$token" == "all" ]]; then
+              # 'all' = run all default scanners
+              for scanner in "${DEFAULT_SCANNERS[@]}"; do
+                add_scanner "$scanner"
+              done
+              break
+            else
+              add_scanner "$token"
+            fi
+          done
+        fi
 
         # Verify expectations
-        echo "Expected CodeQL: ${{ matrix.test.expect_codeql }}, Got: $CODEQL"
-        echo "Expected Semgrep: ${{ matrix.test.expect_semgrep }}, Got: $SEMGREP"
-        echo "Expected Bandit: ${{ matrix.test.expect_bandit }}, Got: $BANDIT"
-        echo "Expected Gitleaks: ${{ matrix.test.expect_gitleaks }}, Got: $GITLEAKS"
+        echo "Expected CodeQL: ${{ matrix.test.expect_codeql }}, Got: ${RUN[codeql]}"
+        echo "Expected Semgrep: ${{ matrix.test.expect_semgrep }}, Got: ${RUN[semgrep]}"
+        echo "Expected Bandit: ${{ matrix.test.expect_bandit }}, Got: ${RUN[bandit]}"
+        echo "Expected Gitleaks: ${{ matrix.test.expect_gitleaks }}, Got: ${RUN[gitleaks]}"
+        echo "Expected Container: ${{ matrix.test.expect_container }}, Got: ${RUN[container]}"
+        echo "Expected Infrastructure: ${{ matrix.test.expect_infrastructure }}, Got: ${RUN[infrastructure]}"
 
         FAILED=false
 
-        if [ "$CODEQL" != "${{ matrix.test.expect_codeql }}" ]; then
+        if [ "${RUN[codeql]}" != "${{ matrix.test.expect_codeql }}" ]; then
           echo "❌ CodeQL mismatch"
           FAILED=true
         fi
 
-        if [ "$SEMGREP" != "${{ matrix.test.expect_semgrep }}" ]; then
+        if [ "${RUN[semgrep]}" != "${{ matrix.test.expect_semgrep }}" ]; then
           echo "❌ Semgrep mismatch"
           FAILED=true
         fi
 
-        if [ "$BANDIT" != "${{ matrix.test.expect_bandit }}" ]; then
+        if [ "${RUN[bandit]}" != "${{ matrix.test.expect_bandit }}" ]; then
           echo "❌ Bandit mismatch"
           FAILED=true
         fi
 
-        if [ "$GITLEAKS" != "${{ matrix.test.expect_gitleaks }}" ]; then
+        if [ "${RUN[gitleaks]}" != "${{ matrix.test.expect_gitleaks }}" ]; then
           echo "❌ Gitleaks mismatch"
           FAILED=true
         fi
 
+        if [ "${RUN[container]}" != "${{ matrix.test.expect_container }}" ]; then
+          echo "❌ Container mismatch"
+          FAILED=true
+        fi
+
+        if [ "${RUN[infrastructure]}" != "${{ matrix.test.expect_infrastructure }}" ]; then
+          echo "❌ Infrastructure mismatch"
+          FAILED=true
+        fi
+
         if [ "$FAILED" = true ]; then
-          echo "::error title=Scan Coordinator Test Failed::Scan type ${{ matrix.test.scan_type }} produced unexpected results"
+          echo "::error title=Scanner Resolution Test Failed::Scanners input '${{ matrix.test.scanners }}' produced unexpected results"
           exit 1
         fi
 
-        echo "✅ Scan type ${{ matrix.test.scan_type }} logic verified"
+        echo "✅ Scanner resolution for '${{ matrix.test.scanners }}' verified"
 
-  # Test granular enable flags
-  test-granular-controls:
-    name: Test Granular Enable Flags
+  # Test scanners input validation and edge cases
+  test-scanners-input-validation:
+    name: Test Scanners Input Validation
     runs-on: ubuntu-latest
     needs: code-quality
     strategy:
       matrix:
         test:
-          - name: 'enable-codeql-only'
-            enable_codeql: 'true'
-            enable_semgrep: 'false'
-            enable_bandit: 'false'
-            enable_gitleaks: 'false'
-          - name: 'enable-semgrep-bandit-gitleaks'
-            enable_codeql: 'false'
-            enable_semgrep: 'true'
-            enable_bandit: 'true'
-            enable_gitleaks: 'true'
+          - name: 'mixed-case-scanners'
+            scanners: 'CodeQL,SEMgrep,BanDit'
+            expect_codeql: 'true'
+            expect_semgrep: 'true'
+            expect_bandit: 'true'
+            expect_gitleaks: 'false'
+            expect_container: 'false'
+            expect_infrastructure: 'false'
+          - name: 'whitespace-handling'
+            scanners: ' codeql , semgrep , bandit '
+            expect_codeql: 'true'
+            expect_semgrep: 'true'
+            expect_bandit: 'true'
+            expect_gitleaks: 'false'
+            expect_container: 'false'
+            expect_infrastructure: 'false'
+          - name: 'duplicate-scanners'
+            scanners: 'codeql,codeql,semgrep,semgrep'
+            expect_codeql: 'true'
+            expect_semgrep: 'true'
+            expect_bandit: 'false'
+            expect_gitleaks: 'false'
+            expect_container: 'false'
+            expect_infrastructure: 'false'
+          - name: 'unknown-scanner-ignored'
+            scanners: 'codeql,unknown_scanner,semgrep'
+            expect_codeql: 'true'
+            expect_semgrep: 'true'
+            expect_bandit: 'false'
+            expect_gitleaks: 'false'
+            expect_container: 'false'
+            expect_infrastructure: 'false'
 
     steps:
     - name: Checkout
       uses: actions/checkout@v5
 
-    - name: Test granular enable flags
+    - name: Test scanners input validation
       run: |
-        echo "Testing granular controls: ${{ matrix.test.name }}"
+        echo "Testing scanners input validation: ${{ matrix.test.name }}"
+        echo "Input: ${{ matrix.test.scanners }}"
 
-        # Simulate granular override logic
-        ENABLE_CODEQL="${{ matrix.test.enable_codeql }}"
-        ENABLE_SEMGREP="${{ matrix.test.enable_semgrep }}"
-        ENABLE_BANDIT="${{ matrix.test.enable_bandit }}"
-        ENABLE_GITLEAKS="${{ matrix.test.enable_gitleaks }}"
+        # Use the same scanner resolution logic
+        SCANNERS="${{ matrix.test.scanners }}"
+        echo "Input scanners: $SCANNERS"
 
-        echo "CodeQL: $ENABLE_CODEQL"
-        echo "Semgrep: $ENABLE_SEMGREP"
-        echo "Bandit: $ENABLE_BANDIT"
-        echo "Gitleaks: $ENABLE_GITLEAKS"
+        declare -A RUN=(
+          [codeql]=false
+          [semgrep]=false
+          [bandit]=false
+          [gitleaks]=false
+          [container]=false
+          [infrastructure]=false
+        )
 
-        # Verify at least one scanner is enabled
-        if [ "$ENABLE_CODEQL" = "false" ] && \
-           [ "$ENABLE_SEMGREP" = "false" ] && \
-           [ "$ENABLE_BANDIT" = "false" ] && \
-           [ "$ENABLE_GITLEAKS" = "false" ]; then
-          if [ "${{ matrix.test.name }}" != "all-disabled" ]; then
-            echo "❌ At least one scanner should be enabled"
-            exit 1
+        DEFAULT_SCANNERS=(codeql semgrep bandit gitleaks container infrastructure)
+        SELECTED=()
+
+        normalize() {
+          echo "$1" | tr '[:upper:]' '[:lower:]' | tr -d ' \t' | tr '_' '-'
+        }
+
+        add_scanner() {
+          local key="$1"
+          if [[ -z "${RUN[$key]+_}" ]]; then
+            echo "Warning: Unknown scanner '$key' ignored"
+            return
           fi
+          RUN[$key]=true
+          SELECTED+=("$key")
+        }
+
+        # Process scanner input
+        if [[ -z "$SCANNERS" ]]; then
+          for scanner in "${DEFAULT_SCANNERS[@]}"; do
+            add_scanner "$scanner"
+          done
+        else
+          IFS=',' read -ra TOKENS <<< "$SCANNERS"
+          for token in "${TOKENS[@]}"; do
+            token=$(normalize "$token")
+            if [[ "$token" == "all" ]]; then
+              for scanner in "${DEFAULT_SCANNERS[@]}"; do
+                add_scanner "$scanner"
+              done
+              break
+            else
+              add_scanner "$token"
+            fi
+          done
         fi
 
-        echo "✅ Granular control test ${{ matrix.test.name }} passed"
+        # Verify expectations
+        FAILED=false
 
-  # Integration test - run one actual scanner to verify end-to-end
+        if [ "${RUN[codeql]}" != "${{ matrix.test.expect_codeql }}" ]; then
+          echo "❌ CodeQL mismatch: expected ${{ matrix.test.expect_codeql }}, got ${RUN[codeql]}"
+          FAILED=true
+        fi
+
+        if [ "${RUN[semgrep]}" != "${{ matrix.test.expect_semgrep }}" ]; then
+          echo "❌ Semgrep mismatch: expected ${{ matrix.test.expect_semgrep }}, got ${RUN[semgrep]}"
+          FAILED=true
+        fi
+
+        if [ "${RUN[bandit]}" != "${{ matrix.test.expect_bandit }}" ]; then
+          echo "❌ Bandit mismatch: expected ${{ matrix.test.expect_bandit }}, got ${RUN[bandit]}"
+          FAILED=true
+        fi
+
+        if [ "${RUN[gitleaks]}" != "${{ matrix.test.expect_gitleaks }}" ]; then
+          echo "❌ Gitleaks mismatch: expected ${{ matrix.test.expect_gitleaks }}, got ${RUN[gitleaks]}"
+          FAILED=true
+        fi
+
+        if [ "${RUN[container]}" != "${{ matrix.test.expect_container }}" ]; then
+          echo "❌ Container mismatch: expected ${{ matrix.test.expect_container }}, got ${RUN[container]}"
+          FAILED=true
+        fi
+
+        if [ "${RUN[infrastructure]}" != "${{ matrix.test.expect_infrastructure }}" ]; then
+          echo "❌ Infrastructure mismatch: expected ${{ matrix.test.expect_infrastructure }}, got ${RUN[infrastructure]}"
+          FAILED=true
+        fi
+
+        if [ "$FAILED" = true ]; then
+          echo "::error title=Scanners Input Validation Test Failed::Test '${{ matrix.test.name }}' failed validation"
+          exit 1
+        fi
+
+        echo "✅ Scanners input validation test '${{ matrix.test.name }}' passed"
+
+  # Integration test - run individual scanners to verify end-to-end
   integration-test-codeql:
-    name: Integration Test - CodeQL
-    needs: [code-quality, test-scan-coordinator, test-granular-controls]
+    name: Integration Test - CodeQL Only
+    needs: [code-quality, test-scanner-resolution, test-scanners-input-validation]
     uses: ./.github/workflows/reusable-security-hardening.yml
     with:
-      scan_type: 'codeql-only'
+      scanners: 'codeql'
       codeql_languages: 'python'
+      post_pr_comment: false
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+      checks: write
+      actions: read
+      id-token: write
+    secrets: inherit
+
+  integration-test-semgrep:
+    name: Integration Test - Semgrep Only
+    needs: [code-quality, test-scanner-resolution, test-scanners-input-validation]
+    uses: ./.github/workflows/reusable-security-hardening.yml
+    with:
+      scanners: 'semgrep'
+      post_pr_comment: false
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+      checks: write
+      actions: read
+      id-token: write
+    secrets: inherit
+
+  integration-test-container:
+    name: Integration Test - Container Only
+    needs: [code-quality, test-scanner-resolution, test-scanners-input-validation]
+    uses: ./.github/workflows/reusable-security-hardening.yml
+    with:
+      scanners: 'container'
+      post_pr_comment: false
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+      checks: write
+      actions: read
+      id-token: write
+    secrets: inherit
+
+  integration-test-infrastructure:
+    name: Integration Test - Infrastructure Only
+    needs: [code-quality, test-scanner-resolution, test-scanners-input-validation]
+    uses: ./.github/workflows/reusable-security-hardening.yml
+    with:
+      scanners: 'infrastructure'
       post_pr_comment: false
     permissions:
       contents: read
@@ -198,9 +404,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [
       code-quality,
-      test-scan-coordinator,
-      test-granular-controls,
-      integration-test-codeql
+      test-scanner-resolution,
+      test-scanners-input-validation,
+      integration-test-codeql,
+      integration-test-semgrep,
+      integration-test-container,
+      integration-test-infrastructure
     ]
     if: always()
 
@@ -214,9 +423,12 @@ jobs:
 
         # Check each test result
         LINTING="${{ needs.code-quality.result }}"
-        COORDINATOR="${{ needs.test-scan-coordinator.result }}"
-        GRANULAR="${{ needs.test-granular-controls.result }}"
-        INTEGRATION="${{ needs.integration-test-codeql.result }}"
+        SCANNER_RESOLUTION="${{ needs.test-scanner-resolution.result }}"
+        INPUT_VALIDATION="${{ needs.test-scanners-input-validation.result }}"
+        INTEGRATION_CODEQL="${{ needs.integration-test-codeql.result }}"
+        INTEGRATION_SEMGREP="${{ needs.integration-test-semgrep.result }}"
+        INTEGRATION_CONTAINER="${{ needs.integration-test-container.result }}"
+        INTEGRATION_INFRASTRUCTURE="${{ needs.integration-test-infrastructure.result }}"
 
         echo "| Test | Result |" >> $GITHUB_STEP_SUMMARY
         echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
@@ -227,46 +439,67 @@ jobs:
           echo "| ❌ Code Quality & Linting | Failed |" >> $GITHUB_STEP_SUMMARY
         fi
 
-        if [ "$COORDINATOR" = "success" ]; then
-          echo "| ✅ Scan Coordinator Logic (4 scan types) | Passed |" >> $GITHUB_STEP_SUMMARY
+        if [ "$SCANNER_RESOLUTION" = "success" ]; then
+          echo "| ✅ Scanner Resolution Logic (6 scenarios) | Passed |" >> $GITHUB_STEP_SUMMARY
         else
-          echo "| ❌ Scan Coordinator Logic (4 scan types) | Failed |" >> $GITHUB_STEP_SUMMARY
+          echo "| ❌ Scanner Resolution Logic (6 scenarios) | Failed |" >> $GITHUB_STEP_SUMMARY
         fi
 
-        if [ "$GRANULAR" = "success" ]; then
-          echo "| ✅ Granular Enable Controls (3 scenarios) | Passed |" >> $GITHUB_STEP_SUMMARY
+        if [ "$INPUT_VALIDATION" = "success" ]; then
+          echo "| ✅ Scanners Input Validation (4 edge cases) | Passed |" >> $GITHUB_STEP_SUMMARY
         else
-          echo "| ❌ Granular Enable Controls (3 scenarios) | Failed |" >> $GITHUB_STEP_SUMMARY
+          echo "| ❌ Scanners Input Validation (4 edge cases) | Failed |" >> $GITHUB_STEP_SUMMARY
         fi
 
-        if [ "$INTEGRATION" = "success" ]; then
-          echo "| ✅ End-to-End Integration (CodeQL) | Passed |" >> $GITHUB_STEP_SUMMARY
+        if [ "$INTEGRATION_CODEQL" = "success" ]; then
+          echo "| ✅ Integration - CodeQL | Passed |" >> $GITHUB_STEP_SUMMARY
         else
-          echo "| ❌ End-to-End Integration (CodeQL) | Failed |" >> $GITHUB_STEP_SUMMARY
+          echo "| ❌ Integration - CodeQL | Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [ "$INTEGRATION_SEMGREP" = "success" ]; then
+          echo "| ✅ Integration - Semgrep | Passed |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| ❌ Integration - Semgrep | Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [ "$INTEGRATION_CONTAINER" = "success" ]; then
+          echo "| ✅ Integration - Container | Passed |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| ❌ Integration - Container | Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [ "$INTEGRATION_INFRASTRUCTURE" = "success" ]; then
+          echo "| ✅ Integration - Infrastructure | Passed |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| ❌ Integration - Infrastructure | Failed |" >> $GITHUB_STEP_SUMMARY
         fi
 
         echo "" >> $GITHUB_STEP_SUMMARY
 
         # Calculate pass rate
-        TOTAL=4
+        TOTAL=7
         PASSED=0
         [ "$LINTING" = "success" ] && PASSED=$((PASSED + 1))
-        [ "$COORDINATOR" = "success" ] && PASSED=$((PASSED + 1))
-        [ "$GRANULAR" = "success" ] && PASSED=$((PASSED + 1))
-        [ "$INTEGRATION" = "success" ] && PASSED=$((PASSED + 1))
+        [ "$SCANNER_RESOLUTION" = "success" ] && PASSED=$((PASSED + 1))
+        [ "$INPUT_VALIDATION" = "success" ] && PASSED=$((PASSED + 1))
+        [ "$INTEGRATION_CODEQL" = "success" ] && PASSED=$((PASSED + 1))
+        [ "$INTEGRATION_SEMGREP" = "success" ] && PASSED=$((PASSED + 1))
+        [ "$INTEGRATION_CONTAINER" = "success" ] && PASSED=$((PASSED + 1))
+        [ "$INTEGRATION_INFRASTRUCTURE" = "success" ] && PASSED=$((PASSED + 1))
 
         echo "## Summary" >> $GITHUB_STEP_SUMMARY
         echo "**$PASSED of $TOTAL test suites passed**" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "- Code Quality & Linting: 1 test" >> $GITHUB_STEP_SUMMARY
-        echo "- Scan Coordinator Logic: 4 test scenarios" >> $GITHUB_STEP_SUMMARY
-        echo "- Granular Enable Controls: 3 test scenarios" >> $GITHUB_STEP_SUMMARY
-        echo "- End-to-End Integration: 1 full scanner run" >> $GITHUB_STEP_SUMMARY
+        echo "- Scanner Resolution Logic: 6 test scenarios" >> $GITHUB_STEP_SUMMARY
+        echo "- Scanners Input Validation: 4 edge case tests" >> $GITHUB_STEP_SUMMARY
+        echo "- Integration Tests: 4 individual scanner runs" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
         if [ $PASSED -eq $TOTAL ]; then
           echo "✅ All scanner control features are working correctly!" >> $GITHUB_STEP_SUMMARY
-          echo "::notice title=PR Verification::All $TOTAL test suites passed (9 total scenarios)"
+          echo "::notice title=PR Verification::All $TOTAL test suites passed (14 total scenarios)"
           exit 0
         else
           FAILED=$((TOTAL - PASSED))
@@ -282,9 +515,12 @@ jobs:
         script: |
           const results = {
             'Code Quality & Linting': '${{ needs.code-quality.result }}',
-            'Scan Coordinator Logic (4 scenarios)': '${{ needs.test-scan-coordinator.result }}',
-            'Granular Enable Controls (3 scenarios)': '${{ needs.test-granular-controls.result }}',
-            'End-to-End Integration (CodeQL)': '${{ needs.integration-test-codeql.result }}'
+            'Scanner Resolution Logic (6 scenarios)': '${{ needs.test-scanner-resolution.result }}',
+            'Scanners Input Validation (4 edge cases)': '${{ needs.test-scanners-input-validation.result }}',
+            'Integration - CodeQL': '${{ needs.integration-test-codeql.result }}',
+            'Integration - Semgrep': '${{ needs.integration-test-semgrep.result }}',
+            'Integration - Container': '${{ needs.integration-test-container.result }}',
+            'Integration - Infrastructure': '${{ needs.integration-test-infrastructure.result }}'
           };
 
           let passed = 0;
@@ -299,10 +535,10 @@ jobs:
           }
 
           const summary = passed === total
-            ? `✅ All ${total} test suites passed (9 total scenarios)!`
+            ? `✅ All ${total} test suites passed (14 total scenarios)!`
             : `⚠️ ${passed}/${total} test suites passed. ${total - passed} suite(s) failed.`;
 
-          const body = `## 🧪 Scanner Control Verification Results\n\n${summary}\n\n${table}\n\n### Test Coverage\n- **Linting runs once** - Code quality checks before all tests\n- **4 scan type scenarios** - Validates scan_type parameter logic\n- **3 granular control scenarios** - Validates enable_* parameter combinations\n- **1 end-to-end test** - Full workflow execution with actual scanner\n\n---\n*Verification run for commit ${context.sha.substring(0, 7)}*`;
+          const body = `## 🧪 Scanner Control Verification Results\n\n${summary}\n\n${table}\n\n### Test Coverage\n- **Linting runs once** - Code quality checks before all tests\n- **6 scanner resolution scenarios** - Validates scanners parameter logic\n- **4 input validation edge cases** - Tests whitespace, case sensitivity, duplicates, unknown scanners\n- **4 individual scanner integration tests** - Full workflow execution for each scanner type\n\n---\n*Verification run for commit ${context.sha.substring(0, 7)}*`;
 
           // Find existing comment
           const comments = await github.rest.issues.listComments({

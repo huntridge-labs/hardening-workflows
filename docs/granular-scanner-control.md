@@ -10,47 +10,63 @@
 | `container-only` | Docker/containers | Container scanning |
 | `infrastructure-only` | Terraform/IaC | Infrastructure scanning |
 
-## Granular Control
+## New Scanner List Approach (Recommended)
 
-Override scan type by explicitly enabling/disabling scanners:
+Use the `scanners` input to specify exactly which scanners to run:
 
 ```yaml
 with:
-  enable_codeql: true      # Override on
-  enable_semgrep: false    # Override off
-  # Others follow scan_type
+  scanners: 'codeql,semgrep,gitleaks'  # Run only these three scanners
 ```
 
-## Common Scenarios
+### Available Scanner Tokens
+
+| Token | Description | Category |
+|-------|-------------|----------|
+| `codeql` | GitHub CodeQL analysis | SAST |
+| `semgrep` | Semgrep/OpenGrep analysis | SAST |
+| `bandit` | Bandit Python security | SAST |
+| `gitleaks` | Gitleaks secrets detection | Secrets |
+| `container` | Container/Docker scanning | Container |
+| `infrastructure` | Terraform/IaC scanning | Infrastructure |
+| `lint` | Code quality and linting | Code Quality |
+| `all` | All available scanners | All |
+| `sast` | All SAST scanners | SAST |
+| `secrets` | Secrets scanning only | Secrets |
+| `none` | No scanners | None |
+
+### Examples
 
 **Fast development feedback:**
 ```yaml
-scan_type: 'codeql-only'
+scanners: 'codeql'
 ```
 
-**Pre-merge comprehensive:**
+**Python project with secrets:**
 ```yaml
-scan_type: 'full'
+scanners: 'codeql,bandit,gitleaks'
 ```
 
-**Python project:**
+**Infrastructure focus:**
 ```yaml
-enable_codeql: true
-enable_bandit: true
-enable_gitleaks: true
+scanners: 'infrastructure'
 ```
 
-**Secrets audit:**
+**Everything except Semgrep:**
 ```yaml
-enable_gitleaks: true
-enable_codeql: false
+scanners: 'all'
+# Note: 'all' includes all scanners, but you can exclude by not listing them
 ```
 
-**Cost-optimized:**
+## Legacy Granular Control (Deprecated)
+
+The old `enable_*` flags are deprecated but still supported for backward compatibility:
+
 ```yaml
-enable_codeql: true      # Primary
-enable_gitleaks: true    # Essential
-enable_semgrep: false    # Skip
+with:
+  enable_codeql: true
+  enable_semgrep: false
+  # ... other enable_* flags
 ```
 
 ## Scanner Details
@@ -61,6 +77,9 @@ enable_semgrep: false    # Skip
 | Semgrep | SAST | 1-3 min | Pattern matching |
 | Bandit | SAST | <2 min | Python security |
 | Gitleaks | Secrets | 1-2 min | Credential detection |
+| Container | Container | 2-5 min | Docker security |
+| Infrastructure | IaC | 3-7 min | Terraform security |
+| Linting | Code Quality | 1-3 min | Code standards |
 
 ## Direct Scanner Calls
 

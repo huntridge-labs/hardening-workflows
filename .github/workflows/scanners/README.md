@@ -6,19 +6,41 @@ This directory contains modular security scanner workflows that can be called in
 
 ```
 scanners/
-├── sast/              # Static Application Security Testing scanners
-│   ├── codeql.yml     # GitHub CodeQL scanner for multi-language code analysis
-│   ├── semgrep.yml    # Semgrep/OpenGrep for pattern-based security scanning
-│   └── bandit.yml     # Bandit for Python-specific security analysis
-├── secrets/           # Secret detection scanners
-│   └── gitleaks.yml   # Gitleaks for detecting hardcoded secrets
-└── infrastructure/    # Infrastructure security scanners (future)
-    └── (planned)      # Checkov, Terrascan, Trivy, etc.
+├── container-scan.yml     # Container image security scanning
+├── infrastructure.yml     # Infrastructure-as-code security scanning
+├── sast.yml              # Coordinating workflow for all SAST scanners
+├── sast/                 # Static Application Security Testing scanners
+│   ├── codeql.yml        # GitHub CodeQL scanner for multi-language code analysis
+│   ├── semgrep.yml       # Semgrep/OpenGrep for pattern-based security scanning
+│   └── bandit.yml        # Bandit for Python-specific security analysis
+└── secrets/              # Secret detection scanners
+    └── gitleaks.yml      # Gitleaks for detecting hardcoded secrets
 ```
 
 ## Scanner Categories
 
+### Container Security
+
+**Container Scan** (`container-scan.yml`)
+- Comprehensive container image security scanning
+- Multiple tools: Trivy, Docker Scout, etc.
+- Vulnerability detection, secret scanning, and compliance checks
+- Supports Docker and OCI images
+
+### Infrastructure Security
+
+**Infrastructure Scan** (`infrastructure.yml`)
+- Infrastructure-as-code security analysis
+- Multiple tools: Trivy, Checkov, Terrascan
+- Terraform, CloudFormation, Kubernetes manifest scanning
+- Policy-as-code validation
+
 ### SAST (Static Application Security Testing)
+
+**SAST Coordinator** (`sast.yml`)
+- Coordinating workflow for all SAST scanners
+- Runs CodeQL, Semgrep, and Bandit together
+- Legacy workflow - consider using individual scanners for granular control
 
 **CodeQL** (`sast/codeql.yml`)
 - GitHub's semantic code analysis engine

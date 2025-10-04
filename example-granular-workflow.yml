@@ -1,0 +1,81 @@
+name: Security Hardening Pipeline - Granular Control Example
+# from huntridge-labs/hardening-workflows
+# This example demonstrates TWO ways to include linting:
+#
+# OPTION 1: Separate workflow (recommended for flexibility)
+# OPTION 2: enable_linting flag (convenient for simple cases)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  # ============================================================================
+  # OPTION 1: SEPARATE WORKFLOWS (Recommended)
+  # Better separation of concerns, more flexibility
+  # ============================================================================
+
+  # Step 1: Run code quality and linting checks separately
+  linting:
+    name: Code Quality & Linting
+    # TODO: Update to use a release tag before merging (e.g., @v2.0.0)
+    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@feat/scanners-choice-codeql
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+
+  # Step 2: Run security hardening
+  security-separate:
+    name: Security (Separate Linting)
+    needs: linting  # Run after linting completes
+    if: always()    # Run even if linting finds issues
+    # TODO: Update to use a release tag before merging (e.g., @v2.0.0)
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/scanners-choice-codeql
+    with:
+      # New scanner list approach - comma-separated list of scanners to run
+      scanners: 'codeql,gitleaks,container'  # Only run CodeQL, Gitleaks, and container scanning
+
+      # Scanner configuration
+      codeql_languages: 'python'
+      python_version: '3.12'
+      post_pr_comment: true
+
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+      checks: write
+      id-token: write
+    secrets: inherit
+
+  # ============================================================================
+  # OPTION 2: COMBINED WITH enable_linting FLAG (Simpler)
+  # Convenient for simple cases, less separation
+  # ============================================================================
+
+  security-with-linting:
+    name: Security (With Linting Enabled)
+    # TODO: Update to use a release tag before merging (e.g., @v2.0.0)
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/scanners-choice-codeql
+    with:
+      # New scanner list approach - include linting in the scanner list
+      scanners: 'lint,codeql,gitleaks,container'  # Include linting, CodeQL, Gitleaks, and container scanning
+
+      # Scanner configuration
+      codeql_languages: 'python'
+      python_version: '3.12'
+      post_pr_comment: true
+
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+      checks: write
+      id-token: write
+    secrets: inherit
