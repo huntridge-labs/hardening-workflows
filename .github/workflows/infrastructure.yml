@@ -94,22 +94,19 @@ jobs:
         fi
 
         mkdir -p "$IAC_PATH"/security-reports
-        cd "$IAC_PATH"
-
-        mkdir -p security-reports
 
         echo "📦 Running Trivy config scan"
-        trivy config --format sarif --output security-reports/trivy-results.sarif . || true
-        trivy config --format json --output security-reports/trivy-results.json . || true
+        trivy config --format sarif --output "$IAC_PATH"/security-reports/trivy-results.sarif "$IAC_PATH" || true
+        trivy config --format json --output "$IAC_PATH"/security-reports/trivy-results.json "$IAC_PATH" || true
 
         echo "🏗️  Running Checkov scan"
-        checkov -d . --framework terraform --output sarif --output-file-path security-reports/checkov-results.sarif || true
-        checkov -d . --framework terraform --output json --output-file-path security-reports/checkov-results.json || true
-        checkov -d . --framework terraform --output cli --output-file-path security-reports/checkov-results.txt || true
+        checkov -d "$IAC_PATH" --framework terraform --output sarif --output-file-path "$IAC_PATH"/security-reports/checkov-results.sarif || true
+        checkov -d "$IAC_PATH" --framework terraform --output json --output-file-path "$IAC_PATH"/security-reports/checkov-results.json || true
+        checkov -d "$IAC_PATH" --framework terraform --output cli --output-file-path "$IAC_PATH"/security-reports/checkov-results.txt || true
 
         echo "🛡️  Running Terrascan"
-        terrascan scan -i terraform -t all -d . --sarif-output security-reports/terrascan-results.sarif || true
-        terrascan scan -i terraform -t all -d . --json-output security-reports/terrascan-results.json || true
+        terrascan scan -i terraform -d "$IAC_PATH" -o sarif -f "$IAC_PATH"/security-reports/terrascan-results.sarif || true
+        terrascan scan -i terraform -d "$IAC_PATH" -o json -f "$IAC_PATH"/security-reports/terrascan-results.json || true
 
     - name: Upload infrastructure SARIF results
       uses: github/codeql-action/upload-sarif@v3
