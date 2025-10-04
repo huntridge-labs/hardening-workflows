@@ -34,36 +34,13 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Install Gitleaks
-      run: |
-        wget -O gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz
-        tar -xzf gitleaks.tar.gz
-        sudo mv gitleaks /usr/local/bin/
-
     - name: Run Gitleaks Secrets Detection
-      run: |
-        echo "🔑 Scanning for secrets and credentials..."
-        mkdir -p gitleaks-reports
-
-        echo "Generating SARIF report..."
-        gitleaks detect --source . --report-format sarif --report-path gitleaks-reports/gitleaks-report.sarif --exit-code 0 || true
-
-        echo "Generating JSON report..."
-        gitleaks detect --source . --report-format json --report-path gitleaks-reports/gitleaks-report.json --exit-code 0 || true
-
-        cp gitleaks-reports/* . 2>/dev/null || true
-
-        echo "Generated Gitleaks files:"
-        ls -la gitleaks-reports/
-
-        if [ -f "gitleaks-reports/gitleaks-report.json" ]; then
-          echo "Gitleaks results:"
-          if [ -s "gitleaks-reports/gitleaks-report.json" ]; then
-            python3 -c "import json; data=json.load(open('gitleaks-reports/gitleaks-report.json')); print(f'Found {len(data)} potential secrets')" 2>/dev/null || echo "Could not parse results"
-          else
-            echo "No secrets detected"
-          fi
-        fi
+      uses: gitleaks/gitleaks-action@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+      with:
+        scan-mode: repo
       continue-on-error: true
 
     - name: Upload Gitleaks artifacts
@@ -71,14 +48,7 @@ jobs:
       with:
         name: gitleaks-reports
         path: |
-          gitleaks-report.json
-          gitleaks-reports/
+          results.json
+          results.sarif
         retention-days: 30
       if: always()
-
-    - name: Upload Gitleaks SARIF
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: gitleaks-report.sarif
-      if: inputs.enable_code_security == true && always() && github.actor != 'nektos/act' && hashFiles('gitleaks-report.sarif') != ''
-      continue-on-error: true

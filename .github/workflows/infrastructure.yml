@@ -72,12 +72,15 @@ jobs:
           rm terrascan.tar.gz
         fi
 
-        sudo apt-get update
-        sudo apt-get install -y wget apt-transport-https gnupg lsb-release
-        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-        echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
-        sudo apt-get update
-        sudo apt-get install -y trivy
+    - name: Run Trivy Infrastructure Scan
+      uses: aquasecurity/trivy-action@0.28.0
+      with:
+        scan-type: 'config'
+        scan-ref: '${{ inputs.iac_path }}'
+        format: 'sarif'
+        output: '${{ inputs.iac_path }}/security-reports/trivy-results.sarif'
+        hide-progress: true
+      continue-on-error: true
 
     - name: Run infrastructure security scans
       env:
@@ -95,10 +98,6 @@ jobs:
 
         mkdir -p "$IAC_PATH"/security-reports
 
-        echo "📦 Running Trivy config scan"
-        trivy config --format sarif --output "$IAC_PATH"/security-reports/trivy-results.sarif "$IAC_PATH" || true
-        trivy config --format json --output "$IAC_PATH"/security-reports/trivy-results.json "$IAC_PATH" || true
-
         echo "🏗️  Running Checkov scan"
         checkov -d "$IAC_PATH" --framework terraform --output sarif --output-file-path "$IAC_PATH"/security-reports/checkov-results.sarif || true
         checkov -d "$IAC_PATH" --framework terraform --output json --output-file-path "$IAC_PATH"/security-reports/checkov-results.json || true
@@ -110,12 +109,26 @@ jobs:
 
     - name: Upload infrastructure SARIF results
       uses: github/codeql-action/upload-sarif@v3
-      if: inputs.enable_code_security == true && always() && github.actor != 'nektos/act' && (hashFiles('${{ inputs.iac_path }}/security-reports/trivy-results.sarif') != '' || hashFiles('${{ inputs.iac_path }}/security-reports/checkov-results.sarif') != '' || hashFiles('${{ inputs.iac_path }}/security-reports/terrascan-results.sarif') != '')
+      if: inputs.enable_code_security == true && always() && github.actor != 'nektos/act'
       with:
-        sarif_file: |
-          ${{ inputs.iac_path }}/security-reports/trivy-results.sarif
-          ${{ inputs.iac_path }}/security-reports/checkov-results.sarif
-          ${{ inputs.iac_path }}/security-reports/terrascan-results.sarif
+        sarif_file: ${{ inputs.iac_path }}/security-reports/trivy-results.sarif
+        category: infrastructure-trivy
+      continue-on-error: true
+
+    - name: Upload Checkov SARIF results
+      uses: github/codeql-action/upload-sarif@v3
+      if: inputs.enable_code_security == true && always() && github.actor != 'nektos/act' && hashFiles('${{ inputs.iac_path }}/security-reports/checkov-results.sarif') != ''
+      with:
+        sarif_file: ${{ inputs.iac_path }}/security-reports/checkov-results.sarif
+        category: infrastructure-checkov
+      continue-on-error: true
+
+    - name: Upload Terrascan SARIF results
+      uses: github/codeql-action/upload-sarif@v3
+      if: inputs.enable_code_security == true && always() && github.actor != 'nektos/act' && hashFiles('${{ inputs.iac_path }}/security-reports/terrascan-results.sarif') != ''
+      with:
+        sarif_file: ${{ inputs.iac_path }}/security-reports/terrascan-results.sarif
+        category: infrastructure-terrascan
       continue-on-error: true
 
     - name: Upload infrastructure artifacts
