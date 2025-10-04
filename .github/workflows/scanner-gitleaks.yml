@@ -52,3 +52,11 @@ jobs:
           results.sarif
         retention-days: 30
       if: always()
+
+    - name: Upload SARIF to GitHub Code Scanning
+      uses: github/codeql-action/upload-sarif@v3
+      if: inputs.enable_code_security == true && always() && github.actor != 'nektos/act' && hashFiles('results.sarif') != ''
+      with:
+        sarif_file: results.sarif
+        category: secrets-gitleaks
+      continue-on-error: true

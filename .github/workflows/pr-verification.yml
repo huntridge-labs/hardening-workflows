@@ -26,6 +26,19 @@ jobs:
       pull-requests: write
       checks: write
 
+  gitleaks-scan:
+    name: Gitleaks Scan
+    needs: code-quality
+    uses: ./.github/workflows/scanner-gitleaks.yml
+    with:
+      post_pr_comment: false
+      enable_code_security: false
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+
   # Test scanner resolution logic directly
   test-scanner-resolution:
     name: Test Scanner Resolution Logic
