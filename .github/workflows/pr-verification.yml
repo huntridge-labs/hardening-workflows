@@ -36,6 +36,7 @@ jobs:
         test:
           - name: 'codeql-only'
             scanners: 'codeql'
+            enable_code_security: 'true'
             expect_codeql: 'true'
             expect_semgrep: 'false'
             expect_bandit: 'false'
@@ -44,6 +45,7 @@ jobs:
             expect_infrastructure: 'false'
           - name: 'sast-scanners'
             scanners: 'codeql,semgrep,bandit,gitleaks'
+            enable_code_security: 'true'
             expect_codeql: 'true'
             expect_semgrep: 'true'
             expect_bandit: 'true'
@@ -68,6 +70,7 @@ jobs:
             expect_infrastructure: 'true'
           - name: 'all-scanners'
             scanners: 'all'
+            enable_code_security: 'true'
             expect_codeql: 'true'
             expect_semgrep: 'true'
             expect_bandit: 'true'
@@ -76,6 +79,7 @@ jobs:
             expect_infrastructure: 'true'
           - name: 'empty-defaults'
             scanners: ''
+            enable_code_security: 'true'
             expect_codeql: 'true'
             expect_semgrep: 'true'
             expect_bandit: 'true'
@@ -220,6 +224,7 @@ jobs:
         test:
           - name: 'mixed-case-scanners'
             scanners: 'CodeQL,SEMgrep,BanDit'
+            enable_code_security: 'true'
             expect_codeql: 'true'
             expect_semgrep: 'true'
             expect_bandit: 'true'
@@ -228,6 +233,7 @@ jobs:
             expect_infrastructure: 'false'
           - name: 'whitespace-handling'
             scanners: ' codeql , semgrep , bandit '
+            enable_code_security: 'true'
             expect_codeql: 'true'
             expect_semgrep: 'true'
             expect_bandit: 'true'
@@ -236,6 +242,7 @@ jobs:
             expect_infrastructure: 'false'
           - name: 'duplicate-scanners'
             scanners: 'codeql,codeql,semgrep,semgrep'
+            enable_code_security: 'true'
             expect_codeql: 'true'
             expect_semgrep: 'true'
             expect_bandit: 'false'
@@ -244,6 +251,7 @@ jobs:
             expect_infrastructure: 'false'
           - name: 'unknown-scanner-ignored'
             scanners: 'codeql,unknown_scanner,semgrep'
+            enable_code_security: 'true'
             expect_codeql: 'true'
             expect_semgrep: 'true'
             expect_bandit: 'false'
@@ -308,6 +316,15 @@ jobs:
               add_scanner "$token"
             fi
           done
+        fi
+
+        # Check GitHub Code Security integration (same as main workflow)
+        ENABLE_CODE_SECURITY="${{ matrix.test.enable_code_security }}"
+        if [[ "${RUN[codeql]}" == "true" && "$ENABLE_CODE_SECURITY" != "true" ]]; then
+          echo "CodeQL disabled due to Code Security integration not enabled"
+          RUN[codeql]=false
+          # Remove codeql from SELECTED array
+          SELECTED=("${SELECTED[@]/codeql}")
         fi
 
         # Verify expectations
