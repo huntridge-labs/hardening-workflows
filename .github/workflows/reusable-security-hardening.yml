@@ -70,7 +70,7 @@ jobs:
       selected_scanners: ${{ steps.resolve.outputs.selected_scanners }}
       selected_scanners_json: ${{ steps.resolve.outputs.selected_scanners_json }}
       run_codeql: ${{ steps.resolve.outputs.run_codeql }}
-      run_semgrep: ${{ steps.resolve.outputs.run_semgrep }}
+      run_opengrep: ${{ steps.resolve.outputs.run_opengrep }}
       run_bandit: ${{ steps.resolve.outputs.run_bandit }}
       run_gitleaks: ${{ steps.resolve.outputs.run_gitleaks }}
       run_container: ${{ steps.resolve.outputs.run_container }}
@@ -87,7 +87,7 @@ jobs:
 
         declare -A RUN=(
           [codeql]=false
-          [semgrep]=false
+          [opengrep]=false
           [bandit]=false
           [gitleaks]=false
           [container]=false
