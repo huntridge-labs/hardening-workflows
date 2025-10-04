@@ -41,6 +41,7 @@ jobs:
 
       # Scanner configuration
       codeql_languages: 'python'
+      enable_code_security: true
       python_version: '3.12'
       post_pr_comment: true
 
@@ -68,6 +69,7 @@ jobs:
 
       # Scanner configuration
       codeql_languages: 'python'
+      enable_code_security: true
       python_version: '3.12'
       post_pr_comment: true
 

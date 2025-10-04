@@ -38,6 +38,11 @@ on:
         required: false
         default: 'python,javascript'
         type: string
+      enable_code_security:
+        description: 'Whether GitHub Code Security is enabled for this repository (required for CodeQL scanning)'
+        required: false
+        default: false
+        type: boolean
     secrets:
       AWS_ACCOUNT_ID:
         description: 'AWS Account ID for infrastructure scans'
@@ -207,6 +212,15 @@ jobs:
           echo "::warning title=No scanners selected::No scanners were selected. The workflow will execute the summary only."
         fi
 
+        # Check GitHub Code Security integration
+        ENABLE_CODE_SECURITY="${{ inputs.enable_code_security }}"
+        if [[ "${RUN[codeql]}" == "true" && "$ENABLE_CODE_SECURITY" != "true" ]]; then
+          echo "::warning title=CodeQL Disabled::GitHub Code Security is not enabled for this repository. CodeQL scanning will be skipped."
+          RUN[codeql]=false
+          # Remove codeql from SELECTED array
+          SELECTED=("${SELECTED[@]/codeql}")
+        fi
+
         echo "run_any=$RUN_ANY" >> "$GITHUB_OUTPUT"
 
         SELECTED_STR=$(IFS=','; echo "${SELECTED[*]}")
@@ -263,6 +277,7 @@ jobs:
     uses: ./.github/workflows/scanner-semgrep.yml
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
+      enable_code_security: ${{ inputs.enable_code_security }}
     permissions:
       contents: read
       security-events: write
@@ -277,6 +292,7 @@ jobs:
     uses: ./.github/workflows/scanner-bandit.yml
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
+      enable_code_security: ${{ inputs.enable_code_security }}
     permissions:
       contents: read
       security-events: write
@@ -291,6 +307,7 @@ jobs:
     uses: ./.github/workflows/scanner-gitleaks.yml
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
+      enable_code_security: ${{ inputs.enable_code_security }}
     permissions:
       contents: read
       security-events: write

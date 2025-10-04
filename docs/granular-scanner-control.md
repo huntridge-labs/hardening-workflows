@@ -35,6 +35,18 @@ with:
 | `secrets` | Secrets scanning only | Secrets |
 | `none` | No scanners | None |
 
+### GitHub Code Security Integration
+
+**Important:** CodeQL scanning requires GitHub Code Security to be enabled for your repository.
+
+```yaml
+with:
+  scanners: 'codeql'
+  enable_code_security: true  # Required for CodeQL scanning
+```
+
+If Code Security is not enabled, CodeQL will be automatically disabled with a warning.
+
 ### Examples
 
 **Fast development feedback:**

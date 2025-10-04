@@ -31,6 +31,7 @@ jobs:
     with:
       scanners: 'codeql'
       codeql_languages: 'python,javascript'
+      enable_code_security: true
       post_pr_comment: true
     permissions:
       contents: read
@@ -48,6 +49,7 @@ jobs:
     with:
       scanners: 'codeql,bandit,gitleaks'
       codeql_languages: 'python'
+      enable_code_security: true
       python_version: '3.12'
       post_pr_comment: true
     permissions:
@@ -118,6 +120,7 @@ jobs:
     with:
       scanners: ${{ github.event.inputs.scanners }}
       codeql_languages: 'python,javascript'
+      enable_code_security: true
       python_version: '3.12'
       aws_region: 'us-east-1'
       post_pr_comment: true

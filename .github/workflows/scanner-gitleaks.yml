@@ -9,6 +9,11 @@ on:
         required: false
         type: boolean
         default: true
+      enable_code_security:
+        description: 'Whether GitHub Code Security is enabled for this repository'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -61,13 +66,6 @@ jobs:
         fi
       continue-on-error: true
 
-    - name: Upload Gitleaks SARIF
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: gitleaks-report.sarif
-      if: always() && github.actor != 'nektos/act' && hashFiles('gitleaks-report.sarif') != ''
-      continue-on-error: true
-
     - name: Upload Gitleaks artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -77,3 +75,10 @@ jobs:
           gitleaks-reports/
         retention-days: 30
       if: always()
+
+    - name: Upload Gitleaks SARIF
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: gitleaks-report.sarif
+      if: inputs.enable_code_security == true && always() && github.actor != 'nektos/act' && hashFiles('gitleaks-report.sarif') != ''
+      continue-on-error: true

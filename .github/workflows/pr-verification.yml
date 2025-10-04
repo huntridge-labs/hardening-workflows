@@ -82,6 +82,15 @@ jobs:
             expect_gitleaks: 'true'
             expect_container: 'true'
             expect_infrastructure: 'true'
+          - name: 'codeql-disabled-by-code-security'
+            scanners: 'codeql'
+            enable_code_security: 'false'
+            expect_codeql: 'false'
+            expect_semgrep: 'false'
+            expect_bandit: 'false'
+            expect_gitleaks: 'false'
+            expect_container: 'false'
+            expect_infrastructure: 'false'
 
     steps:
     - name: Checkout
@@ -143,6 +152,15 @@ jobs:
               add_scanner "$token"
             fi
           done
+        fi
+
+        # Check GitHub Code Security integration (same as main workflow)
+        ENABLE_CODE_SECURITY="${{ matrix.test.enable_code_security }}"
+        if [[ "${RUN[codeql]}" == "true" && "$ENABLE_CODE_SECURITY" != "true" ]]; then
+          echo "CodeQL disabled due to Code Security integration not enabled"
+          RUN[codeql]=false
+          # Remove codeql from SELECTED array
+          SELECTED=("${SELECTED[@]/codeql}")
         fi
 
         # Verify expectations
@@ -340,6 +358,7 @@ jobs:
     with:
       scanners: 'codeql'
       codeql_languages: 'python'
+      enable_code_security: true
       post_pr_comment: false
     permissions:
       contents: read
