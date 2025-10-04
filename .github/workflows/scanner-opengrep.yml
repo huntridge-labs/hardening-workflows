@@ -39,7 +39,7 @@ jobs:
       run: |
         echo "🔧 Installing OpenGrep..."
         curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
-        echo "$HOME/.opengrep/bin" >> $GITHUB_PATH
+        echo "$HOME/.opengrep/cli/latest" >> $GITHUB_PATH
 
     - name: Run OpenGrep Security Analysis
       run: |
