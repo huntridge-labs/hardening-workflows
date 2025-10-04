@@ -245,7 +245,7 @@ jobs:
     name: CodeQL Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_codeql == 'true'
-    uses: ./.github/workflows/scanners/sast/codeql.yml
+    uses: ./.github/workflows/scanner-codeql.yml
     with:
       codeql_languages: ${{ inputs.codeql_languages }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -260,7 +260,7 @@ jobs:
     name: Semgrep Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_semgrep == 'true'
-    uses: ./.github/workflows/scanners/sast/semgrep.yml
+    uses: ./.github/workflows/scanner-semgrep.yml
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
     permissions:
@@ -274,7 +274,7 @@ jobs:
     name: Bandit Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_bandit == 'true'
-    uses: ./.github/workflows/scanners/sast/bandit.yml
+    uses: ./.github/workflows/scanner-bandit.yml
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
     permissions:
@@ -288,7 +288,7 @@ jobs:
     name: Gitleaks Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_gitleaks == 'true'
-    uses: ./.github/workflows/scanners/secrets/gitleaks.yml
+    uses: ./.github/workflows/scanner-gitleaks.yml
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
     permissions:
@@ -302,7 +302,7 @@ jobs:
     name: Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_container == 'true'
-    uses: ./.github/workflows/scanners/container-scan.yml
+    uses: ./.github/workflows/container-scan.yml
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
     permissions:
@@ -316,7 +316,7 @@ jobs:
     name: Infrastructure Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_infrastructure == 'true'
-    uses: ./.github/workflows/scanners/infrastructure.yml
+    uses: ./.github/workflows/infrastructure.yml
     with:
       iac_path: ${{ inputs.iac_path }}
       python_version: ${{ inputs.python_version }}
