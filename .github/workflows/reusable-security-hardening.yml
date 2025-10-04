@@ -338,6 +338,7 @@ jobs:
       iac_path: ${{ inputs.iac_path }}
       python_version: ${{ inputs.python_version }}
       aws_region: ${{ inputs.aws_region }}
+      enable_code_security: ${{ inputs.enable_code_security }}
     permissions:
       contents: read
       security-events: write
