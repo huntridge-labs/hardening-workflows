@@ -372,7 +372,7 @@ jobs:
         echo "# 🛡️ Security Analysis Summary" > security-hardening-report.md
         echo "" >> security-hardening-report.md
         echo "**Repository:** ${{ github.repository }}" >> security-hardening-report.md
-        echo "**Branch:** ${{ github.ref_name }}" >> security-hardening_report.md
+        echo "**Branch:** ${{ github.ref_name }}" >> security-hardening-report.md
         echo "**Generated:** $(date)" >> security-hardening-report.md
         echo "" >> security-hardening-report.md
 
@@ -551,7 +551,7 @@ jobs:
         echo "## 📋 Next Steps" >> security-hardening-report.md
         echo "1. Review the detailed scanner results in the collapsible sections above" >> security-hardening-report.md
         echo "2. Download and review security reports from workflow artifacts" >> security-hardening-report.md
-        echo "3. Address any critical or high-severity findings" >> security-hardening_report.md
+        echo "3. Address any critical or high-severity findings" >> security-hardening-report.md
         echo "4. Consider enabling automated dependency updates" >> security-hardening-report.md
 
     - name: Upload comprehensive security report
