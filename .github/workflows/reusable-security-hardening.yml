@@ -372,7 +372,7 @@ jobs:
         echo "# 🛡️ Security Analysis Summary" > security-hardening-report.md
         echo "" >> security-hardening-report.md
         echo "**Repository:** ${{ github.repository }}" >> security-hardening-report.md
-        echo "**Branch:** ${{ github.ref_name }}" >> security-hardening-report.md
+        echo "**Branch:** ${{ github.ref_name }}" >> security-hardening_report.md
         echo "**Generated:** $(date)" >> security-hardening-report.md
         echo "" >> security-hardening-report.md
 
@@ -380,17 +380,13 @@ jobs:
         count_sarif_issues() {
           local pattern="$1"
           local total=0
-          echo "DEBUG: Looking for SARIF files with pattern: $pattern" >&2
           # Find SARIF files matching the pattern
           while IFS= read -r -d '' sarif_file; do
-            echo "DEBUG: Found SARIF file: $sarif_file" >&2
             if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
               local count=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l || echo 0)
-              echo "DEBUG: File $sarif_file has $count issues" >&2
               total=$((total + count))
             fi
           done < <(eval "find . -name '*.sarif' -path '$pattern' -type f -print0 2>/dev/null")
-          echo "DEBUG: Total issues for pattern $pattern: $total" >&2
           echo $total
         }
 
@@ -406,6 +402,40 @@ jobs:
             fi
           done < <(eval "find . -name '*.sarif' -path '$pattern' -type f -print0 2>/dev/null")
           echo "$cves" | sort -u | sed '/^$/d'
+        }
+
+        # Function to count issues by severity from SARIF
+        count_by_severity() {
+          local pattern="$1"
+          local severity="$2"
+          local scanner="$3"
+          local count=0
+
+          # Handle different severity mappings for different scanners
+          case "$scanner" in
+            "OpenGrep")
+              # OpenGrep uses ERROR, WARNING, INFO (uppercase)
+              case "$severity" in
+                "error") level_filter="ERROR" ;;
+                "warning") level_filter="WARNING" ;;
+                "info") level_filter="INFO" ;;
+                *) level_filter="$severity" ;;
+              esac
+              ;;
+            *)
+              # Standard SARIF levels: error, warning, note, info
+              level_filter="$severity"
+              ;;
+          esac
+
+          while IFS= read -r -d '' sarif_file; do
+            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
+              # Count results with the specified level (case-insensitive)
+              local file_count=$(jq -r ".runs[]?.results[]? | select(.level | ascii_downcase == \"$(echo $level_filter | tr '[:upper:]' '[:lower:]')\") | .ruleId" "$sarif_file" 2>/dev/null | wc -l || echo 0)
+              count=$((count + file_count))
+            fi
+          done < <(eval "find . -name '*.sarif' -path '$pattern' -type f -print0 2>/dev/null")
+          echo $count
         }
 
         # Function to create scanner section
@@ -434,6 +464,23 @@ jobs:
             echo "**Issues Found:** $issue_count" >> security-hardening-report.md
             echo "" >> security-hardening-report.md
 
+            # Count issues by severity
+            local critical_count=$(count_by_severity "$sarif_pattern" "error" "$scanner_name")
+            local high_count=$(count_by_severity "$sarif_pattern" "warning" "$scanner_name")
+            local medium_count=$(count_by_severity "$sarif_pattern" "note" "$scanner_name")
+            local low_count=$(count_by_severity "$sarif_pattern" "info" "$scanner_name")
+
+            # Show severity breakdown if there are issues
+            if [ $issue_count -gt 0 ]; then
+              echo "| Severity | Count |" >> security-hardening-report.md
+              echo "|----------|-------|" >> security-hardening-report.md
+              [ $critical_count -gt 0 ] && echo "| 🔴 Critical | $critical_count |" >> security-hardening-report.md
+              [ $high_count -gt 0 ] && echo "| 🟠 High | $high_count |" >> security-hardening-report.md
+              [ $medium_count -gt 0 ] && echo "| 🟡 Medium | $medium_count |" >> security-hardening-report.md
+              [ $low_count -gt 0 ] && echo "| 🔵 Low | $low_count |" >> security-hardening-report.md
+              echo "" >> security-hardening-report.md
+            fi
+
             # Extract CVEs
             local cves=$(extract_cves "$sarif_pattern")
             if [ -n "$cves" ]; then
@@ -443,14 +490,17 @@ jobs:
               done
               local cve_count=$(echo "$cves" | wc -l)
               [ $cve_count -gt 5 ] && echo "- ... and $((cve_count - 5)) more" >> security-hardening-report.md
-              echo "" >> security-hardening-report.md
+              echo "" >> security-hardening_report.md
             fi
 
             # Link to artifacts
             echo "**📁 Artifacts:**" >> security-hardening-report.md
-            for artifact in $artifact_pattern; do
-              if [ -f "$artifact" ]; then
-                echo "- [\`$artifact\`](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> security-hardening-report.md
+            # List directories matching the artifact pattern
+            for artifact_dir in $artifact_pattern; do
+              if [ -d "$artifact_dir" ]; then
+                # Extract artifact name from directory name
+                artifact_name=$(basename "$artifact_dir")
+                echo "- [\`$artifact_name\`](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> security-hardening-report.md
               fi
             done
             echo "" >> security-hardening-report.md
@@ -477,18 +527,14 @@ jobs:
         echo "" >> security-hardening-report.md
 
         TOTAL_ISSUES=0
-        echo "DEBUG: Starting overall count" >&2
         if command -v jq >/dev/null 2>&1; then
           for sarif_file in $(find . -name "*.sarif" 2>/dev/null); do
-            echo "DEBUG: Overall found SARIF file: $sarif_file" >&2
             if [ -f "$sarif_file" ] && [ -s "$sarif_file" ]; then
               issues=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l || echo 0)
-              echo "DEBUG: Overall file $sarif_file has $issues issues" >&2
               TOTAL_ISSUES=$((TOTAL_ISSUES + issues))
             fi
           done
         fi
-        echo "DEBUG: Overall total issues: $TOTAL_ISSUES" >&2
 
         echo "**Total Issues Found:** $TOTAL_ISSUES" >> security-hardening-report.md
         echo "" >> security-hardening-report.md
