@@ -14,6 +14,11 @@ on:
         required: false
         type: boolean
         default: true
+      enable_code_security:
+        description: 'Whether GitHub Code Security is enabled for this repository'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -134,7 +139,61 @@ jobs:
       uses: github/codeql-action/analyze@v3
       with:
         category: "/language:${{matrix.language}}"
+        output: sarif-results
+        upload: ${{ inputs.enable_code_security && 'always' || 'never' }}
       continue-on-error: true
+
+    - name: Convert SARIF to JSON
+      run: |
+        # Convert SARIF results to JSON format for easier processing
+        # SARIF is already JSON, but we extract a cleaner format for downstream tools
+        if [ -d "sarif-results" ]; then
+          mkdir -p json-results
+
+          # Find all SARIF files and convert them to JSON
+          find sarif-results -name "*.sarif" | while read sarif_file; do
+            echo "Converting SARIF to JSON: $sarif_file"
+            basename=$(basename "$sarif_file" .sarif)
+
+            # SARIF is already JSON format, so we can simply copy it
+            # Optionally extract just the results for cleaner output
+            if command -v jq &> /dev/null; then
+              # Use jq to extract results if available
+              jq '{
+                version: .version,
+                runs: .runs | map({
+                  results: .results,
+                  tool: .tool,
+                  language: "${{ matrix.language }}"
+                })
+              }' "$sarif_file" > "json-results/${basename}.json" 2>/dev/null || cp "$sarif_file" "json-results/${basename}.json"
+            else
+              # Fallback: just copy the SARIF file as JSON (SARIF is valid JSON)
+              cp "$sarif_file" "json-results/${basename}.json"
+            fi
+          done
+
+          echo "✅ SARIF to JSON conversion completed"
+        else
+          echo "❌ No SARIF results directory found"
+        fi
+      continue-on-error: true
+
+    - name: Upload SARIF as JSON Artifact (Optional)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codeql-sarif-${{ matrix.language }}
+        path: sarif-results/
+        retention-days: 30
+      continue-on-error: true
+
+    - name: Upload Raw JSON Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: codeql-json-${{ matrix.language }}
+        path: json-results/
+        retention-days: 30
+      if: always()
 
   codeql-summary:
     name: CodeQL Summary
@@ -151,7 +210,7 @@ jobs:
         echo "" >> codeql-summary.md
         echo "CodeQL analysis completed. Check the Security tab for detailed results." >> codeql-summary.md
         echo "" >> codeql-summary.md
-        echo "**Note:** Results are uploaded to GitHub Code Scanning and will appear in the Security tab." >> codeql-summary.md
+        echo "**Note:** Results are uploaded to GitHub Code Scanning and will appear in the Security tab when Code Security is enabled." >> codeql-summary.md
 
     - name: Upload CodeQL Summary
       uses: actions/upload-artifact@v4

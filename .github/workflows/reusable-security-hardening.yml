@@ -263,6 +263,7 @@ jobs:
     with:
       codeql_languages: ${{ inputs.codeql_languages }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
+      enable_code_security: ${{ inputs.enable_code_security }}
     permissions:
       contents: read
       security-events: write
@@ -322,6 +323,7 @@ jobs:
     uses: ./.github/workflows/container-scan.yml
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
+      enable_code_security: ${{ inputs.enable_code_security }}
     permissions:
       contents: read
       security-events: write

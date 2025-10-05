@@ -20,6 +20,11 @@ on:
         required: false
         type: boolean
         default: true
+      enable_code_security:
+        description: 'Whether GitHub Code Security is enabled for this repository'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -169,7 +174,7 @@ jobs:
         output: 'trivy-${{ matrix.container.name }}-results.txt'
 
     - name: Upload Trivy scan results to GitHub Security tab
-      if: steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act' && hashFiles('trivy-${{ matrix.container.name }}-results.sarif') != ''
+      if: inputs.enable_code_security == true && steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act' && hashFiles('trivy-${{ matrix.container.name }}-results.sarif') != ''
       uses: github/codeql-action/upload-sarif@v3
       continue-on-error: true  # Never fail the pipeline
       with:
@@ -186,7 +191,7 @@ jobs:
         output-format: sarif
 
     - name: Upload Grype scan results
-      if: steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act' && steps.grype-scan.outputs.sarif != ''
+      if: inputs.enable_code_security == true && steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act' && steps.grype-scan.outputs.sarif != ''
       uses: github/codeql-action/upload-sarif@v3
       continue-on-error: true  # Never fail the pipeline
       with:
@@ -394,7 +399,7 @@ jobs:
 
           if [ $total_high -gt 0 ]; then
             echo "## ⚠️ HIGH PRIORITY" >> container-security-report.md
-            echo "" >> container-security-report.md
+            echo "" >> container-security_report.md
             echo "**$total_high high-severity vulnerabilities found.** Address these as soon as possible." >> container-security-report.md
             echo "" >> container-security-report.md
           fi
@@ -463,9 +468,9 @@ jobs:
         echo "" >> container-security-report.md
         echo "This repository contains both secure and vulnerable container examples for testing:" >> container-security-report.md
         echo "" >> container-security-report.md
-        echo "- **Secure containers** should show minimal vulnerabilities" >> container-security-report.md
-        echo "- **Vulnerable containers** are intentionally insecure for testing detection capabilities" >> container-security-report.md
-        echo "- **Build failures** on vulnerable containers may be expected due to intentional issues" >> container-security-report.md
+        echo "- **Secure containers** should show minimal vulnerabilities" >> container-security_report.md
+        echo "- **Vulnerable containers** are intentionally insecure for testing detection capabilities" >> container-security_report.md
+        echo "- **Build failures** on vulnerable containers may be expected due to intentional issues" >> container-security_report.md
         echo "" >> container-security-report.md
 
         echo "## Recommendations" >> container-security-report.md
@@ -473,10 +478,10 @@ jobs:
         echo "1. **Download artifacts** to review detailed vulnerability findings" >> container-security-report.md
         echo "2. **Address high and critical severity vulnerabilities** first" >> container-security-report.md
         echo "3. **Update base images and dependencies** with known vulnerabilities" >> container-security-report.md
-        echo "4. **Use minimal base images** (Alpine, distroless) to reduce attack surface" >> container-security-report.md
-        echo "5. **Implement multi-stage builds** to minimize final image size" >> container-security-report.md
-        echo "6. **Run containers as non-root users** when possible" >> container-security-report.md
-        echo "7. **Consider enabling GitHub Advanced Security** for integrated security dashboard" >> container-security-report.md
+        echo "4. **Use minimal base images** (Alpine, distroless) to reduce attack surface" >> container-security_report.md
+        echo "5. **Implement multi-stage builds** to minimize final image size" >> container-security_report.md
+        echo "6. **Run containers as non-root users** when possible" >> container-security_report.md
+        echo "7. **Consider enabling GitHub Advanced Security** for integrated security dashboard" >> container-security_report.md
         echo "" >> container-security-report.md
 
         echo "## GitHub Advanced Security" >> container-security-report.md
