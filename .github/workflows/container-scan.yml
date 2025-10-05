@@ -505,7 +505,7 @@ jobs:
         retention-days: 30
 
     - name: Comment PR with enhanced container security results
-      if: github.event_name == 'pull_request' && (inputs.post_pr_comment == null || inputs.post_pr_comment == true)
+      if: false  # Disabled - consolidated into main security hardening comment
       uses: actions/github-script@v8
       continue-on-error: true
       with:

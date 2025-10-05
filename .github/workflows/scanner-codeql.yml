@@ -220,57 +220,8 @@ jobs:
         retention-days: 30
 
     - name: Comment PR with CodeQL Results
-      if: github.event_name == 'pull_request' && (inputs.post_pr_comment == true || inputs.post_pr_comment == null)
+      if: false  # Disabled - consolidated into main security hardening comment
       uses: actions/github-script@v8
-      continue-on-error: true
       with:
         script: |
-          const fs = require('fs');
-
-          console.log('Repository:', context.repo.owner + '/' + context.repo.repo);
-          console.log('Event name:', context.eventName);
-          console.log('PR number:', context.issue?.number);
-
-          try {
-            const summary = fs.readFileSync('codeql-summary.md', 'utf8');
-            const commentBody = `## 🔍 CodeQL Analysis Results\n\n<!-- codeql-comment-marker -->\n\n${summary}`;
-
-            const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number
-            });
-
-            const existingComment = comments.data.find(comment => {
-              const hasMarker = comment.body.includes('codeql-comment-marker');
-              const isGitHubActions = comment.user.login === 'github-actions[bot]' || comment.user.type === 'Bot';
-              return hasMarker && isGitHubActions;
-            });
-
-            if (existingComment) {
-              console.log('🔄 Updating existing CodeQL comment');
-              const timestamp = new Date().toLocaleString();
-              const commitSha = context.sha.substring(0, 8);
-              const updatedBody = commentBody + `\n\n---\n*Last updated: ${timestamp} | Commit: ${commitSha} | [View Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
-
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existingComment.id,
-                body: updatedBody
-              });
-            } else {
-              console.log('📝 Creating new CodeQL comment');
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: commentBody
-              });
-            }
-
-            console.log('✅ Successfully posted/updated CodeQL summary comment');
-          } catch (error) {
-            console.log('❌ Failed to post CodeQL comment:', error.message);
-            console.log('📋 CodeQL report is still available in workflow artifacts');
-          }
+          // Disabled - consolidated into main security hardening comment

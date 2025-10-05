@@ -376,7 +376,100 @@ jobs:
         echo "**Generated:** $(date)" >> security-hardening-report.md
         echo "" >> security-hardening-report.md
 
-        # Count security issues from SARIF files
+        # Function to count issues in SARIF files
+        count_sarif_issues() {
+          local pattern="$1"
+          local total=0
+          for sarif_file in $pattern; do
+            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
+              local count=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l || echo 0)
+              total=$((total + count))
+            fi
+          done
+          echo $total
+        }
+
+        # Function to extract CVEs from SARIF
+        extract_cves() {
+          local pattern="$1"
+          local cves=""
+          for sarif_file in $pattern; do
+            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
+              local file_cves=$(jq -r '.runs[]?.results[]? | select(.ruleId | test("CVE-")) | .ruleId' "$sarif_file" 2>/dev/null || echo "")
+              cves="$cves"$'\n'"$file_cves"
+            fi
+          done
+          echo "$cves" | sort -u | sed '/^$/d'
+        }
+
+        # Function to create scanner section
+        create_scanner_section() {
+          local scanner_name="$1"
+          local artifact_pattern="$2"
+          local sarif_pattern="$3"
+          local description="$4"
+
+          echo "<details>" >> security-hardening-report.md
+          echo "<summary>🔍 $scanner_name</summary>" >> security-hardening-report.md
+          echo "" >> security-hardening-report.md
+
+          # Check if scanner ran (has artifacts)
+          local has_artifacts=false
+          if compgen -G "$artifact_pattern" > /dev/null 2>&1; then
+            has_artifacts=true
+          fi
+
+          if [ "$has_artifacts" = true ]; then
+            echo "**Status:** ✅ Completed" >> security-hardening-report.md
+            echo "" >> security-hardening-report.md
+
+            # Count issues
+            local issue_count=$(count_sarif_issues "$sarif_pattern")
+            echo "**Issues Found:** $issue_count" >> security-hardening-report.md
+            echo "" >> security-hardening-report.md
+
+            # Extract CVEs
+            local cves=$(extract_cves "$sarif_pattern")
+            if [ -n "$cves" ]; then
+              echo "**CVEs Detected:**" >> security-hardening-report.md
+              echo "$cves" | head -5 | while read -r cve; do
+                [ -n "$cve" ] && echo "- $cve" >> security-hardening-report.md
+              done
+              local cve_count=$(echo "$cves" | wc -l)
+              [ $cve_count -gt 5 ] && echo "- ... and $((cve_count - 5)) more" >> security-hardening-report.md
+              echo "" >> security-hardening-report.md
+            fi
+
+            # Link to artifacts
+            echo "**📁 Artifacts:**" >> security-hardening-report.md
+            for artifact in $artifact_pattern; do
+              if [ -f "$artifact" ]; then
+                echo "- [\`$artifact\`](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> security-hardening-report.md
+              fi
+            done
+            echo "" >> security-hardening-report.md
+
+          else
+            echo "**Status:** ⏭️ Skipped" >> security-hardening-report.md
+            echo "" >> security-hardening-report.md
+          fi
+
+          echo "</details>" >> security-hardening-report.md
+          echo "" >> security-hardening-report.md
+        }
+
+        # Create sections for each scanner
+        create_scanner_section "CodeQL" "codeql-*" "*.sarif" "Static Application Security Testing (SAST) using GitHub CodeQL"
+        create_scanner_section "OpenGrep" "opengrep*" "*.sarif" "Semantic code analysis using OpenGrep (Semgrep)"
+        create_scanner_section "Bandit" "bandit*" "*.sarif" "Python security analysis using Bandit"
+        create_scanner_section "GitLeaks" "gitleaks*" "*.sarif" "Secret detection using GitLeaks"
+        create_scanner_section "Container Security" "trivy-*" "*.sarif" "Container image vulnerability scanning using Trivy"
+        create_scanner_section "Infrastructure Security" "*infrastructure*" "*.sarif" "Infrastructure as Code security analysis"
+
+        # Overall summary
+        echo "## 📊 Overall Security Score" >> security-hardening-report.md
+        echo "" >> security-hardening-report.md
+
         TOTAL_ISSUES=0
         if command -v jq >/dev/null 2>&1; then
           for sarif_file in $(find . -name "*.sarif" 2>/dev/null); do
@@ -387,8 +480,6 @@ jobs:
           done
         fi
 
-        echo "## 📊 Security Score" >> security-hardening-report.md
-        echo "" >> security-hardening-report.md
         echo "**Total Issues Found:** $TOTAL_ISSUES" >> security-hardening-report.md
         echo "" >> security-hardening-report.md
 
@@ -402,9 +493,10 @@ jobs:
 
         echo "" >> security-hardening-report.md
         echo "## 📋 Next Steps" >> security-hardening-report.md
-        echo "1. Download and review security reports from workflow artifacts" >> security-hardening-report.md
-        echo "2. Address any critical or high-severity findings" >> security-hardening-report.md
-        echo "3. Consider enabling automated dependency updates" >> security-hardening-report.md
+        echo "1. Review the detailed scanner results in the collapsible sections above" >> security-hardening-report.md
+        echo "2. Download and review security reports from workflow artifacts" >> security-hardening-report.md
+        echo "3. Address any critical or high-severity findings" >> security-hardening-report.md
+        echo "4. Consider enabling automated dependency updates" >> security-hardening-report.md
 
     - name: Upload comprehensive security report
       uses: actions/upload-artifact@v4

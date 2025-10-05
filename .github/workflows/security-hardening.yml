@@ -431,7 +431,7 @@ jobs:
         retention-days: 30
 
     - name: Comment PR with security summary
-      if: github.event_name == 'pull_request'
+      if: false  # Disabled - use reusable-security-hardening.yml for consolidated comments
       uses: actions/github-script@v8
       continue-on-error: true  # Don't fail the workflow if commenting fails
       with:
