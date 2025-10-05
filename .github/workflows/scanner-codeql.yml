@@ -88,6 +88,7 @@ jobs:
       with:
         languages: ${{ matrix.language }}
         config-file: ./.github/codeql/codeql-config.yml
+        tools: latest
 
     - name: Debug - Show files to analyze
       run: |
@@ -147,12 +148,19 @@ jobs:
       run: |
         # Use CodeQL CLI to decode BQRS files to clean JSON format
         # This provides raw query results without SARIF metadata overhead
-        if command -v codeql &> /dev/null; then
-          echo "✅ CodeQL CLI available for BQRS decoding"
 
-          # Find the database directory
-          DB_DIR=$(find . -name "codeql_databases" -type d | head -1)
-          if [ -n "$DB_DIR" ]; then
+        # CodeQL CLI should be available after init action
+        # The action installs it to /opt/hostedtoolcache/CodeQL/.../codeql
+        CODEQL_PATH=$(find /opt/hostedtoolcache/CodeQL -name "codeql" -type f 2>/dev/null | head -1)
+
+        if [ -n "$CODEQL_PATH" ]; then
+          echo "✅ CodeQL CLI found at: $CODEQL_PATH"
+
+          # Database directory is typically in /home/runner/work/_temp/codeql_databases
+          # or we can use the CODEQL_DATABASE_* environment variables
+          DB_DIR="/home/runner/work/_temp/codeql_databases"
+
+          if [ -d "$DB_DIR" ]; then
             echo "Found database directory: $DB_DIR"
             mkdir -p bqrs-json-results
 
@@ -162,7 +170,7 @@ jobs:
               basename=$(basename "$bqrs_file" .bqrs)
 
               # Decode BQRS to JSON format
-              codeql bqrs decode \
+              "$CODEQL_PATH" bqrs decode \
                 --format=json \
                 --output="bqrs-json-results/${basename}.json" \
                 "$bqrs_file" 2>/dev/null || echo "Failed to decode $bqrs_file"
@@ -170,10 +178,32 @@ jobs:
 
             echo "✅ BQRS decoding completed"
           else
-            echo "❌ Could not find CodeQL database directory"
+            echo "❌ Could not find CodeQL database directory at $DB_DIR"
+            # Fallback: try to find any codeql_databases directory
+            DB_DIR=$(find . -name "codeql_databases" -type d 2>/dev/null | head -1)
+            if [ -n "$DB_DIR" ]; then
+              echo "Found database directory (fallback): $DB_DIR"
+              mkdir -p bqrs-json-results
+
+              # Find and decode all BQRS files to JSON
+              find "$DB_DIR" -name "*.bqrs" | while read bqrs_file; do
+                echo "Decoding BQRS file: $bqrs_file"
+                basename=$(basename "$bqrs_file" .bqrs)
+
+                # Decode BQRS to JSON format
+                "$CODEQL_PATH" bqrs decode \
+                  --format=json \
+                  --output="bqrs-json-results/${basename}.json" \
+                  "$bqrs_file" 2>/dev/null || echo "Failed to decode $bqrs_file"
+              done
+
+              echo "✅ BQRS decoding (fallback) completed"
+            else
+              echo "❌ No CodeQL database directory found - BQRS decoding skipped"
+            fi
           fi
         else
-          echo "❌ CodeQL CLI not available for BQRS decoding"
+          echo "❌ CodeQL CLI not found in tool cache"
         fi
       continue-on-error: true
 
