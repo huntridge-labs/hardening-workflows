@@ -426,7 +426,7 @@ jobs:
     - name: Upload comprehensive security report
       uses: actions/upload-artifact@v4
       with:
-        name: security-hardening-report-${{ github.run_id }}
+        name: security-hardening-report-${{ github.job }}
         path: security-hardening-report.md
         retention-days: 30
 
