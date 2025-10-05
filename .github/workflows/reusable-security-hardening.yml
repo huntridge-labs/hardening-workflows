@@ -380,12 +380,17 @@ jobs:
         count_sarif_issues() {
           local pattern="$1"
           local total=0
-          for sarif_file in $pattern; do
+          echo "DEBUG: Looking for SARIF files with pattern: $pattern" >&2
+          # Find SARIF files matching the pattern
+          while IFS= read -r -d '' sarif_file; do
+            echo "DEBUG: Found SARIF file: $sarif_file" >&2
             if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
               local count=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l || echo 0)
+              echo "DEBUG: File $sarif_file has $count issues" >&2
               total=$((total + count))
             fi
-          done
+          done < <(eval "find . -name '*.sarif' -path '$pattern' -type f -print0 2>/dev/null")
+          echo "DEBUG: Total issues for pattern $pattern: $total" >&2
           echo $total
         }
 
@@ -393,12 +398,13 @@ jobs:
         extract_cves() {
           local pattern="$1"
           local cves=""
-          for sarif_file in $pattern; do
+          # Find SARIF files matching the pattern
+          while IFS= read -r -d '' sarif_file; do
             if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
               local file_cves=$(jq -r '.runs[]?.results[]? | select(.ruleId | test("CVE-")) | .ruleId' "$sarif_file" 2>/dev/null || echo "")
               cves="$cves"$'\n'"$file_cves"
             fi
-          done
+          done < <(eval "find . -name '*.sarif' -path '$pattern' -type f -print0 2>/dev/null")
           echo "$cves" | sort -u | sed '/^$/d'
         }
 
@@ -431,7 +437,7 @@ jobs:
             # Extract CVEs
             local cves=$(extract_cves "$sarif_pattern")
             if [ -n "$cves" ]; then
-              echo "**CVEs Detected:**" >> security-hardening-report.md
+              echo "**CVEs Detected:**" >> security-hardening_report.md
               echo "$cves" | head -5 | while read -r cve; do
                 [ -n "$cve" ] && echo "- $cve" >> security-hardening-report.md
               done
@@ -451,7 +457,7 @@ jobs:
 
           else
             echo "**Status:** ⏭️ Skipped" >> security-hardening-report.md
-            echo "" >> security-hardening-report.md
+            echo "" >> security-hardening_report.md
           fi
 
           echo "</details>" >> security-hardening-report.md
@@ -459,26 +465,30 @@ jobs:
         }
 
         # Create sections for each scanner
-        create_scanner_section "CodeQL" "codeql-*" "*.sarif" "Static Application Security Testing (SAST) using GitHub CodeQL"
-        create_scanner_section "OpenGrep" "opengrep*" "*.sarif" "Semantic code analysis using OpenGrep (Semgrep)"
-        create_scanner_section "Bandit" "bandit*" "*.sarif" "Python security analysis using Bandit"
-        create_scanner_section "GitLeaks" "gitleaks*" "*.sarif" "Secret detection using GitLeaks"
-        create_scanner_section "Container Security" "trivy-*" "*.sarif" "Container image vulnerability scanning using Trivy"
-        create_scanner_section "Infrastructure Security" "*infrastructure*" "*.sarif" "Infrastructure as Code security analysis"
+        create_scanner_section "CodeQL" "codeql-sarif-*" "./codeql-sarif-*" "Static Application Security Testing (SAST) using GitHub CodeQL"
+        create_scanner_section "OpenGrep" "opengrep-reports" "./opengrep-reports" "Semantic code analysis using OpenGrep (Semgrep)"
+        create_scanner_section "Bandit" "bandit-reports" "./bandit-reports" "Python security analysis using Bandit"
+        create_scanner_section "GitLeaks" "gitleaks-reports" "./gitleaks-reports" "Secret detection using GitLeaks"
+        create_scanner_section "Container Security" "container-scan-results-*" "./container-scan-results-*" "Container image vulnerability scanning using Trivy"
+        create_scanner_section "Infrastructure Security" "infrastructure-security-reports" "./infrastructure-security-reports" "Infrastructure as Code security analysis"
 
         # Overall summary
         echo "## 📊 Overall Security Score" >> security-hardening-report.md
         echo "" >> security-hardening-report.md
 
         TOTAL_ISSUES=0
+        echo "DEBUG: Starting overall count" >&2
         if command -v jq >/dev/null 2>&1; then
           for sarif_file in $(find . -name "*.sarif" 2>/dev/null); do
+            echo "DEBUG: Overall found SARIF file: $sarif_file" >&2
             if [ -f "$sarif_file" ] && [ -s "$sarif_file" ]; then
               issues=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l || echo 0)
+              echo "DEBUG: Overall file $sarif_file has $issues issues" >&2
               TOTAL_ISSUES=$((TOTAL_ISSUES + issues))
             fi
           done
         fi
+        echo "DEBUG: Overall total issues: $TOTAL_ISSUES" >&2
 
         echo "**Total Issues Found:** $TOTAL_ISSUES" >> security-hardening-report.md
         echo "" >> security-hardening-report.md
@@ -495,7 +505,7 @@ jobs:
         echo "## 📋 Next Steps" >> security-hardening-report.md
         echo "1. Review the detailed scanner results in the collapsible sections above" >> security-hardening-report.md
         echo "2. Download and review security reports from workflow artifacts" >> security-hardening-report.md
-        echo "3. Address any critical or high-severity findings" >> security-hardening-report.md
+        echo "3. Address any critical or high-severity findings" >> security-hardening_report.md
         echo "4. Consider enabling automated dependency updates" >> security-hardening-report.md
 
     - name: Upload comprehensive security report
