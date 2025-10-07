@@ -21,8 +21,7 @@ jobs:
   # Step 1: Run code quality and linting checks separately
   linting:
     name: Code Quality & Linting
-    # TODO: Update to use a release tag before merging (e.g., @v2.0.0)
-    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@feat/scanners-choice-codeql
+    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@2.0.0
     permissions:
       contents: read
       pull-requests: write
@@ -33,8 +32,7 @@ jobs:
     name: Security (Separate Linting)
     needs: linting  # Run after linting completes
     if: always()    # Run even if linting finds issues
-    # TODO: Update to use a release tag before merging (e.g., @v2.0.0)
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/scanners-choice-codeql
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.0.0
     with:
       # New scanner list approach - comma-separated list of scanners to run
       scanners: 'codeql,gitleaks,container'  # Only run CodeQL, Gitleaks, and container scanning
@@ -61,8 +59,7 @@ jobs:
 
   security-with-linting:
     name: Security (With Linting Enabled)
-    # TODO: Update to use a release tag before merging (e.g., @v2.0.0)
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/scanners-choice-codeql
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.0.0
     with:
       # New scanner list approach - include linting in the scanner list
       scanners: 'lint,codeql,gitleaks,container'  # Include linting, CodeQL, Gitleaks, and container scanning
