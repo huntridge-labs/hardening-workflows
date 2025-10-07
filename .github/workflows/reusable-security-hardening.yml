@@ -572,13 +572,22 @@ jobs:
             per_page: 100,
           });
 
-          const summaryJob = data.jobs.find(job => job.name === 'Security Hardening Summary');
+          const candidates = data.jobs.filter(job => {
+            const name = job.name ?? '';
+            return name === 'Security Hardening Summary'
+              || name.endsWith('/ Security Hardening Summary')
+              || name.includes('Security Hardening Summary');
+          });
+
+          const summaryJob = candidates[0];
+          const artifactName = summaryJob
+            ? `security-hardening-report-${summaryJob.id}`
+            : `security-hardening-report-${runId}-attempt${attempt}`;
+
           if (!summaryJob) {
-            core.setFailed('Security Hardening Summary job not found for this run.');
-            return;
+            core.warning('Security Hardening Summary job not found; falling back to run-based artifact naming.');
           }
 
-          const artifactName = `security-hardening-report-${summaryJob.id}`;
           core.exportVariable('SECURITY_HARDENING_REPORT_ARTIFACT', artifactName);
           return artifactName;
 
