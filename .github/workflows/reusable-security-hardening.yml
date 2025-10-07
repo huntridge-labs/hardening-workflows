@@ -579,13 +579,33 @@ jobs:
               || name.includes('Security Hardening Summary');
           });
 
-          const summaryJob = candidates[0];
+          const inProgress = candidates.filter(job => {
+            const status = (job.status || '').toLowerCase();
+            return status === 'in_progress' || status === 'queued';
+          });
+
+          const orderedCandidates = [...candidates].sort((a, b) => {
+            const aTime = a.started_at ? new Date(a.started_at).getTime() : 0;
+            const bTime = b.started_at ? new Date(b.started_at).getTime() : 0;
+
+            if (aTime !== bTime) {
+              return bTime - aTime;
+            }
+
+            const aId = typeof a.id === 'number' ? a.id : 0;
+            const bId = typeof b.id === 'number' ? b.id : 0;
+            return bId - aId;
+          });
+
+          const summaryJob = inProgress[0] ?? orderedCandidates[0];
           const artifactName = summaryJob
             ? `security-hardening-report-${summaryJob.id}`
             : `security-hardening-report-${runId}-attempt${attempt}`;
 
           if (!summaryJob) {
             core.warning('Security Hardening Summary job not found; falling back to run-based artifact naming.');
+          } else {
+            core.info(`Security Hardening Summary job resolved to ID ${summaryJob.id} (${summaryJob.name}).`);
           }
 
           core.exportVariable('SECURITY_HARDENING_REPORT_ARTIFACT', artifactName);
