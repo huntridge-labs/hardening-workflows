@@ -21,7 +21,7 @@ jobs:
     if: github.event.inputs.scan_mode == 'Quick CodeQL Check'
     uses: ./.github/workflows/reusable-security-hardening.yml
     with:
-      scan_type: 'codeql-only'
+      scanners: codeql
       codeql_languages: 'python,javascript'
       post_pr_comment: true
     permissions:
@@ -37,7 +37,7 @@ jobs:
     if: github.event.inputs.scan_mode == 'Full SAST Scan'
     uses: ./.github/workflows/reusable-security-hardening.yml
     with:
-      scan_type: 'sast-only'
+      scanners: sast
       post_pr_comment: true
     permissions:
       contents: read
@@ -52,12 +52,7 @@ jobs:
     if: github.event.inputs.scan_mode == 'Python Security Only'
     uses: ./.github/workflows/reusable-security-hardening.yml
     with:
-      scan_type: 'full'  # Start with full
-      # But disable everything except Bandit
-      enable_codeql: false
-      enable_semgrep: false
-      enable_bandit: true
-      enable_gitleaks: false
+      scanners: bandit
       post_pr_comment: true
     permissions:
       contents: read
@@ -72,11 +67,7 @@ jobs:
     if: github.event.inputs.scan_mode == 'Secrets Detection Only'
     uses: ./.github/workflows/reusable-security-hardening.yml
     with:
-      scan_type: 'full'
-      enable_codeql: false
-      enable_semgrep: false
-      enable_bandit: false
-      enable_gitleaks: true
+      scanners: secrets
       post_pr_comment: true
     permissions:
       contents: read
@@ -91,11 +82,7 @@ jobs:
     if: github.event.inputs.scan_mode == 'Custom Mix'
     uses: ./.github/workflows/reusable-security-hardening.yml
     with:
-      scan_type: 'full'
-      enable_codeql: true
-      enable_semgrep: false
-      enable_bandit: false
-      enable_gitleaks: true
+      scanners: codeql,gitleaks
       post_pr_comment: true
     permissions:
       contents: read
@@ -118,16 +105,6 @@ jobs:
       actions: read
       pull-requests: write
 
-  direct-semgrep-call:
-    if: false  # Disabled by default - enable as needed
-    uses: ./.github/workflows/scanners/sast/semgrep.yml
-    with:
-      post_pr_comment: false
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-
   direct-opengrep-call:
+    if: false
     uses: ./.github/workflows/scanner-opengrep.yml

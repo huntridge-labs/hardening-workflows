@@ -1,88 +1,71 @@
-# Quick Start
+# Quick start
 
-## Templates
+Kick off the reusable workflow with these minimal snippets.
 
-### Fast CodeQL Scan (Development)
+## Fast SAST (dev branches)
+
 ```yaml
-name: Dev Security
+name: security-dev
 on: [push]
+
 jobs:
-  security:
+  sast:
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
     with:
-      scan_type: 'codeql-only'
+      scanners: codeql
     permissions:
       contents: read
       security-events: write
 ```
 
-### Full Scan (Pre-merge)
+## Full coverage on PRs
+
 ```yaml
-name: PR Security
+name: security-pr
 on: [pull_request]
+
 jobs:
-  security:
+  hardening:
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
     with:
-      scan_type: 'full'
+      scanners: all
       post_pr_comment: true
     permissions:
       contents: read
       security-events: write
       pull-requests: write
-      checks: write
 ```
 
-### Custom Mix
+## Targeted mix
+
 ```yaml
-name: Custom Security
+name: security-mix
 on: [push]
+
 jobs:
   security:
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
     with:
-      enable_codeql: true
-      enable_gitleaks: true
-      enable_bandit: false
-      enable_semgrep: false
-    permissions:
-      contents: read
-      security-events: write
+      scanners: container,infrastructure,gitleaks
+      aws_region: us-west-2
+    secrets:
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
 ```
 
-### Python Project
+## Nightly deep scan
+
 ```yaml
-name: Python Security
-on: [push, pull_request]
+name: security-nightly
+on:
+  schedule:
+    - cron: '0 4 * * *'
+
 jobs:
-  security:
+  nightly:
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
     with:
-      codeql_languages: 'python'
-      enable_codeql: true
-      enable_bandit: true
-    permissions:
-      contents: read
-      security-events: write
+      scanners: all
+      post_pr_comment: false
 ```
 
-## Scanner Reference
-
-| Scanner | Finds | Speed |
-|---------|-------|-------|
-| CodeQL | SQL injection, XSS, vulnerabilities | Medium |
-| Semgrep | Security patterns | Fast |
-| Bandit | Python security issues | Very Fast |
-| Gitleaks | Hardcoded secrets | Fast |
-
-## When to Use
-
-- **Development**: `scan_type: 'codeql-only'` (fast feedback)
-- **Pre-merge**: `scan_type: 'full'` (comprehensive)
-- **Custom needs**: Use `enable_*` flags
-
-## More Info
-
-- [Full Docs](docs/granular-scanner-control.md)
-- [Examples](examples/granular-scanner-usage.yml)
-- [Architecture](docs/architecture.md)
+More examples in the `examples/` directory. See `README.md` for the complete scanner reference.
