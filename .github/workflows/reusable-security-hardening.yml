@@ -554,19 +554,38 @@ jobs:
         echo "3. Address any critical or high-severity findings" >> security-hardening-report.md
         echo "4. Consider enabling automated dependency updates" >> security-hardening-report.md
 
-    - name: Generate unique artifact name
-      id: artifact_name
-      shell: bash
-      run: |
-        set -euo pipefail
-        workflow="${GITHUB_WORKFLOW//[^A-Za-z0-9_-]/-}"
-        job="${GITHUB_JOB//[^A-Za-z0-9_-]/-}"
-        echo "name=security-hardening-report-${workflow}-${job}-${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+    - name: Capture job run id
+      id: job_id
+      uses: actions/github-script@v8
+      with:
+        result-encoding: string
+        script: |
+          const { owner, repo } = context.repo;
+          const runId = context.runId;
+          const attempt = context.runAttempt ?? 1;
+
+          const { data } = await github.rest.actions.listJobsForWorkflowRunAttempt({
+            owner,
+            repo,
+            run_id: runId,
+            attempt_number: attempt,
+            per_page: 100,
+          });
+
+          const summaryJob = data.jobs.find(job => job.name === 'Security Hardening Summary');
+          if (!summaryJob) {
+            core.setFailed('Security Hardening Summary job not found for this run.');
+            return;
+          }
+
+          const artifactName = `security-hardening-report-${summaryJob.id}`;
+          core.exportVariable('SECURITY_HARDENING_REPORT_ARTIFACT', artifactName);
+          return artifactName;
 
     - name: Upload comprehensive security report
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ steps.artifact_name.outputs.name }}
+        name: ${{ steps.job_id.outputs.result }}
         path: security-hardening-report.md
         retention-days: 30
 
