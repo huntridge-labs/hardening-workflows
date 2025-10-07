@@ -554,10 +554,19 @@ jobs:
         echo "3. Address any critical or high-severity findings" >> security-hardening-report.md
         echo "4. Consider enabling automated dependency updates" >> security-hardening-report.md
 
+    - name: Generate unique artifact name
+      id: artifact_name
+      shell: bash
+      run: |
+        set -euo pipefail
+        workflow="${GITHUB_WORKFLOW//[^A-Za-z0-9_-]/-}"
+        job="${GITHUB_JOB//[^A-Za-z0-9_-]/-}"
+        echo "name=security-hardening-report-${workflow}-${job}-${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+
     - name: Upload comprehensive security report
       uses: actions/upload-artifact@v4
       with:
-        name: security-hardening-report-${{ github.run_id }}
+        name: ${{ steps.artifact_name.outputs.name }}
         path: security-hardening-report.md
         retention-days: 30
 
