@@ -375,6 +375,7 @@ jobs:
       uses: actions/download-artifact@v5
       with:
         pattern: opengrep-*
+        merge-multiple: true
       continue-on-error: true
 
     - name: Download Bandit artifacts
@@ -685,12 +686,20 @@ jobs:
             per_page: 100,
           });
 
+          // Debug: Log all job names
+          core.info(`Found ${data.jobs.length} jobs in workflow run:`);
+          data.jobs.forEach(job => {
+            core.info(`  - Job: "${job.name}" (ID: ${job.id}, Status: ${job.status})`);
+          });
+
           const candidates = data.jobs.filter(job => {
             const name = job.name ?? '';
             return name === 'Security Hardening Summary'
               || name.endsWith('/ Security Hardening Summary')
               || name.includes('Security Hardening Summary');
           });
+
+          core.info(`Found ${candidates.length} candidate jobs matching 'Security Hardening Summary'`);
 
           const inProgress = candidates.filter(job => {
             const status = (job.status || '').toLowerCase();
