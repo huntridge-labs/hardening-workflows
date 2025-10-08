@@ -363,8 +363,53 @@ jobs:
     if: always()
 
     steps:
-    - name: Download all security artifacts
+    - name: Download CodeQL artifacts
+      if: needs.scan-coordinator.outputs.run_codeql == 'true'
       uses: actions/download-artifact@v5
+      with:
+        pattern: codeql-*
+      continue-on-error: true
+
+    - name: Download OpenGrep artifacts
+      if: needs.scan-coordinator.outputs.run_opengrep == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: opengrep-*
+      continue-on-error: true
+
+    - name: Download Bandit artifacts
+      if: needs.scan-coordinator.outputs.run_bandit == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: bandit-*
+      continue-on-error: true
+
+    - name: Download GitLeaks artifacts
+      if: needs.scan-coordinator.outputs.run_gitleaks == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: gitleaks-*
+      continue-on-error: true
+
+    - name: Download Container artifacts
+      if: needs.scan-coordinator.outputs.run_container == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: container-*
+      continue-on-error: true
+
+    - name: Download Infrastructure artifacts
+      if: needs.scan-coordinator.outputs.run_infrastructure == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: infrastructure-*
+      continue-on-error: true
+
+    - name: Download Linting artifacts
+      if: needs.scan-coordinator.outputs.run_lint == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: '*lint*'
       continue-on-error: true
 
     - name: Create comprehensive security report
