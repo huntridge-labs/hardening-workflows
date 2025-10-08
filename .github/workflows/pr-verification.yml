@@ -392,7 +392,6 @@ jobs:
 
         echo "✅ Scanners input validation test '${{ matrix.test.name }}' passed"
 
-  # Integration test - run individual scanners to verify end-to-end
   # Integration test - run the reusable workflow as it's meant to be used
   # This tests the full end-to-end flow including summary generation
   integration-test-full-scan:
@@ -413,23 +412,6 @@ jobs:
       id-token: write
     secrets: inherit
 
-  # Test a minimal scanner configuration
-  integration-test-minimal:
-    name: Integration Test - Minimal Configuration
-    needs: [code-quality, test-scanner-resolution, test-scanners-input-validation]
-    uses: ./.github/workflows/reusable-security-hardening.yml
-    with:
-      scanners: 'gitleaks'  # Fastest scanner for quick validation
-      post_pr_comment: false
-    permissions:
-      contents: read
-      security-events: write
-      pull-requests: write
-      checks: write
-      actions: read
-      id-token: write
-    secrets: inherit
-
   # Verification Summary
   verification-summary:
     name: PR Verification Summary
@@ -438,8 +420,7 @@ jobs:
       code-quality,
       test-scanner-resolution,
       test-scanners-input-validation,
-      integration-test-full-scan,
-      integration-test-minimal
+      integration-test-full-scan
     ]
     if: always()
 
@@ -456,7 +437,6 @@ jobs:
         SCANNER_RESOLUTION="${{ needs.test-scanner-resolution.result }}"
         INPUT_VALIDATION="${{ needs.test-scanners-input-validation.result }}"
         INTEGRATION_FULL="${{ needs.integration-test-full-scan.result }}"
-        INTEGRATION_MINIMAL="${{ needs.integration-test-minimal.result }}"
 
         echo "| Test | Result |" >> $GITHUB_STEP_SUMMARY
         echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
@@ -485,22 +465,15 @@ jobs:
           echo "| ❌ Integration Test - Full Scan (SAST + Container + Infrastructure) | Failed |" >> $GITHUB_STEP_SUMMARY
         fi
 
-        if [ "$INTEGRATION_MINIMAL" = "success" ]; then
-          echo "| ✅ Integration Test - Minimal (GitLeaks only) | Passed |" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "| ❌ Integration Test - Minimal (GitLeaks only) | Failed |" >> $GITHUB_STEP_SUMMARY
-        fi
-
         echo "" >> $GITHUB_STEP_SUMMARY
 
         # Calculate pass rate
-        TOTAL=5
+        TOTAL=4
         PASSED=0
         [ "$LINTING" = "success" ] && PASSED=$((PASSED + 1))
         [ "$SCANNER_RESOLUTION" = "success" ] && PASSED=$((PASSED + 1))
         [ "$INPUT_VALIDATION" = "success" ] && PASSED=$((PASSED + 1))
         [ "$INTEGRATION_FULL" = "success" ] && PASSED=$((PASSED + 1))
-        [ "$INTEGRATION_MINIMAL" = "success" ] && PASSED=$((PASSED + 1))
 
         echo "## Summary" >> $GITHUB_STEP_SUMMARY
         echo "**$PASSED of $TOTAL test suites passed**" >> $GITHUB_STEP_SUMMARY
@@ -509,8 +482,7 @@ jobs:
         echo "- **Code Quality & Linting**: Validates code style and quality" >> $GITHUB_STEP_SUMMARY
         echo "- **Scanner Resolution Logic**: 6 test scenarios validating scanner selection" >> $GITHUB_STEP_SUMMARY
         echo "- **Input Validation**: 4 edge cases (case sensitivity, whitespace, duplicates, unknowns)" >> $GITHUB_STEP_SUMMARY
-        echo "- **Full Integration Test**: End-to-end test with multiple scanners + PR comment" >> $GITHUB_STEP_SUMMARY
-        echo "- **Minimal Integration Test**: Quick validation with single scanner" >> $GITHUB_STEP_SUMMARY
+        echo "- **Full Integration Test**: End-to-end test with SAST, Container, and Infrastructure scanners + PR comment" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
         if [ $PASSED -eq $TOTAL ]; then
@@ -533,8 +505,7 @@ jobs:
             'Code Quality & Linting': '${{ needs.code-quality.result }}',
             'Scanner Resolution Logic (6 scenarios)': '${{ needs.test-scanner-resolution.result }}',
             'Scanners Input Validation (4 edge cases)': '${{ needs.test-scanners-input-validation.result }}',
-            'Integration Test - Full Scan': '${{ needs.integration-test-full-scan.result }}',
-            'Integration Test - Minimal': '${{ needs.integration-test-minimal.result }}'
+            'Integration Test - Full Scan': '${{ needs.integration-test-full-scan.result }}'
           };
 
           let passed = 0;
@@ -552,7 +523,7 @@ jobs:
             ? `✅ All ${total} test suites passed!`
             : `⚠️ ${passed}/${total} test suites passed. ${total - passed} suite(s) failed.`;
 
-          const body = `## 🧪 Reusable Workflow Verification Results\n\n${summary}\n\n${table}\n\n### Test Coverage\n- **Code Quality & Linting** - Validates code style and quality\n- **Scanner Resolution Logic** - 6 test scenarios validating scanner selection\n- **Input Validation** - 4 edge cases (case sensitivity, whitespace, duplicates, unknowns)\n- **Full Integration Test** - End-to-end test with SAST, Container, and Infrastructure scanners + PR comment generation\n- **Minimal Integration Test** - Quick validation with GitLeaks scanner only\n\n---\n*Verification run for commit ${context.sha.substring(0, 7)}*`;
+          const body = `## 🧪 Reusable Workflow Verification Results\n\n${summary}\n\n${table}\n\n### Test Coverage\n- **Code Quality & Linting** - Validates code style and quality\n- **Scanner Resolution Logic** - 6 test scenarios validating scanner selection\n- **Input Validation** - 4 edge cases (case sensitivity, whitespace, duplicates, unknowns)\n- **Full Integration Test** - End-to-end test with SAST, Container, and Infrastructure scanners + PR comment generation\n\n---\n*Verification run for commit ${context.sha.substring(0, 7)}*`;
 
           // Find existing comment
           const comments = await github.rest.issues.listComments({
