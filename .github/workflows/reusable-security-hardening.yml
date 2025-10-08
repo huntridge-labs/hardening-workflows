@@ -405,6 +405,8 @@ jobs:
           # For OpenGrep, count JSON files instead of SARIF
           if [[ "$scanner_name" == "OpenGrep" ]]; then
             echo "🔍 DEBUG OpenGrep: Searching for JSON files matching pattern: $pattern" >&2
+            # Use pattern as a directory path and find JSON files within it
+            local search_pattern="${pattern%/}"  # Remove trailing slash if any
             while IFS= read -r -d '' json_file; do
               echo "🔍 DEBUG OpenGrep: Found JSON file: $json_file" >&2
               if [ -f "$json_file" ] && [ -s "$json_file" ] && command -v jq >/dev/null 2>&1; then
@@ -412,7 +414,7 @@ jobs:
                 echo "🔍 DEBUG OpenGrep: File $json_file has $count results" >&2
                 total=$((total + count))
               fi
-            done < <(eval "find . -name '*.json' -path '$pattern' -type f -print0 2>/dev/null")
+            done < <(find "$search_pattern" -name '*.json' -type f -print0 2>/dev/null)
             echo "🔍 DEBUG OpenGrep: Total count: $total" >&2
           else
             # Find SARIF files matching the pattern for other scanners
@@ -435,13 +437,14 @@ jobs:
 
           # For OpenGrep, extract from JSON files
           if [[ "$scanner_name" == "OpenGrep" ]]; then
+            local search_pattern="${pattern%/}"  # Remove trailing slash if any
             while IFS= read -r -d '' json_file; do
               if [ -f "$json_file" ] && [ -s "$json_file" ] && command -v jq >/dev/null 2>&1; then
                 # Extract CVEs from check_id or other fields in OpenGrep JSON
                 local file_cves=$(jq -r '.results[]? | select(.check_id | test("CVE-")) | .check_id' "$json_file" 2>/dev/null || echo "")
                 cves="$cves"$'\n'"$file_cves"
               fi
-            done < <(eval "find . -name '*.json' -path '$pattern' -type f -print0 2>/dev/null")
+            done < <(find "$search_pattern" -name '*.json' -type f -print0 2>/dev/null)
           else
             # Find SARIF files matching the pattern for other scanners
             while IFS= read -r -d '' sarif_file; do
@@ -474,12 +477,13 @@ jobs:
               esac
 
               # Parse OpenGrep JSON files instead of SARIF
+              local search_pattern="${pattern%/}"  # Remove trailing slash if any
               while IFS= read -r -d '' json_file; do
                 if [ -f "$json_file" ] && [ -s "$json_file" ] && command -v jq >/dev/null 2>&1; then
                   local file_count=$(jq -r ".results[]? | select(.extra.severity == \"$level_filter\") | .check_id" "$json_file" 2>/dev/null | wc -l || echo 0)
                   count=$((count + file_count))
                 fi
-              done < <(eval "find . -name '*.json' -path '$pattern' -type f -print0 2>/dev/null")
+              done < <(find "$search_pattern" -name '*.json' -type f -print0 2>/dev/null)
               ;;
             *)
               # Standard SARIF levels: error, warning, note, info
