@@ -376,6 +376,26 @@ jobs:
         echo "**Generated:** $(date)" >> security-hardening-report.md
         echo "" >> security-hardening-report.md
 
+        # Debug: List downloaded artifacts
+        echo "📦 Downloaded artifacts:"
+        ls -la . || true
+        echo ""
+        echo "📂 Directory structure:"
+        find . -maxdepth 2 -type d || true
+        echo ""
+        echo "📄 OpenGrep files:"
+        find . -path "./opengrep-reports" -o -name "opengrep*.json" -o -name "opengrep*.sarif" | head -20 || true
+        echo ""
+        echo "🔍 All JSON files in opengrep-reports:"
+        find ./opengrep-reports -name "*.json" 2>/dev/null | while read f; do
+          echo "  Found: $f (size: $(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo '?') bytes)"
+          if [ -f "$f" ] && [ -s "$f" ]; then
+            echo "  Preview:"
+            head -20 "$f" || true
+          fi
+        done
+        echo ""
+
         # Function to count issues in SARIF or JSON files
         count_sarif_issues() {
           local pattern="$1"
@@ -384,12 +404,16 @@ jobs:
 
           # For OpenGrep, count JSON files instead of SARIF
           if [[ "$scanner_name" == "OpenGrep" ]]; then
+            echo "🔍 DEBUG OpenGrep: Searching for JSON files matching pattern: $pattern" >&2
             while IFS= read -r -d '' json_file; do
+              echo "🔍 DEBUG OpenGrep: Found JSON file: $json_file" >&2
               if [ -f "$json_file" ] && [ -s "$json_file" ] && command -v jq >/dev/null 2>&1; then
                 local count=$(jq -r '.results[]? | .check_id' "$json_file" 2>/dev/null | wc -l || echo 0)
+                echo "🔍 DEBUG OpenGrep: File $json_file has $count results" >&2
                 total=$((total + count))
               fi
             done < <(eval "find . -name '*.json' -path '$pattern' -type f -print0 2>/dev/null")
+            echo "🔍 DEBUG OpenGrep: Total count: $total" >&2
           else
             # Find SARIF files matching the pattern for other scanners
             while IFS= read -r -d '' sarif_file; do
@@ -487,7 +511,11 @@ jobs:
 
           # Check if scanner ran (has artifacts)
           local has_artifacts=false
+          # Check for directories matching the pattern OR files within the sarif pattern
           if compgen -G "$artifact_pattern" > /dev/null 2>&1; then
+            has_artifacts=true
+          elif [ -n "$(find . -path "$sarif_pattern" -type f 2>/dev/null | head -1)" ]; then
+            # If no directory matches but we have SARIF/JSON files in the pattern, scanner ran
             has_artifacts=true
           fi
 
