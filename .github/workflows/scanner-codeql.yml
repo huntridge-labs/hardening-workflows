@@ -162,7 +162,9 @@ jobs:
 
           if [ -d "$DB_DIR" ]; then
             echo "Found database directory: $DB_DIR"
-            mkdir -p bqrs-json-results
+            mkdir -p codeql-reports/bqrs-json
+            mkdir -p codeql-reports/sarif
+            mkdir -p codeql-reports/sarif-json
 
             # Find and decode all BQRS files to JSON
             find "$DB_DIR" -name "*.bqrs" | while read bqrs_file; do
@@ -172,7 +174,7 @@ jobs:
               # Decode BQRS to JSON format
               "$CODEQL_PATH" bqrs decode \
                 --format=json \
-                --output="bqrs-json-results/${basename}.json" \
+                --output="codeql-reports/bqrs-json/${basename}.json" \
                 "$bqrs_file" 2>/dev/null || echo "Failed to decode $bqrs_file"
             done
 
@@ -183,7 +185,7 @@ jobs:
             DB_DIR=$(find . -name "codeql_databases" -type d 2>/dev/null | head -1)
             if [ -n "$DB_DIR" ]; then
               echo "Found database directory (fallback): $DB_DIR"
-              mkdir -p bqrs-json-results
+              mkdir -p codeql-reports/bqrs-json
 
               # Find and decode all BQRS files to JSON
               find "$DB_DIR" -name "*.bqrs" | while read bqrs_file; do
@@ -193,7 +195,7 @@ jobs:
                 # Decode BQRS to JSON format
                 "$CODEQL_PATH" bqrs decode \
                   --format=json \
-                  --output="bqrs-json-results/${basename}.json" \
+                  --output="codeql-reports/bqrs-json/${basename}.json" \
                   "$bqrs_file" 2>/dev/null || echo "Failed to decode $bqrs_file"
               done
 
@@ -212,12 +214,13 @@ jobs:
         # Convert SARIF results to JSON format for easier processing
         # SARIF is already JSON, but we extract a cleaner format for downstream tools
         if [ -d "sarif-results" ]; then
-          mkdir -p sarif-json-results
-
           # Find all SARIF files and convert them to JSON
           find sarif-results -name "*.sarif" | while read sarif_file; do
             echo "Converting SARIF to JSON: $sarif_file"
             basename=$(basename "$sarif_file" .sarif)
+
+            # Copy SARIF file to consolidated location
+            cp "$sarif_file" "codeql-reports/sarif/${basename}.sarif"
 
             # SARIF is already JSON format, so we can simply copy it
             # Optionally extract just the results for cleaner output
@@ -230,10 +233,10 @@ jobs:
                   tool: .tool,
                   language: "${{ matrix.language }}"
                 })
-              }' "$sarif_file" > "sarif-json-results/${basename}.json" 2>/dev/null || cp "$sarif_file" "sarif-json-results/${basename}.json"
+              }' "$sarif_file" > "codeql-reports/sarif-json/${basename}.json" 2>/dev/null || cp "$sarif_file" "codeql-reports/sarif-json/${basename}.json"
             else
               # Fallback: just copy the SARIF file as JSON (SARIF is valid JSON)
-              cp "$sarif_file" "sarif-json-results/${basename}.json"
+              cp "$sarif_file" "codeql-reports/sarif-json/${basename}.json"
             fi
           done
 
@@ -243,27 +246,11 @@ jobs:
         fi
       continue-on-error: true
 
-    - name: Upload SARIF as JSON Artifact (Optional)
+    - name: Upload CodeQL Reports
       uses: actions/upload-artifact@v4
       with:
-        name: codeql-sarif-${{ matrix.language }}
-        path: sarif-results/
-        retention-days: 30
-      continue-on-error: true
-
-    - name: Upload SARIF-Converted JSON Results
-      uses: actions/upload-artifact@v4
-      with:
-        name: codeql-sarif-json-${{ matrix.language }}
-        path: sarif-json-results/
-        retention-days: 30
-      if: always()
-
-    - name: Upload Raw BQRS JSON Results
-      uses: actions/upload-artifact@v4
-      with:
-        name: codeql-bqrs-json-${{ matrix.language }}
-        path: bqrs-json-results/
+        name: codeql-reports-${{ matrix.language }}
+        path: codeql-reports/
         retention-days: 30
       if: always()
 
@@ -284,11 +271,20 @@ jobs:
         echo "" >> codeql-summary.md
         echo "**Note:** Results are uploaded to GitHub Code Scanning and will appear in the Security tab when Code Security is enabled." >> codeql-summary.md
 
+    - name: Download CodeQL Reports
+      uses: actions/download-artifact@v5
+      with:
+        pattern: codeql-reports-*
+        path: codeql-reports/
+      continue-on-error: true
+
     - name: Upload CodeQL Summary
       uses: actions/upload-artifact@v4
       with:
         name: codeql-summary
-        path: codeql-summary.md
+        path: |
+          codeql-summary.md
+          codeql-reports/
         retention-days: 30
 
     - name: Comment PR with CodeQL Results

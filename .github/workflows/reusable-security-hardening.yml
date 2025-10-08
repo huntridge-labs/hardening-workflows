@@ -375,7 +375,6 @@ jobs:
       uses: actions/download-artifact@v5
       with:
         pattern: opengrep-*
-        merge-multiple: true
       continue-on-error: true
 
     - name: Download Bandit artifacts
@@ -629,7 +628,7 @@ jobs:
         }
 
         # Create sections for each scanner
-        create_scanner_section "CodeQL" "codeql-sarif-*" "./codeql-sarif-*" "Static Application Security Testing (SAST) using GitHub CodeQL"
+        create_scanner_section "CodeQL" "codeql-reports-*" "./codeql-reports" "Static Application Security Testing (SAST) using GitHub CodeQL"
         create_scanner_section "OpenGrep" "opengrep-reports" "./opengrep-reports" "Semantic code analysis using OpenGrep (Semgrep)"
         create_scanner_section "Bandit" "bandit-reports" "./bandit-reports" "Python security analysis using Bandit"
         create_scanner_section "GitLeaks" "gitleaks-reports" "./gitleaks-reports" "Secret detection using GitLeaks"

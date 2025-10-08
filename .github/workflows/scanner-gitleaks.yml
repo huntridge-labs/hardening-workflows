@@ -41,13 +41,25 @@ jobs:
         GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
       continue-on-error: true
 
+    - name: Organize Gitleaks results
+      run: |
+        echo "📦 Organizing Gitleaks results into directory..."
+        mkdir -p gitleaks-reports
+        if [ -f results.json ]; then
+          mv results.json gitleaks-reports/
+        fi
+        if [ -f results.sarif ]; then
+          mv results.sarif gitleaks-reports/
+        fi
+        echo "Generated Gitleaks files:"
+        ls -la gitleaks-reports/ || echo "No files generated"
+      continue-on-error: true
+
     - name: Upload Gitleaks artifacts
       uses: actions/upload-artifact@v4
       with:
         name: gitleaks-reports
-        path: |
-          results.json
-          results.sarif
+        path: gitleaks-reports/
         retention-days: 30
       if: always()
 
