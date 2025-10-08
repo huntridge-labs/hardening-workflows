@@ -376,35 +376,62 @@ jobs:
         echo "**Generated:** $(date)" >> security-hardening-report.md
         echo "" >> security-hardening-report.md
 
-        # Function to count issues in SARIF files
+        # Function to count issues in SARIF or JSON files
         count_sarif_issues() {
           local pattern="$1"
+          local scanner_name="${2:-}"
           local total=0
-          # Find SARIF files matching the pattern
-          while IFS= read -r -d '' sarif_file; do
-            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
-              local count=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l || echo 0)
-              total=$((total + count))
-            fi
-          done < <(eval "find . -name '*.sarif' -path '$pattern' -type f -print0 2>/dev/null")
+
+          # For OpenGrep, count JSON files instead of SARIF
+          if [[ "$scanner_name" == "OpenGrep" ]]; then
+            while IFS= read -r -d '' json_file; do
+              if [ -f "$json_file" ] && [ -s "$json_file" ] && command -v jq >/dev/null 2>&1; then
+                local count=$(jq -r '.results[]? | .check_id' "$json_file" 2>/dev/null | wc -l || echo 0)
+                total=$((total + count))
+              fi
+            done < <(eval "find . -name '*.json' -path '$pattern' -type f -print0 2>/dev/null")
+          else
+            # Find SARIF files matching the pattern for other scanners
+            while IFS= read -r -d '' sarif_file; do
+              if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
+                local count=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l || echo 0)
+                total=$((total + count))
+              fi
+            done < <(eval "find . -name '*.sarif' -path '$pattern' -type f -print0 2>/dev/null")
+          fi
+
           echo $total
         }
 
-        # Function to extract CVEs from SARIF
+        # Function to extract CVEs from SARIF or JSON
         extract_cves() {
           local pattern="$1"
+          local scanner_name="${2:-}"
           local cves=""
-          # Find SARIF files matching the pattern
-          while IFS= read -r -d '' sarif_file; do
-            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
-              local file_cves=$(jq -r '.runs[]?.results[]? | select(.ruleId | test("CVE-")) | .ruleId' "$sarif_file" 2>/dev/null || echo "")
-              cves="$cves"$'\n'"$file_cves"
-            fi
-          done < <(eval "find . -name '*.sarif' -path '$pattern' -type f -print0 2>/dev/null")
+
+          # For OpenGrep, extract from JSON files
+          if [[ "$scanner_name" == "OpenGrep" ]]; then
+            while IFS= read -r -d '' json_file; do
+              if [ -f "$json_file" ] && [ -s "$json_file" ] && command -v jq >/dev/null 2>&1; then
+                # Extract CVEs from check_id or other fields in OpenGrep JSON
+                local file_cves=$(jq -r '.results[]? | select(.check_id | test("CVE-")) | .check_id' "$json_file" 2>/dev/null || echo "")
+                cves="$cves"$'\n'"$file_cves"
+              fi
+            done < <(eval "find . -name '*.json' -path '$pattern' -type f -print0 2>/dev/null")
+          else
+            # Find SARIF files matching the pattern for other scanners
+            while IFS= read -r -d '' sarif_file; do
+              if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
+                local file_cves=$(jq -r '.runs[]?.results[]? | select(.ruleId | test("CVE-")) | .ruleId' "$sarif_file" 2>/dev/null || echo "")
+                cves="$cves"$'\n'"$file_cves"
+              fi
+            done < <(eval "find . -name '*.sarif' -path '$pattern' -type f -print0 2>/dev/null")
+          fi
+
           echo "$cves" | sort -u | sed '/^$/d'
         }
 
-        # Function to count issues by severity from SARIF
+        # Function to count issues by severity from SARIF or JSON
         count_by_severity() {
           local pattern="$1"
           local severity="$2"
@@ -414,27 +441,36 @@ jobs:
           # Handle different severity mappings for different scanners
           case "$scanner" in
             "OpenGrep")
-              # OpenGrep uses ERROR, WARNING, INFO (uppercase)
+              # OpenGrep uses JSON format with extra.severity: ERROR, WARNING, INFO
               case "$severity" in
                 "error") level_filter="ERROR" ;;
                 "warning") level_filter="WARNING" ;;
-                "info") level_filter="INFO" ;;
+                "info"|"note") level_filter="INFO" ;;
                 *) level_filter="$severity" ;;
               esac
+
+              # Parse OpenGrep JSON files instead of SARIF
+              while IFS= read -r -d '' json_file; do
+                if [ -f "$json_file" ] && [ -s "$json_file" ] && command -v jq >/dev/null 2>&1; then
+                  local file_count=$(jq -r ".results[]? | select(.extra.severity == \"$level_filter\") | .check_id" "$json_file" 2>/dev/null | wc -l || echo 0)
+                  count=$((count + file_count))
+                fi
+              done < <(eval "find . -name '*.json' -path '$pattern' -type f -print0 2>/dev/null")
               ;;
             *)
               # Standard SARIF levels: error, warning, note, info
               level_filter="$severity"
+
+              while IFS= read -r -d '' sarif_file; do
+                if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
+                  # Count results with the specified level (case-insensitive)
+                  local file_count=$(jq -r ".runs[]?.results[]? | select(.level | ascii_downcase == \"$(echo $level_filter | tr '[:upper:]' '[:lower:]')\") | .ruleId" "$sarif_file" 2>/dev/null | wc -l || echo 0)
+                  count=$((count + file_count))
+                fi
+              done < <(eval "find . -name '*.sarif' -path '$pattern' -type f -print0 2>/dev/null")
               ;;
           esac
 
-          while IFS= read -r -d '' sarif_file; do
-            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
-              # Count results with the specified level (case-insensitive)
-              local file_count=$(jq -r ".runs[]?.results[]? | select(.level | ascii_downcase == \"$(echo $level_filter | tr '[:upper:]' '[:lower:]')\") | .ruleId" "$sarif_file" 2>/dev/null | wc -l || echo 0)
-              count=$((count + file_count))
-            fi
-          done < <(eval "find . -name '*.sarif' -path '$pattern' -type f -print0 2>/dev/null")
           echo $count
         }
 
@@ -459,8 +495,8 @@ jobs:
             echo "**Status:** ✅ Completed" >> security-hardening-report.md
             echo "" >> security-hardening-report.md
 
-            # Count issues
-            local issue_count=$(count_sarif_issues "$sarif_pattern")
+            # Count issues (pass scanner name for proper file type handling)
+            local issue_count=$(count_sarif_issues "$sarif_pattern" "$scanner_name")
             echo "**Issues Found:** $issue_count" >> security-hardening-report.md
             echo "" >> security-hardening-report.md
 
@@ -481,8 +517,8 @@ jobs:
               echo "" >> security-hardening-report.md
             fi
 
-            # Extract CVEs
-            local cves=$(extract_cves "$sarif_pattern")
+            # Extract CVEs (pass scanner name for proper file type handling)
+            local cves=$(extract_cves "$sarif_pattern" "$scanner_name")
             if [ -n "$cves" ]; then
               echo "**CVEs Detected:**" >> security-hardening_report.md
               echo "$cves" | head -5 | while read -r cve; do
