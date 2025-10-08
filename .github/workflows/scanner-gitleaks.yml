@@ -70,3 +70,53 @@ jobs:
         sarif_file: results.sarif
         category: secrets-gitleaks
       continue-on-error: true
+
+    - name: Generate GitLeaks summary section
+      if: always()
+      run: |
+        mkdir -p scanner-summaries
+
+        echo "<details>" > scanner-summaries/gitleaks.md
+        echo "<summary>🔍 GitLeaks</summary>" >> scanner-summaries/gitleaks.md
+        echo "" >> scanner-summaries/gitleaks.md
+
+        if [ -d "gitleaks-reports" ] && [ "$(ls -A gitleaks-reports)" ]; then
+          echo "**Status:** ✅ Completed" >> scanner-summaries/gitleaks.md
+          echo "" >> scanner-summaries/gitleaks.md
+
+          # Count secrets from SARIF files
+          SECRET_COUNT=0
+
+          for sarif_file in $(find ./gitleaks-reports -name "*.sarif" -type f 2>/dev/null); do
+            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
+              secrets=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              SECRET_COUNT=$((SECRET_COUNT + secrets))
+            fi
+          done
+
+          echo "**Secrets Found:** $SECRET_COUNT" >> scanner-summaries/gitleaks.md
+          echo "" >> scanner-summaries/gitleaks.md
+
+          if [ $SECRET_COUNT -gt 0 ]; then
+            echo "⚠️ **WARNING:** Potential secrets detected in your repository!" >> scanner-summaries/gitleaks.md
+            echo "" >> scanner-summaries/gitleaks.md
+          fi
+
+          echo "**📁 Artifacts:** [GitLeaks Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/gitleaks.md
+        else
+          echo "**Status:** ⏭️ Skipped" >> scanner-summaries/gitleaks.md
+        fi
+
+        echo "" >> scanner-summaries/gitleaks.md
+        echo "</details>" >> scanner-summaries/gitleaks.md
+        echo "" >> scanner-summaries/gitleaks.md
+      continue-on-error: true
+
+    - name: Upload GitLeaks summary section
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scanner-summaries
+        path: scanner-summaries/
+        retention-days: 7
+      continue-on-error: true

@@ -261,31 +261,83 @@ jobs:
     if: always()
 
     steps:
-    - name: Create CodeQL Summary
-      run: |
-        echo "# 🔍 CodeQL Security Analysis Summary" > codeql-summary.md
-        echo "" >> codeql-summary.md
-        echo "**Status:** ${{ needs.codeql-analysis.result }}" >> codeql-summary.md
-        echo "" >> codeql-summary.md
-        echo "CodeQL analysis completed. Check the Security tab for detailed results." >> codeql-summary.md
-        echo "" >> codeql-summary.md
-        echo "**Note:** Results are uploaded to GitHub Code Scanning and will appear in the Security tab when Code Security is enabled." >> codeql-summary.md
-
     - name: Download CodeQL Reports
       uses: actions/download-artifact@v5
       with:
         pattern: codeql-reports-*
-        path: codeql-reports/
+        merge-multiple: true
       continue-on-error: true
 
-    - name: Upload CodeQL Summary
+    - name: Generate CodeQL summary section
+      if: always()
+      run: |
+        mkdir -p scanner-summaries
+
+        echo "<details>" > scanner-summaries/codeql.md
+        echo "<summary>🔍 CodeQL</summary>" >> scanner-summaries/codeql.md
+        echo "" >> scanner-summaries/codeql.md
+
+        if [ -d "sarif" ] && [ "$(ls -A sarif 2>/dev/null)" ]; then
+          echo "**Status:** ✅ Completed" >> scanner-summaries/codeql.md
+          echo "" >> scanner-summaries/codeql.md
+
+          # Count issues from SARIF files
+          ISSUE_COUNT=0
+          CRITICAL_COUNT=0
+          HIGH_COUNT=0
+          MEDIUM_COUNT=0
+          LOW_COUNT=0
+
+          for sarif_file in $(find ./sarif -name "*.sarif" -type f 2>/dev/null); do
+            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
+              issues=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              ISSUE_COUNT=$((ISSUE_COUNT + issues))
+
+              critical=$(jq -r '.runs[]?.results[]? | select(.level == "error") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              CRITICAL_COUNT=$((CRITICAL_COUNT + critical))
+
+              high=$(jq -r '.runs[]?.results[]? | select(.level == "warning") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              HIGH_COUNT=$((HIGH_COUNT + high))
+
+              medium=$(jq -r '.runs[]?.results[]? | select(.level == "note") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              MEDIUM_COUNT=$((MEDIUM_COUNT + medium))
+
+              low=$(jq -r '.runs[]?.results[]? | select(.level == "info") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              LOW_COUNT=$((LOW_COUNT + low))
+            fi
+          done
+
+          echo "**Issues Found:** $ISSUE_COUNT" >> scanner-summaries/codeql.md
+          echo "" >> scanner-summaries/codeql.md
+
+          if [ $ISSUE_COUNT -gt 0 ]; then
+            echo "| Severity | Count |" >> scanner-summaries/codeql.md
+            echo "|----------|-------|" >> scanner-summaries/codeql.md
+            [ $CRITICAL_COUNT -gt 0 ] && echo "| 🔴 Critical | $CRITICAL_COUNT |" >> scanner-summaries/codeql.md
+            [ $HIGH_COUNT -gt 0 ] && echo "| 🟠 High | $HIGH_COUNT |" >> scanner-summaries/codeql.md
+            [ $MEDIUM_COUNT -gt 0 ] && echo "| 🟡 Medium | $MEDIUM_COUNT |" >> scanner-summaries/codeql.md
+            [ $LOW_COUNT -gt 0 ] && echo "| 🔵 Low | $LOW_COUNT |" >> scanner-summaries/codeql.md
+            echo "" >> scanner-summaries/codeql.md
+          fi
+
+          echo "**📁 Artifacts:** [CodeQL Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/codeql.md
+        else
+          echo "**Status:** ⏭️ Skipped" >> scanner-summaries/codeql.md
+        fi
+
+        echo "" >> scanner-summaries/codeql.md
+        echo "</details>" >> scanner-summaries/codeql.md
+        echo "" >> scanner-summaries/codeql.md
+      continue-on-error: true
+
+    - name: Upload CodeQL summary section
+      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: codeql-summary
-        path: |
-          codeql-summary.md
-          codeql-reports/
-        retention-days: 30
+        name: scanner-summaries
+        path: scanner-summaries/
+        retention-days: 7
+      continue-on-error: true
 
     - name: Comment PR with CodeQL Results
       if: false  # Disabled - consolidated into main security hardening comment

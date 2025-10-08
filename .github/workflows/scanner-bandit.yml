@@ -77,3 +77,69 @@ jobs:
         sarif_file: bandit-report.sarif
       if: inputs.enable_code_security == true && always() && github.actor != 'nektos/act' && hashFiles('bandit-report.sarif') != ''
       continue-on-error: true
+
+    - name: Generate Bandit summary section
+      if: always()
+      run: |
+        mkdir -p scanner-summaries
+
+        echo "<details>" > scanner-summaries/bandit.md
+        echo "<summary>🔍 Bandit</summary>" >> scanner-summaries/bandit.md
+        echo "" >> scanner-summaries/bandit.md
+
+        if [ -d "bandit-reports" ] && [ "$(ls -A bandit-reports)" ]; then
+          echo "**Status:** ✅ Completed" >> scanner-summaries/bandit.md
+          echo "" >> scanner-summaries/bandit.md
+
+          # Count issues from SARIF files
+          ISSUE_COUNT=0
+          HIGH_COUNT=0
+          MEDIUM_COUNT=0
+          LOW_COUNT=0
+
+          for sarif_file in $(find ./bandit-reports -name "*.sarif" -type f 2>/dev/null); do
+            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
+              issues=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              ISSUE_COUNT=$((ISSUE_COUNT + issues))
+
+              high=$(jq -r '.runs[]?.results[]? | select(.level == "error" or .level == "warning") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              HIGH_COUNT=$((HIGH_COUNT + high))
+
+              medium=$(jq -r '.runs[]?.results[]? | select(.level == "note") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              MEDIUM_COUNT=$((MEDIUM_COUNT + medium))
+
+              low=$(jq -r '.runs[]?.results[]? | select(.level == "info") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              LOW_COUNT=$((LOW_COUNT + low))
+            fi
+          done
+
+          echo "**Issues Found:** $ISSUE_COUNT" >> scanner-summaries/bandit.md
+          echo "" >> scanner-summaries/bandit.md
+
+          if [ $ISSUE_COUNT -gt 0 ]; then
+            echo "| Severity | Count |" >> scanner-summaries/bandit.md
+            echo "|----------|-------|" >> scanner-summaries/bandit.md
+            [ $HIGH_COUNT -gt 0 ] && echo "| 🟠 High | $HIGH_COUNT |" >> scanner-summaries/bandit.md
+            [ $MEDIUM_COUNT -gt 0 ] && echo "| 🟡 Medium | $MEDIUM_COUNT |" >> scanner-summaries/bandit.md
+            [ $LOW_COUNT -gt 0 ] && echo "| 🔵 Low | $LOW_COUNT |" >> scanner-summaries/bandit.md
+            echo "" >> scanner-summaries/bandit.md
+          fi
+
+          echo "**📁 Artifacts:** [Bandit Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/bandit.md
+        else
+          echo "**Status:** ⏭️ Skipped" >> scanner-summaries/bandit.md
+        fi
+
+        echo "" >> scanner-summaries/bandit.md
+        echo "</details>" >> scanner-summaries/bandit.md
+        echo "" >> scanner-summaries/bandit.md
+      continue-on-error: true
+
+    - name: Upload Bandit summary section
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scanner-summaries
+        path: scanner-summaries/
+        retention-days: 7
+      continue-on-error: true

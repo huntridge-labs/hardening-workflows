@@ -504,6 +504,78 @@ jobs:
         path: container-security-report.md
         retention-days: 30
 
+    - name: Generate Container summary section
+      if: always()
+      run: |
+        mkdir -p scanner-summaries
+
+        echo "<details>" > scanner-summaries/container.md
+        echo "<summary>🔍 Container Security</summary>" >> scanner-summaries/container.md
+        echo "" >> scanner-summaries/container.md
+
+        # Check if we have container scan results
+        if compgen -G "container-scan-results-*" > /dev/null 2>&1 || compgen -G "trivy-*-results.sarif" > /dev/null 2>&1; then
+          echo "**Status:** ✅ Completed" >> scanner-summaries/container.md
+          echo "" >> scanner-summaries/container.md
+
+          # Count vulnerabilities from SARIF files
+          VULN_COUNT=0
+          CRITICAL_COUNT=0
+          HIGH_COUNT=0
+          MEDIUM_COUNT=0
+          LOW_COUNT=0
+
+          for sarif_file in $(find . -name "trivy-*-results.sarif" -type f 2>/dev/null); do
+            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
+              vulns=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              VULN_COUNT=$((VULN_COUNT + vulns))
+
+              critical=$(jq -r '.runs[]?.results[]? | select(.level == "error") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              CRITICAL_COUNT=$((CRITICAL_COUNT + critical))
+
+              high=$(jq -r '.runs[]?.results[]? | select(.level == "warning") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              HIGH_COUNT=$((HIGH_COUNT + high))
+
+              medium=$(jq -r '.runs[]?.results[]? | select(.level == "note") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              MEDIUM_COUNT=$((MEDIUM_COUNT + medium))
+
+              low=$(jq -r '.runs[]?.results[]? | select(.level == "info") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              LOW_COUNT=$((LOW_COUNT + low))
+            fi
+          done
+
+          echo "**Vulnerabilities Found:** $VULN_COUNT" >> scanner-summaries/container.md
+          echo "" >> scanner-summaries/container.md
+
+          if [ $VULN_COUNT -gt 0 ]; then
+            echo "| Severity | Count |" >> scanner-summaries/container.md
+            echo "|----------|-------|" >> scanner-summaries/container.md
+            [ $CRITICAL_COUNT -gt 0 ] && echo "| 🔴 Critical | $CRITICAL_COUNT |" >> scanner-summaries/container.md
+            [ $HIGH_COUNT -gt 0 ] && echo "| 🟠 High | $HIGH_COUNT |" >> scanner-summaries/container.md
+            [ $MEDIUM_COUNT -gt 0 ] && echo "| 🟡 Medium | $MEDIUM_COUNT |" >> scanner-summaries/container.md
+            [ $LOW_COUNT -gt 0 ] && echo "| 🔵 Low | $LOW_COUNT |" >> scanner-summaries/container.md
+            echo "" >> scanner-summaries/container.md
+          fi
+
+          echo "**📁 Artifacts:** [Container Scan Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/container.md
+        else
+          echo "**Status:** ⏭️ Skipped" >> scanner-summaries/container.md
+        fi
+
+        echo "" >> scanner-summaries/container.md
+        echo "</details>" >> scanner-summaries/container.md
+        echo "" >> scanner-summaries/container.md
+      continue-on-error: true
+
+    - name: Upload Container summary section
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scanner-summaries
+        path: scanner-summaries/
+        retention-days: 7
+      continue-on-error: true
+
     - name: Comment PR with enhanced container security results
       if: false  # Disabled - consolidated into main security hardening comment
       uses: actions/github-script@v8
