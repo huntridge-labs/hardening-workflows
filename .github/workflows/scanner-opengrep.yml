@@ -47,18 +47,13 @@ jobs:
         mkdir -p opengrep-reports
         opengrep scan --config=auto --sarif --output=opengrep-reports/opengrep.sarif . || true
         opengrep scan --config=auto --json --output=opengrep-reports/opengrep.json . || true
-
-        cp opengrep-reports/* . 2>/dev/null || true
       continue-on-error: true
 
     - name: Upload OpenGrep artifacts
       uses: actions/upload-artifact@v4
       with:
         name: opengrep-reports
-        path: |
-          opengrep.json
-          opengrep.txt
-          opengrep-reports/
+        path: opengrep-reports/
         retention-days: 30
       if: always()
 
