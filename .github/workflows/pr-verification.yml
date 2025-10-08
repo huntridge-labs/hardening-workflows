@@ -393,15 +393,17 @@ jobs:
         echo "✅ Scanners input validation test '${{ matrix.test.name }}' passed"
 
   # Integration test - run individual scanners to verify end-to-end
-  integration-test-codeql:
-    name: Integration Test - CodeQL Only
+  # Integration test - run the reusable workflow as it's meant to be used
+  # This tests the full end-to-end flow including summary generation
+  integration-test-full-scan:
+    name: Integration Test - Full Security Scan
     needs: [code-quality, test-scanner-resolution, test-scanners-input-validation]
     uses: ./.github/workflows/reusable-security-hardening.yml
     with:
-      scanners: 'codeql'
-      codeql_languages: 'python'
+      scanners: 'sast,container,infrastructure'  # Common realistic use case
+      codeql_languages: 'python,javascript'
       enable_code_security: true
-      post_pr_comment: false
+      post_pr_comment: true  # Test PR comment generation
     permissions:
       contents: read
       security-events: write
@@ -411,44 +413,13 @@ jobs:
       id-token: write
     secrets: inherit
 
-  integration-test-opengrep:
-    name: Integration Test - OpenGrep Only
+  # Test a minimal scanner configuration
+  integration-test-minimal:
+    name: Integration Test - Minimal Configuration
     needs: [code-quality, test-scanner-resolution, test-scanners-input-validation]
     uses: ./.github/workflows/reusable-security-hardening.yml
     with:
-      scanners: 'opengrep'
-      post_pr_comment: false
-    permissions:
-      contents: read
-      security-events: write
-      pull-requests: write
-      checks: write
-      actions: read
-      id-token: write
-    secrets: inherit
-
-  integration-test-container:
-    name: Integration Test - Container Only
-    needs: [code-quality, test-scanner-resolution, test-scanners-input-validation]
-    uses: ./.github/workflows/reusable-security-hardening.yml
-    with:
-      scanners: 'container'
-      post_pr_comment: false
-    permissions:
-      contents: read
-      security-events: write
-      pull-requests: write
-      checks: write
-      actions: read
-      id-token: write
-    secrets: inherit
-
-  integration-test-infrastructure:
-    name: Integration Test - Infrastructure Only
-    needs: [code-quality, test-scanner-resolution, test-scanners-input-validation]
-    uses: ./.github/workflows/reusable-security-hardening.yml
-    with:
-      scanners: 'infrastructure'
+      scanners: 'gitleaks'  # Fastest scanner for quick validation
       post_pr_comment: false
     permissions:
       contents: read
@@ -467,10 +438,8 @@ jobs:
       code-quality,
       test-scanner-resolution,
       test-scanners-input-validation,
-      integration-test-codeql,
-      integration-test-opengrep,
-      integration-test-container,
-      integration-test-infrastructure
+      integration-test-full-scan,
+      integration-test-minimal
     ]
     if: always()
 
@@ -479,17 +448,15 @@ jobs:
       run: |
         echo "# 🧪 PR Verification Results" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "Testing scanner control functionality..." >> $GITHUB_STEP_SUMMARY
+        echo "Testing reusable security hardening workflow..." >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
         # Check each test result
         LINTING="${{ needs.code-quality.result }}"
         SCANNER_RESOLUTION="${{ needs.test-scanner-resolution.result }}"
         INPUT_VALIDATION="${{ needs.test-scanners-input-validation.result }}"
-        INTEGRATION_CODEQL="${{ needs.integration-test-codeql.result }}"
-        INTEGRATION_OPENGREP="${{ needs.integration-test-opengrep.result }}"
-        INTEGRATION_CONTAINER="${{ needs.integration-test-container.result }}"
-        INTEGRATION_INFRASTRUCTURE="${{ needs.integration-test-infrastructure.result }}"
+        INTEGRATION_FULL="${{ needs.integration-test-full-scan.result }}"
+        INTEGRATION_MINIMAL="${{ needs.integration-test-minimal.result }}"
 
         echo "| Test | Result |" >> $GITHUB_STEP_SUMMARY
         echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
@@ -512,55 +479,43 @@ jobs:
           echo "| ❌ Scanners Input Validation (4 edge cases) | Failed |" >> $GITHUB_STEP_SUMMARY
         fi
 
-        if [ "$INTEGRATION_CODEQL" = "success" ]; then
-          echo "| ✅ Integration - CodeQL | Passed |" >> $GITHUB_STEP_SUMMARY
+        if [ "$INTEGRATION_FULL" = "success" ]; then
+          echo "| ✅ Integration Test - Full Scan (SAST + Container + Infrastructure) | Passed |" >> $GITHUB_STEP_SUMMARY
         else
-          echo "| ❌ Integration - CodeQL | Failed |" >> $GITHUB_STEP_SUMMARY
+          echo "| ❌ Integration Test - Full Scan (SAST + Container + Infrastructure) | Failed |" >> $GITHUB_STEP_SUMMARY
         fi
 
-        if [ "$INTEGRATION_OPENGREP" = "success" ]; then
-          echo "| ✅ Integration - OpenGrep | Passed |" >> $GITHUB_STEP_SUMMARY
+        if [ "$INTEGRATION_MINIMAL" = "success" ]; then
+          echo "| ✅ Integration Test - Minimal (GitLeaks only) | Passed |" >> $GITHUB_STEP_SUMMARY
         else
-          echo "| ❌ Integration - OpenGrep | Failed |" >> $GITHUB_STEP_SUMMARY
-        fi
-
-        if [ "$INTEGRATION_CONTAINER" = "success" ]; then
-          echo "| ✅ Integration - Container | Passed |" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "| ❌ Integration - Container | Failed |" >> $GITHUB_STEP_SUMMARY
-        fi
-
-        if [ "$INTEGRATION_INFRASTRUCTURE" = "success" ]; then
-          echo "| ✅ Integration - Infrastructure | Passed |" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "| ❌ Integration - Infrastructure | Failed |" >> $GITHUB_STEP_SUMMARY
+          echo "| ❌ Integration Test - Minimal (GitLeaks only) | Failed |" >> $GITHUB_STEP_SUMMARY
         fi
 
         echo "" >> $GITHUB_STEP_SUMMARY
 
         # Calculate pass rate
-        TOTAL=7
+        TOTAL=5
         PASSED=0
         [ "$LINTING" = "success" ] && PASSED=$((PASSED + 1))
         [ "$SCANNER_RESOLUTION" = "success" ] && PASSED=$((PASSED + 1))
         [ "$INPUT_VALIDATION" = "success" ] && PASSED=$((PASSED + 1))
-        [ "$INTEGRATION_CODEQL" = "success" ] && PASSED=$((PASSED + 1))
-        [ "$INTEGRATION_OPENGREP" = "success" ] && PASSED=$((PASSED + 1))
-        [ "$INTEGRATION_CONTAINER" = "success" ] && PASSED=$((PASSED + 1))
-        [ "$INTEGRATION_INFRASTRUCTURE" = "success" ] && PASSED=$((PASSED + 1))
+        [ "$INTEGRATION_FULL" = "success" ] && PASSED=$((PASSED + 1))
+        [ "$INTEGRATION_MINIMAL" = "success" ] && PASSED=$((PASSED + 1))
 
         echo "## Summary" >> $GITHUB_STEP_SUMMARY
         echo "**$PASSED of $TOTAL test suites passed**" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "- Code Quality & Linting: 1 test" >> $GITHUB_STEP_SUMMARY
-        echo "- Scanner Resolution Logic: 6 test scenarios" >> $GITHUB_STEP_SUMMARY
-        echo "- Scanners Input Validation: 4 edge case tests" >> $GITHUB_STEP_SUMMARY
-        echo "- Integration Tests: 4 individual scanner runs" >> $GITHUB_STEP_SUMMARY
+        echo "### Test Coverage:" >> $GITHUB_STEP_SUMMARY
+        echo "- **Code Quality & Linting**: Validates code style and quality" >> $GITHUB_STEP_SUMMARY
+        echo "- **Scanner Resolution Logic**: 6 test scenarios validating scanner selection" >> $GITHUB_STEP_SUMMARY
+        echo "- **Input Validation**: 4 edge cases (case sensitivity, whitespace, duplicates, unknowns)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Full Integration Test**: End-to-end test with multiple scanners + PR comment" >> $GITHUB_STEP_SUMMARY
+        echo "- **Minimal Integration Test**: Quick validation with single scanner" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
         if [ $PASSED -eq $TOTAL ]; then
-          echo "✅ All scanner control features are working correctly!" >> $GITHUB_STEP_SUMMARY
-          echo "::notice title=PR Verification::All $TOTAL test suites passed (14 total scenarios)"
+          echo "✅ All verification tests passed! The reusable workflow is working correctly." >> $GITHUB_STEP_SUMMARY
+          echo "::notice title=PR Verification::All $TOTAL test suites passed"
           exit 0
         else
           FAILED=$((TOTAL - PASSED))
@@ -578,10 +533,8 @@ jobs:
             'Code Quality & Linting': '${{ needs.code-quality.result }}',
             'Scanner Resolution Logic (6 scenarios)': '${{ needs.test-scanner-resolution.result }}',
             'Scanners Input Validation (4 edge cases)': '${{ needs.test-scanners-input-validation.result }}',
-            'Integration - CodeQL': '${{ needs.integration-test-codeql.result }}',
-            'Integration - OpenGrep': '${{ needs.integration-test-opengrep.result }}',
-            'Integration - Container': '${{ needs.integration-test-container.result }}',
-            'Integration - Infrastructure': '${{ needs.integration-test-infrastructure.result }}'
+            'Integration Test - Full Scan': '${{ needs.integration-test-full-scan.result }}',
+            'Integration Test - Minimal': '${{ needs.integration-test-minimal.result }}'
           };
 
           let passed = 0;
@@ -596,10 +549,10 @@ jobs:
           }
 
           const summary = passed === total
-            ? `✅ All ${total} test suites passed (14 total scenarios)!`
+            ? `✅ All ${total} test suites passed!`
             : `⚠️ ${passed}/${total} test suites passed. ${total - passed} suite(s) failed.`;
 
-          const body = `## 🧪 Scanner Control Verification Results\n\n${summary}\n\n${table}\n\n### Test Coverage\n- **Linting runs once** - Code quality checks before all tests\n- **6 scanner resolution scenarios** - Validates scanners parameter logic\n- **4 input validation edge cases** - Tests whitespace, case sensitivity, duplicates, unknown scanners\n- **4 individual scanner integration tests** - Full workflow execution for each scanner type\n\n---\n*Verification run for commit ${context.sha.substring(0, 7)}*`;
+          const body = `## 🧪 Reusable Workflow Verification Results\n\n${summary}\n\n${table}\n\n### Test Coverage\n- **Code Quality & Linting** - Validates code style and quality\n- **Scanner Resolution Logic** - 6 test scenarios validating scanner selection\n- **Input Validation** - 4 edge cases (case sensitivity, whitespace, duplicates, unknowns)\n- **Full Integration Test** - End-to-end test with SAST, Container, and Infrastructure scanners + PR comment generation\n- **Minimal Integration Test** - Quick validation with GitLeaks scanner only\n\n---\n*Verification run for commit ${context.sha.substring(0, 7)}*`;
 
           // Find existing comment
           const comments = await github.rest.issues.listComments({
@@ -609,7 +562,7 @@ jobs:
           });
 
           const existingComment = comments.data.find(comment =>
-            comment.body.includes('Scanner Control Verification Results') &&
+            comment.body.includes('Reusable Workflow Verification Results') &&
             comment.user.login === 'github-actions[bot]'
           );
 
