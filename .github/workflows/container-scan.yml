@@ -571,8 +571,8 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: scanner-summaries
-        path: scanner-summaries/
+        name: scanner-summary-container
+        path: scanner-summaries/container.md
         retention-days: 7
       continue-on-error: true
 

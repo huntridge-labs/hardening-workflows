@@ -415,7 +415,7 @@ jobs:
     - name: Download all scanner summaries
       uses: actions/download-artifact@v5
       with:
-        pattern: scanner-summaries
+        pattern: scanner-summary-*
         merge-multiple: true
       continue-on-error: true
 
@@ -430,6 +430,10 @@ jobs:
 
         echo "📦 Checking for scanner summaries..."
         ls -la . 2>/dev/null || true
+        echo ""
+        echo "📄 Looking for scanner summary files..."
+        find . -name "*.md" -type f 2>/dev/null || true
+        echo ""
 
         # Combine all scanner summaries in a specific order
         for scanner in codeql opengrep bandit gitleaks container infrastructure; do
@@ -437,7 +441,7 @@ jobs:
             echo "✅ Adding ${scanner} summary..."
             cat "${scanner}.md" >> security-hardening-report.md
           else
-            echo "⏭️  No ${scanner} summary found"
+            echo "⏭️  No ${scanner}.md summary found"
           fi
         done
       continue-on-error: true

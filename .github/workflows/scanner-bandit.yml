@@ -139,7 +139,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: scanner-summaries
-        path: scanner-summaries/
+        name: scanner-summary-bandit
+        path: scanner-summaries/bandit.md
         retention-days: 7
       continue-on-error: true

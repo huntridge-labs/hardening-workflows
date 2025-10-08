@@ -125,7 +125,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: scanner-summaries
-        path: scanner-summaries/
+        name: scanner-summary-opengrep
+        path: scanner-summaries/opengrep.md
         retention-days: 7
       continue-on-error: true
