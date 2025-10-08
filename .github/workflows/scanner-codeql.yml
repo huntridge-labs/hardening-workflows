@@ -283,27 +283,34 @@ jobs:
 
           # Count issues from SARIF files
           ISSUE_COUNT=0
-          CRITICAL_COUNT=0
-          HIGH_COUNT=0
-          MEDIUM_COUNT=0
-          LOW_COUNT=0
+          ERROR_COUNT=0
+          WARNING_COUNT=0
+          NOTE_COUNT=0
+          NONE_COUNT=0
 
           for sarif_file in $(find ./sarif -name "*.sarif" -type f 2>/dev/null); do
             if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
+              # Count total issues
               issues=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
               ISSUE_COUNT=$((ISSUE_COUNT + issues))
 
-              critical=$(jq -r '.runs[]?.results[]? | select(.level == "error") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
-              CRITICAL_COUNT=$((CRITICAL_COUNT + critical))
+              # CodeQL SARIF uses .level field with values: error, warning, note, none
+              # If level is missing, it defaults to "warning"
+              error=$(jq -r '.runs[]?.results[]? | select(.level == "error") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              ERROR_COUNT=$((ERROR_COUNT + error))
 
-              high=$(jq -r '.runs[]?.results[]? | select(.level == "warning") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
-              HIGH_COUNT=$((HIGH_COUNT + high))
+              warning=$(jq -r '.runs[]?.results[]? | select(.level == "warning") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              WARNING_COUNT=$((WARNING_COUNT + warning))
 
-              medium=$(jq -r '.runs[]?.results[]? | select(.level == "note") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
-              MEDIUM_COUNT=$((MEDIUM_COUNT + medium))
+              note=$(jq -r '.runs[]?.results[]? | select(.level == "note") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              NOTE_COUNT=$((NOTE_COUNT + note))
 
-              low=$(jq -r '.runs[]?.results[]? | select(.level == "info") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
-              LOW_COUNT=$((LOW_COUNT + low))
+              none=$(jq -r '.runs[]?.results[]? | select(.level == "none") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              NONE_COUNT=$((NONE_COUNT + none))
+
+              # Count results without a level field (default to warning)
+              no_level=$(jq -r '.runs[]?.results[]? | select(.level == null) | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              WARNING_COUNT=$((WARNING_COUNT + no_level))
             fi
           done
 
@@ -313,10 +320,10 @@ jobs:
           if [ $ISSUE_COUNT -gt 0 ]; then
             echo "| Severity | Count |" >> scanner-summaries/codeql.md
             echo "|----------|-------|" >> scanner-summaries/codeql.md
-            [ $CRITICAL_COUNT -gt 0 ] && echo "| 🔴 Critical | $CRITICAL_COUNT |" >> scanner-summaries/codeql.md
-            [ $HIGH_COUNT -gt 0 ] && echo "| 🟠 High | $HIGH_COUNT |" >> scanner-summaries/codeql.md
-            [ $MEDIUM_COUNT -gt 0 ] && echo "| 🟡 Medium | $MEDIUM_COUNT |" >> scanner-summaries/codeql.md
-            [ $LOW_COUNT -gt 0 ] && echo "| 🔵 Low | $LOW_COUNT |" >> scanner-summaries/codeql.md
+            [ $ERROR_COUNT -gt 0 ] && echo "| 🔴 Error | $ERROR_COUNT |" >> scanner-summaries/codeql.md
+            [ $WARNING_COUNT -gt 0 ] && echo "| 🟠 Warning | $WARNING_COUNT |" >> scanner-summaries/codeql.md
+            [ $NOTE_COUNT -gt 0 ] && echo "| 🟡 Note | $NOTE_COUNT |" >> scanner-summaries/codeql.md
+            [ $NONE_COUNT -gt 0 ] && echo "| 🔵 Recommendation | $NONE_COUNT |" >> scanner-summaries/codeql.md
             echo "" >> scanner-summaries/codeql.md
           fi
 
