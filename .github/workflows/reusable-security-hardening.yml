@@ -3,10 +3,15 @@ name: Reusable Security Hardening Pipeline
 on:
   workflow_call:
     inputs:
-      scan_type:
-        description: 'Type of security scan to run'
+      scanners:
+        description: 'Comma-separated list of scanners to run (codeql, opengrep, bandit, gitleaks, container, infrastructure, lint, all, sast, secrets, etc.)'
         required: false
-        default: 'full'
+        default: 'all'
+        type: string
+      scan_type:
+        description: '(Deprecated) Legacy scan type selector. Prefer the scanners input.'
+        required: false
+        default: ''
         type: string
       python_version:
         description: 'Python version to use'
@@ -18,6 +23,11 @@ on:
         required: false
         default: 'us-east-1'
         type: string
+      iac_path:
+        description: 'Directory that contains infrastructure-as-code (Terraform) files'
+        required: false
+        default: 'infrastructure'
+        type: string
       post_pr_comment:
         description: 'Whether to post PR comments'
         required: false
@@ -28,6 +38,11 @@ on:
         required: false
         default: 'python,javascript'
         type: string
+      enable_code_security:
+        description: 'Whether GitHub Code Security is enabled for this repository (required for CodeQL scanning)'
+        required: false
+        default: false
+        type: boolean
     secrets:
       AWS_ACCOUNT_ID:
         description: 'AWS Account ID for infrastructure scans'
@@ -47,82 +62,208 @@ env:
   PYTHON_VERSION: ${{ inputs.python_version }}
 
 jobs:
-  # Run linting first to catch basic code quality issues
+  scan-coordinator:
+    name: Scan Coordinator
+    runs-on: ubuntu-latest
+    if: ${{ !cancelled() }}
+    outputs:
+      selected_scanners: ${{ steps.resolve.outputs.selected_scanners }}
+      selected_scanners_json: ${{ steps.resolve.outputs.selected_scanners_json }}
+      run_codeql: ${{ steps.resolve.outputs.run_codeql }}
+      run_opengrep: ${{ steps.resolve.outputs.run_opengrep }}
+      run_bandit: ${{ steps.resolve.outputs.run_bandit }}
+      run_gitleaks: ${{ steps.resolve.outputs.run_gitleaks }}
+      run_container: ${{ steps.resolve.outputs.run_container }}
+      run_infrastructure: ${{ steps.resolve.outputs.run_infrastructure }}
+      run_lint: ${{ steps.resolve.outputs.run_lint }}
+      run_any: ${{ steps.resolve.outputs.run_any }}
+
+    steps:
+    - name: Resolve scanner selection
+      id: resolve
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        declare -A RUN=(
+          [codeql]=false
+          [opengrep]=false
+          [bandit]=false
+          [gitleaks]=false
+          [container]=false
+          [infrastructure]=false
+          [lint]=false
+        )
+
+        DEFAULT_SCANNERS=(codeql opengrep bandit gitleaks container infrastructure)
+        SELECTED=()
+
+        normalize() {
+          echo "$1" | tr '[:upper:]' '[:lower:]' | tr -d ' \t' | tr '_' '-'
+        }
+
+        add_scanner() {
+          local key="$1"
+          if [[ -z "${RUN[$key]+_}" ]]; then
+            echo "::notice title=Unknown scanner token::Scanner '$key' is not recognized and will be ignored."
+            return
+          fi
+          if [[ "${RUN[$key]}" != "true" ]]; then
+            RUN[$key]=true
+            SELECTED+=("$key")
+          fi
+        }
+
+        reset_selection() {
+          SELECTED=()
+          for key in "${!RUN[@]}"; do
+            RUN[$key]=false
+          done
+        }
+
+        apply_token() {
+          local token="$1"
+          case "$token" in
+            '' ) ;;
+            all|full)
+              for key in "${DEFAULT_SCANNERS[@]}"; do add_scanner "$key"; done
+              ;;
+            sast|sast-only)
+              for key in codeql opengrep bandit gitleaks; do add_scanner "$key"; done
+              ;;
+            secrets|secrets-only)
+              add_scanner gitleaks
+              ;;
+            codeql|code-ql)
+              add_scanner codeql
+              ;;
+            semgrep|opengrep|open-grep)
+              add_scanner opengrep
+              ;;
+            bandit)
+              add_scanner bandit
+              ;;
+            gitleaks|git-leaks)
+              add_scanner gitleaks
+              ;;
+            container|containers|container-scan|docker)
+              add_scanner container
+              ;;
+            infrastructure|infra|iac|terraform)
+              add_scanner infrastructure
+              ;;
+            lint|linting|code-quality)
+              add_scanner lint
+              ;;
+            none|off)
+              reset_selection
+              ;;
+            *)
+              echo "::notice title=Unknown scanner token::Value '$token' is not recognized and will be ignored."
+              ;;
+          esac
+        }
+
+        SCANNERS_RAW="${{ inputs.scanners }}"
+        SCAN_TYPE_RAW="$(normalize "${{ inputs.scan_type }}")"
+
+        if [[ -z "$SCANNERS_RAW" || "$SCANNERS_RAW" == "default" ]]; then
+          case "$SCAN_TYPE_RAW" in
+            codeql-only)
+              SCANNERS_RAW='codeql'
+              ;;
+            sast-only)
+              SCANNERS_RAW='sast'
+              ;;
+            container-only)
+              SCANNERS_RAW='container'
+              ;;
+            infrastructure-only)
+              SCANNERS_RAW='infrastructure'
+              ;;
+            full|'')
+              SCANNERS_RAW='all'
+              ;;
+            *)
+              echo "::notice title=Unknown legacy scan type::Scan type '$SCAN_TYPE_RAW' not recognized. Falling back to 'all'."
+              SCANNERS_RAW='all'
+              ;;
+          esac
+        fi
+
+        IFS=',' read -ra TOKENS <<< "$SCANNERS_RAW"
+        for raw in "${TOKENS[@]}"; do
+          apply_token "$(normalize "$raw")"
+        done
+
+        if [[ ${#SELECTED[@]} -eq 0 ]]; then
+          for key in "${DEFAULT_SCANNERS[@]}"; do add_scanner "$key"; done
+        fi
+
+        RUN_ANY=false
+        for key in "${!RUN[@]}"; do
+          if [[ "${RUN[$key]}" == "true" ]]; then
+            RUN_ANY=true
+          fi
+          echo "run_${key}=${RUN[$key]}" >> "$GITHUB_OUTPUT"
+        done
+
+        if [[ "$RUN_ANY" == "false" ]]; then
+          echo "::warning title=No scanners selected::No scanners were selected. The workflow will execute the summary only."
+        fi
+
+        # Check GitHub Code Security integration
+        ENABLE_CODE_SECURITY="${{ inputs.enable_code_security }}"
+        if [[ "${RUN[codeql]}" == "true" && "$ENABLE_CODE_SECURITY" != "true" ]]; then
+          echo "::warning title=CodeQL Disabled::GitHub Code Security is not enabled for this repository. CodeQL scanning will be skipped."
+          RUN[codeql]=false
+          # Remove codeql from SELECTED array
+          SELECTED=("${SELECTED[@]/codeql}")
+        fi
+
+        echo "run_any=$RUN_ANY" >> "$GITHUB_OUTPUT"
+
+        SELECTED_STR=$(IFS=','; echo "${SELECTED[*]}")
+        if [[ -z "$SELECTED_STR" ]]; then
+          SELECTED_STR=""
+        fi
+
+        if [[ ${#SELECTED[@]} -eq 0 ]]; then
+          SELECTED_JSON='[]'
+        else
+          SELECTED_JSON='['
+          for item in "${SELECTED[@]}"; do
+            SELECTED_JSON+="\"$item\","
+          done
+          SELECTED_JSON="${SELECTED_JSON%,}]"
+        fi
+
+        echo "selected_scanners=$SELECTED_STR" >> "$GITHUB_OUTPUT"
+        echo "selected_scanners_json=$SELECTED_JSON" >> "$GITHUB_OUTPUT"
+
+        echo ""
+        echo "� Resolved scanners: ${SELECTED_STR:-none}"
+        echo "📌 Legacy scan_type input: ${SCAN_TYPE_RAW:-'<not provided>'}"
+
   code-quality-linting:
     name: Code Quality & Linting
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.run_lint == 'true'
     uses: ./.github/workflows/linting.yml
     permissions:
       contents: read
       pull-requests: write
       checks: write
 
-  scan-coordinator:
-    name: Scan Coordinator
-    runs-on: ubuntu-latest
-    needs: [code-quality-linting]
-    if: always()
-    outputs:
-      scan_type: ${{ steps.determine-scan.outputs.scan_type }}
-      should_run_sast: ${{ steps.determine-scan.outputs.should_run_sast }}
-      should_run_container: ${{ steps.determine-scan.outputs.should_run_container }}
-      should_run_infrastructure: ${{ steps.determine-scan.outputs.should_run_infrastructure }}
-      linting_status: ${{ needs.code-quality-linting.outputs.linting_status }}
-      linting_issues: ${{ needs.code-quality-linting.outputs.issues_found }}
-
-    steps:
-    - name: Determine scan type
-      id: determine-scan
-      run: |
-        SCAN_TYPE="${{ inputs.scan_type }}"
-        if [ -z "$SCAN_TYPE" ]; then
-          SCAN_TYPE="full"
-        fi
-
-        echo "scan_type=$SCAN_TYPE" >> $GITHUB_OUTPUT
-
-        # Display linting results
-        LINTING_STATUS="${{ needs.code-quality-linting.outputs.linting_status }}"
-        LINTING_ISSUES="${{ needs.code-quality-linting.outputs.issues_found }}"
-        
-        echo "📊 Code Quality Summary:"
-        echo "Linting Status: $LINTING_STATUS"
-        echo "Issues Found: $LINTING_ISSUES"
-        
-        if [ "$LINTING_ISSUES" != "0" ] && [ -n "$LINTING_ISSUES" ]; then
-          echo "::warning title=Code Quality Issues::Found $LINTING_ISSUES linting issues. Security scans will continue."
-        fi
-
-        case "$SCAN_TYPE" in
-          "full")
-            echo "should_run_sast=true" >> $GITHUB_OUTPUT
-            echo "should_run_container=true" >> $GITHUB_OUTPUT
-            echo "should_run_infrastructure=true" >> $GITHUB_OUTPUT
-            ;;
-          "sast-only")
-            echo "should_run_sast=true" >> $GITHUB_OUTPUT
-            echo "should_run_container=false" >> $GITHUB_OUTPUT
-            echo "should_run_infrastructure=false" >> $GITHUB_OUTPUT
-            ;;
-          "container-only")
-            echo "should_run_sast=false" >> $GITHUB_OUTPUT
-            echo "should_run_container=true" >> $GITHUB_OUTPUT
-            echo "should_run_infrastructure=false" >> $GITHUB_OUTPUT
-            ;;
-          "infrastructure-only")
-            echo "should_run_sast=false" >> $GITHUB_OUTPUT
-            echo "should_run_container=false" >> $GITHUB_OUTPUT
-            echo "should_run_infrastructure=true" >> $GITHUB_OUTPUT
-            ;;
-        esac
-
-  run-sast-pipeline:
-    name: Trigger SAST Pipeline
+  scanner-codeql:
+    name: CodeQL Scanner
     needs: scan-coordinator
-    if: needs.scan-coordinator.outputs.should_run_sast == 'true'
-    uses: ./.github/workflows/sast.yml
+    if: needs.scan-coordinator.outputs.run_codeql == 'true'
+    uses: ./.github/workflows/scanner-codeql.yml
     with:
-      post_pr_comment: ${{ inputs.post_pr_comment }}
       codeql_languages: ${{ inputs.codeql_languages }}
+      post_pr_comment: ${{ inputs.post_pr_comment }}
+      enable_code_security: ${{ inputs.enable_code_security }}
     permissions:
       contents: read
       security-events: write
@@ -130,13 +271,59 @@ jobs:
       pull-requests: write
     secrets: inherit
 
-  run-container-pipeline:
-    name: Trigger Container Security Pipeline
+  scanner-opengrep:
+    name: OpenGrep Scanner
     needs: scan-coordinator
-    if: needs.scan-coordinator.outputs.should_run_container == 'true'
+    if: needs.scan-coordinator.outputs.run_opengrep == 'true'
+    uses: ./.github/workflows/scanner-opengrep.yml
+    with:
+      post_pr_comment: ${{ inputs.post_pr_comment }}
+      enable_code_security: ${{ inputs.enable_code_security }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+    secrets: inherit
+
+  scanner-bandit:
+    name: Bandit Scanner
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.run_bandit == 'true'
+    uses: ./.github/workflows/scanner-bandit.yml
+    with:
+      post_pr_comment: ${{ inputs.post_pr_comment }}
+      enable_code_security: ${{ inputs.enable_code_security }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+    secrets: inherit
+
+  scanner-gitleaks:
+    name: Gitleaks Scanner
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.run_gitleaks == 'true'
+    uses: ./.github/workflows/scanner-gitleaks.yml
+    with:
+      post_pr_comment: ${{ inputs.post_pr_comment }}
+      enable_code_security: ${{ inputs.enable_code_security }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+    secrets: inherit
+
+  scanner-container:
+    name: Container Scanner
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.run_container == 'true'
     uses: ./.github/workflows/container-scan.yml
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
+      enable_code_security: ${{ inputs.enable_code_security }}
     permissions:
       contents: read
       security-events: write
@@ -144,72 +331,95 @@ jobs:
       pull-requests: write
     secrets: inherit
 
-  infrastructure-security:
-    name: Infrastructure Security Analysis
-    runs-on: ubuntu-latest
+  scanner-infrastructure:
+    name: Infrastructure Scanner
     needs: scan-coordinator
-    if: needs.scan-coordinator.outputs.should_run_infrastructure == 'true'
-    timeout-minutes: 20
-    continue-on-error: true
-
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v5
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ inputs.python_version }}
-
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-
-    - name: Install security tools
-      run: |
-        pip install checkov
-        curl -L "$(curl -s https://api.github.com/repos/tenable/terrascan/releases/latest | grep -o -E "https://.+?_Linux_x86_64.tar.gz")" > terrascan.tar.gz
-        tar -xf terrascan.tar.gz terrascan && rm terrascan.tar.gz
-        sudo mv terrascan /usr/local/bin
-        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-        echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
-        sudo apt-get update && sudo apt-get install -y trivy
-
-    - name: Run Infrastructure Security Scans
-      run: |
-        if [ -d "infrastructure" ]; then
-          cd infrastructure
-          echo "🔍 Running Trivy infrastructure security scan..."
-          trivy config --format sarif --output trivy-results.sarif . || true
-          
-          echo "🏗️ Running Checkov infrastructure security scan..."
-          checkov -d . --framework terraform --output sarif --output-file-path checkov-results.sarif || true
-          
-          echo "🔧 Running Terrascan infrastructure security scan..."
-          terrascan scan -i terraform -t all -d . --sarif-output terrascan-results.sarif || true
-        else
-          echo "No infrastructure directory found, skipping infrastructure scans"
-        fi
-      continue-on-error: true
-
-    - name: Upload Infrastructure Security Results
-      uses: github/codeql-action/upload-sarif@v3
-      if: always() && github.actor != 'nektos/act'
-      with:
-        sarif_file: infrastructure/*.sarif
-      continue-on-error: true
+    if: needs.scan-coordinator.outputs.run_infrastructure == 'true'
+    uses: ./.github/workflows/infrastructure.yml
+    with:
+      iac_path: ${{ inputs.iac_path }}
+      python_version: ${{ inputs.python_version }}
+      aws_region: ${{ inputs.aws_region }}
+      enable_code_security: ${{ inputs.enable_code_security }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+    secrets: inherit
 
   security-summary:
     name: Security Hardening Summary
     runs-on: ubuntu-latest
-    needs: [scan-coordinator, run-sast-pipeline, run-container-pipeline, infrastructure-security]
+    needs:
+      - scan-coordinator
+      - code-quality-linting
+      - scanner-codeql
+      - scanner-opengrep
+      - scanner-bandit
+      - scanner-gitleaks
+      - scanner-container
+      - scanner-infrastructure
     if: always()
 
     steps:
-    - name: Download all security artifacts
+    - name: Download CodeQL artifacts
+      if: needs.scan-coordinator.outputs.run_codeql == 'true'
       uses: actions/download-artifact@v5
+      with:
+        pattern: codeql-*
       continue-on-error: true
 
-    - name: Create comprehensive security report
+    - name: Download OpenGrep artifacts
+      if: needs.scan-coordinator.outputs.run_opengrep == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: opengrep-*
+      continue-on-error: true
+
+    - name: Download Bandit artifacts
+      if: needs.scan-coordinator.outputs.run_bandit == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: bandit-*
+      continue-on-error: true
+
+    - name: Download GitLeaks artifacts
+      if: needs.scan-coordinator.outputs.run_gitleaks == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: gitleaks-*
+      continue-on-error: true
+
+    - name: Download Container artifacts
+      if: needs.scan-coordinator.outputs.run_container == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: container-*
+      continue-on-error: true
+
+    - name: Download Infrastructure artifacts
+      if: needs.scan-coordinator.outputs.run_infrastructure == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: infrastructure-*
+      continue-on-error: true
+
+    - name: Download Linting artifacts
+      if: needs.scan-coordinator.outputs.run_lint == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: '*lint*'
+      continue-on-error: true
+
+    - name: Download all scanner summaries
+      uses: actions/download-artifact@v5
+      with:
+        pattern: scanner-summary-*
+        merge-multiple: true
+      continue-on-error: true
+
+    - name: Combine scanner summaries into security report
       run: |
         echo "# 🛡️ Security Analysis Summary" > security-hardening-report.md
         echo "" >> security-hardening-report.md
@@ -218,19 +428,49 @@ jobs:
         echo "**Generated:** $(date)" >> security-hardening-report.md
         echo "" >> security-hardening-report.md
 
-        # Count security issues from SARIF files
+        echo "📦 Checking for scanner summaries..."
+        ls -la . 2>/dev/null || true
+        echo ""
+        echo "📄 Looking for scanner summary files..."
+        find . -name "*.md" -type f 2>/dev/null || true
+        echo ""
+
+        # Combine all scanner summaries in a specific order
+        for scanner in codeql opengrep bandit gitleaks container infrastructure; do
+          if [ -f "${scanner}.md" ]; then
+            echo "✅ Adding ${scanner} summary..."
+            cat "${scanner}.md" >> security-hardening-report.md
+          else
+            echo "⏭️  No ${scanner}.md summary found"
+          fi
+        done
+      continue-on-error: true
+
+    - name: Generate overall summary
+      run: |
+        echo "## 📊 Overall Security Score" >> security-hardening-report.md
+        echo "" >> security-hardening-report.md
+
+        # Calculate total issues across all scanners
         TOTAL_ISSUES=0
         if command -v jq >/dev/null 2>&1; then
-          for sarif_file in $(find . -name "*.sarif" 2>/dev/null); do
+          # Count SARIF issues
+          for sarif_file in $(find . -name "*.sarif" -type f 2>/dev/null); do
             if [ -f "$sarif_file" ] && [ -s "$sarif_file" ]; then
-              issues=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l || echo 0)
+              issues=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              TOTAL_ISSUES=$((TOTAL_ISSUES + issues))
+            fi
+          done
+
+          # Count OpenGrep JSON issues
+          for json_file in $(find ./opengrep-reports -name "*.json" -type f 2>/dev/null); do
+            if [ -f "$json_file" ] && [ -s "$json_file" ]; then
+              issues=$(jq -r '.results[]? | .check_id' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
               TOTAL_ISSUES=$((TOTAL_ISSUES + issues))
             fi
           done
         fi
 
-        echo "## 📊 Security Score" >> security-hardening-report.md
-        echo "" >> security-hardening-report.md
         echo "**Total Issues Found:** $TOTAL_ISSUES" >> security-hardening-report.md
         echo "" >> security-hardening-report.md
 
@@ -244,16 +484,82 @@ jobs:
 
         echo "" >> security-hardening-report.md
         echo "## 📋 Next Steps" >> security-hardening-report.md
-        echo "1. Download and review security reports from workflow artifacts" >> security-hardening-report.md
-        echo "2. Address any critical or high-severity findings" >> security-hardening-report.md
-        echo "3. Consider enabling automated dependency updates" >> security-hardening-report.md
+        echo "1. Review the detailed scanner results in the collapsible sections above" >> security-hardening-report.md
+        echo "2. Download and review security reports from workflow artifacts" >> security-hardening-report.md
+        echo "3. Address any critical or high-severity findings" >> security-hardening-report.md
+        echo "4. Consider enabling automated dependency updates" >> security-hardening-report.md
+
+    - name: Capture job run id
+      id: job_id
+      uses: actions/github-script@v8
+      with:
+        result-encoding: string
+        script: |
+          const { owner, repo } = context.repo;
+          const runId = context.runId;
+          const attempt = context.runAttempt ?? 1;
+
+          const { data } = await github.rest.actions.listJobsForWorkflowRunAttempt({
+            owner,
+            repo,
+            run_id: runId,
+            attempt_number: attempt,
+            per_page: 100,
+          });
+
+          // Debug: Log all job names
+          core.info(`Found ${data.jobs.length} jobs in workflow run:`);
+          data.jobs.forEach(job => {
+            core.info(`  - Job: "${job.name}" (ID: ${job.id}, Status: ${job.status})`);
+          });
+
+          const candidates = data.jobs.filter(job => {
+            const name = job.name ?? '';
+            return name === 'Security Hardening Summary'
+              || name.endsWith('/ Security Hardening Summary')
+              || name.includes('Security Hardening Summary');
+          });
+
+          core.info(`Found ${candidates.length} candidate jobs matching 'Security Hardening Summary'`);
+
+          const inProgress = candidates.filter(job => {
+            const status = (job.status || '').toLowerCase();
+            return status === 'in_progress' || status === 'queued';
+          });
+
+          const orderedCandidates = [...candidates].sort((a, b) => {
+            const aTime = a.started_at ? new Date(a.started_at).getTime() : 0;
+            const bTime = b.started_at ? new Date(b.started_at).getTime() : 0;
+
+            if (aTime !== bTime) {
+              return bTime - aTime;
+            }
+
+            const aId = typeof a.id === 'number' ? a.id : 0;
+            const bId = typeof b.id === 'number' ? b.id : 0;
+            return bId - aId;
+          });
+
+          const summaryJob = inProgress[0] ?? orderedCandidates[0];
+          const artifactName = summaryJob
+            ? `security-hardening-report-${summaryJob.id}`
+            : `security-hardening-report-${runId}-attempt${attempt}`;
+
+          if (!summaryJob) {
+            core.warning('Security Hardening Summary job not found; falling back to run-based artifact naming.');
+          } else {
+            core.info(`Security Hardening Summary job resolved to ID ${summaryJob.id} (${summaryJob.name}).`);
+          }
+
+          core.exportVariable('SECURITY_HARDENING_REPORT_ARTIFACT', artifactName);
+          return artifactName;
 
     - name: Upload comprehensive security report
       uses: actions/upload-artifact@v4
       with:
-        name: security-hardening-report
+        name: ${{ steps.job_id.outputs.result }}
         path: security-hardening-report.md
-        retention-days: 90
+        retention-days: 30
 
     - name: Comment PR with security summary
       if: github.event_name == 'pull_request' && (inputs.post_pr_comment == true || inputs.post_pr_comment == null)
@@ -262,11 +568,11 @@ jobs:
       with:
         script: |
           const fs = require('fs');
-          
+
           console.log('Repository:', context.repo.owner + '/' + context.repo.repo);
           console.log('Event name:', context.eventName);
           console.log('PR number:', context.issue?.number);
-          
+
           try {
             const report = fs.readFileSync('security-hardening-report.md', 'utf8');
             const summary = report.length > 65000 ?
@@ -281,23 +587,23 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.issue.number
             });
-            
+
             console.log('🔍 Found', comments.data.length, 'existing comments');
-            
+
             const existingComment = comments.data.find(comment => {
               const hasMarker = comment.body.includes('security-hardening-comment-marker');
               const isGitHubActions = comment.user.login === 'github-actions[bot]' || comment.user.type === 'Bot';
               console.log('Comment from', comment.user.login, 'type:', comment.user.type, 'has marker:', hasMarker);
               return hasMarker && isGitHubActions;
             });
-            
+
             if (existingComment) {
               // Update existing comment with latest information
               console.log('🔄 Updating existing security hardening comment');
               const timestamp = new Date().toLocaleString();
               const commitSha = context.sha.substring(0, 8);
               const updatedBody = commentBody + `\n\n---\n*Last updated: ${timestamp} | Commit: ${commitSha} | [View Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
-              
+
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -314,12 +620,12 @@ jobs:
                 body: commentBody
               });
             }
-            
+
             console.log('✅ Successfully posted/updated security hardening summary comment');
           } catch (error) {
             console.log('❌ Failed to post security summary comment:', error.message);
             console.log('Error status:', error.status);
-            
+
             if (error.status === 403) {
               console.log('🔒 Permission denied - this can happen when:');
               console.log('   • Running on a fork (security restriction)');
@@ -328,6 +634,6 @@ jobs:
             } else if (error.status === 404) {
               console.log('🔍 Resource not found - check if PR exists');
             }
-            
+
             console.log('📋 Security hardening report is still available in workflow artifacts');
           }

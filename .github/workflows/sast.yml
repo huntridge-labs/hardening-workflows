@@ -23,6 +23,27 @@ on:
         required: false
         type: string
         default: 'python,javascript'
+      # Granular scanner controls
+      enable_codeql:
+        description: 'Enable CodeQL scanner'
+        required: false
+        type: boolean
+        default: true
+      enable_semgrep:
+        description: 'Enable Semgrep scanner'
+        required: false
+        type: boolean
+        default: true
+      enable_bandit:
+        description: 'Enable Bandit scanner'
+        required: false
+        type: boolean
+        default: true
+      enable_gitleaks:
+        description: 'Enable Gitleaks scanner'
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -37,6 +58,7 @@ jobs:
   generate-codeql-matrix:
     name: Generate CodeQL Matrix
     runs-on: ubuntu-latest
+    if: ${{ inputs.enable_codeql }}
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -48,23 +70,23 @@ jobs:
         if [ -z "$LANGUAGES" ]; then
           LANGUAGES="python,javascript"
         fi
-        
+
         echo "Input languages: $LANGUAGES"
-        
+
         # Validate languages and remove spaces
         LANGUAGES=$(echo "$LANGUAGES" | tr -d ' ')
-        
+
         # Convert comma-separated string to JSON array
         MATRIX_JSON=$(echo "$LANGUAGES" | sed 's/,/","/g' | sed 's/^/["/' | sed 's/$/"]/')
         echo "Generated matrix: $MATRIX_JSON"
-        
+
         # Validate JSON syntax
         if ! echo "$MATRIX_JSON" | python3 -m json.tool > /dev/null 2>&1; then
           echo "Error: Invalid JSON generated: $MATRIX_JSON"
           echo "Falling back to default languages"
           MATRIX_JSON='["python","javascript"]'
         fi
-        
+
         echo "matrix={\"language\":$MATRIX_JSON}" >> $GITHUB_OUTPUT
 
   codeql-analysis:
@@ -74,7 +96,7 @@ jobs:
     timeout-minutes: 45
     continue-on-error: true  # Allow pipeline to continue even if security issues found
     # Skip CodeQL in Act - it requires GitHub's infrastructure
-    if: github.actor != 'nektos/act'
+    if: ${{ inputs.enable_codeql && github.actor != 'nektos/act' }}
     permissions:
       actions: read
       contents: read
@@ -159,6 +181,7 @@ jobs:
   opengrep-analysis:
     name: OpenGrep SAST
     runs-on: ubuntu-latest
+    if: ${{ inputs.enable_semgrep }}
     timeout-minutes: 20
     continue-on-error: true  # Allow pipeline to continue even if security issues found
 
@@ -220,6 +243,7 @@ jobs:
   bandit-analysis:
     name: Bandit Python Security
     runs-on: ubuntu-latest
+    if: ${{ inputs.enable_bandit }}
     timeout-minutes: 15
     continue-on-error: true  # Allow pipeline to continue even if security issues found
 
@@ -453,6 +477,7 @@ jobs:
   secrets-detection:
     name: Secrets Detection - Gitleaks
     runs-on: ubuntu-latest
+    if: ${{ inputs.enable_gitleaks }}
     timeout-minutes: 10
     continue-on-error: true  # Allow pipeline to continue even if secrets found
 
@@ -634,7 +659,7 @@ jobs:
           fi
         }
 
-        # Parse CodeQL results (SARIF format) 
+        # Parse CodeQL results (SARIF format)
         codeql_file=$(find . -name "*codeql*.sarif" | head -1)
         if [ -n "$codeql_file" ]; then
           codeql_counts=$(parse_sarif "$codeql_file")
@@ -769,7 +794,7 @@ jobs:
         retention-days: 30
 
     - name: Comment PR with Enhanced SAST Results
-      if: github.event_name == 'pull_request' && (inputs.post_pr_comment == null || inputs.post_pr_comment == true)
+      if: false  # Disabled - consolidated into main security hardening comment
       uses: actions/github-script@v8
       continue-on-error: true  # Don't fail the workflow if commenting fails
       with:
@@ -777,35 +802,35 @@ jobs:
         script: |
           const fs = require('fs');
           const path = require('path');
-          
+
           // Import the enhanced comment generator
           const enhancerPath = path.join(process.cwd(), '.github', 'scripts', 'enhance-pr-comments.js');
           let enhancer;
-          
+
           try {
             enhancer = require(enhancerPath);
           } catch (error) {
             console.log('⚠️ Enhanced comment generator not found, falling back to basic comments');
             enhancer = null;
           }
-          
+
           // Check if we have the necessary permissions and context
           console.log('Repository:', context.repo.owner + '/' + context.repo.repo);
           console.log('Event name:', context.eventName);
           console.log('Actor:', context.actor);
           console.log('PR number:', context.issue?.number);
           console.log('Is from fork:', context.payload.pull_request?.head?.repo?.fork || false);
-          
+
           // Check if running from a fork
           const isFromFork = context.payload.pull_request?.head?.repo?.fork || false;
           if (isFromFork) {
             console.log('⚠️  Running from a fork - PR commenting may be restricted');
           }
-          
+
           try {
             const summary = fs.readFileSync('sast-summary.md', 'utf8');
             let commentBody;
-            
+
             if (enhancer) {
               // Use enhanced comment generator
               console.log('📝 Generating enhanced SAST PR comment...');
@@ -813,7 +838,7 @@ jobs:
               const runId = context.runId;
               const repoOwner = context.repo.owner;
               const repoName = context.repo.repo;
-              
+
               commentBody = enhancer.generateEnhancedSASTComment(sastData, runId, repoOwner, repoName);
             } else {
               // Fallback to basic comment
@@ -826,20 +851,20 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.issue.number
             });
-            
-            const existingComment = comments.data.find(comment => 
-              (comment.body.includes('🔍 SAST Security Analysis') || 
-               comment.body.includes('🔍 SAST Analysis Results')) && 
+
+            const existingComment = comments.data.find(comment =>
+              (comment.body.includes('🔍 SAST Security Analysis') ||
+               comment.body.includes('🔍 SAST Analysis Results')) &&
               comment.user.type === 'Bot'
             );
-            
+
             if (existingComment) {
               // Update existing comment with latest information
               console.log('🔄 Updating existing SAST comment');
               const timestamp = new Date().toLocaleString();
               const commitSha = context.sha.substring(0, 8);
               const updatedBody = commentBody + `\n\n---\n*Last updated: ${timestamp} | Commit: ${commitSha} | [View Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
-              
+
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -856,13 +881,13 @@ jobs:
                 body: commentBody
               });
             }
-            
+
             console.log('✅ Successfully posted/updated SAST summary comment');
             core.setOutput('comment_posted', 'true');
           } catch (error) {
             console.log('❌ Failed to post SAST comment:', error.message);
             console.log('Error status:', error.status);
-            
+
             if (error.status === 403) {
               console.log('🔒 Permission denied - this can happen when:');
               console.log('   • Running on a fork (security restriction)');
@@ -871,9 +896,9 @@ jobs:
             } else if (error.status === 404) {
               console.log('🔍 Resource not found - check if PR exists');
             }
-            
+
             console.log('📋 SAST report is still available in workflow artifacts');
-            
+
             // Set step output to indicate comment failed
             core.setOutput('comment_posted', 'false');
             core.setOutput('comment_error', error.message);

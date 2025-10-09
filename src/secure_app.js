@@ -125,7 +125,7 @@ class SecureWebApp {
      */
     buildSecureQuery(table, conditions) {
         const allowedTables = ['users', 'products', 'orders'];
-        
+
         if (!allowedTables.includes(table)) {
             throw new Error('Table not allowed');
         }
@@ -160,7 +160,7 @@ class SecureWebApp {
         // This would typically use Redis or similar in production
         const now = Date.now();
         const windowStart = now - windowMs;
-        
+
         // Simplified rate limiting logic
         if (!this.rateLimitStore) {
             this.rateLimitStore = new Map();
@@ -175,7 +175,7 @@ class SecureWebApp {
 
         recentRequests.push(now);
         this.rateLimitStore.set(clientId, recentRequests);
-        
+
         return true;
     }
 }

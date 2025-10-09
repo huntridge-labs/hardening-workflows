@@ -1,11 +1,11 @@
-This file has trailing whitespace at the end of lines    
+This file has trailing whitespace at the end of lines
 It also has multiple issues that should be caught by pre-commit hooks.
 
-Mixed line endings are problematic		
+Mixed line endings are problematic
 Some lines end with CRLF while others end with LF.
 
 Here's a line with tabs	instead of spaces for indentation.
 
-Another line with trailing spaces   
+Another line with trailing spaces
 
 This file doesn't end with a newline character

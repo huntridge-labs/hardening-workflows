@@ -27,42 +27,42 @@ jobs:
     continue-on-error: true  # Never hard fail the pipeline
     outputs:
       yaml_issues: ${{ steps.yaml-check.outputs.issues }}
-      
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v5
-      
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-        
+
     - name: Install yamllint
       run: |
         pip install yamllint
-        
+
     - name: Run YAML linting
       id: yaml-check
       continue-on-error: true  # Never fail the pipeline on linting issues
       run: |
         echo "🔍 Running YAML linting..."
-        
+
         # Create output file for issues
         ISSUES_FILE="/tmp/yaml_issues.txt"
-        
+
         # Run yamllint and capture issues
         yamllint . --format parsable > "$ISSUES_FILE" 2>&1 || true
-        
+
         # Count issues
         ISSUE_COUNT=$(wc -l < "$ISSUES_FILE" 2>/dev/null || echo "0")
-        
+
         echo "issues=$ISSUE_COUNT" >> $GITHUB_OUTPUT
-        
+
         # Display results
         if [ "$ISSUE_COUNT" -gt 0 ]; then
           echo "⚠️  Found $ISSUE_COUNT YAML linting issues:"
           cat "$ISSUES_FILE" || echo "Could not display issues file"
-          
+
           # Create annotation for PR
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             echo "::warning title=YAML Linting Issues::Found $ISSUE_COUNT YAML formatting/syntax issues. See job logs for details."
@@ -70,7 +70,7 @@ jobs:
         else
           echo "✅ No YAML linting issues found"
         fi
-        
+
     - name: Upload YAML lint results
       if: always()
       uses: actions/upload-artifact@v4
@@ -85,29 +85,29 @@ jobs:
     continue-on-error: true  # Never hard fail the pipeline
     outputs:
       json_issues: ${{ steps.json-check.outputs.issues }}
-      
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v5
-      
+
     - name: Set up Node.js
       uses: actions/setup-node@v5
       with:
         node-version: ${{ env.NODE_VERSION }}
-        
+
     - name: Install JSON linting tools
       run: |
         npm install -g jsonlint
-        
+
     - name: Run JSON validation
       id: json-check
       continue-on-error: true  # Never fail the pipeline on validation errors
       run: |
         echo "🔍 Running JSON validation..."
-        
+
         ISSUES_FILE="/tmp/json_issues.txt"
         ISSUE_COUNT=0
-        
+
         # Find all JSON files
         find . -name "*.json" -not -path "./node_modules/*" -not -path "./.git/*" | while read -r file; do
           echo "Checking: $file"
@@ -116,16 +116,16 @@ jobs:
             jsonlint "$file" 2>&1 | sed "s/^/  /" | tee -a "$ISSUES_FILE"
           fi
         done
-        
+
         # Count actual issues
         if [ -f "$ISSUES_FILE" ]; then
           ACTUAL_COUNT=$(grep -c "❌" "$ISSUES_FILE" || echo "0")
         else
           ACTUAL_COUNT=0
         fi
-        
+
         echo "issues=$ACTUAL_COUNT" >> $GITHUB_OUTPUT
-        
+
         if [ "$ACTUAL_COUNT" -gt 0 ]; then
           echo "⚠️  Found $ACTUAL_COUNT JSON validation issues"
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
@@ -134,7 +134,7 @@ jobs:
         else
           echo "✅ No JSON validation issues found"
         fi
-        
+
     - name: Upload JSON lint results
       if: always()
       uses: actions/upload-artifact@v4
@@ -149,42 +149,42 @@ jobs:
     continue-on-error: true  # Never hard fail the pipeline
     outputs:
       python_issues: ${{ steps.python-check.outputs.issues }}
-      
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v5
-      
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-        
+
     - name: Install Python linting tools
       run: |
         pip install --upgrade pip
         pip install flake8 pylint bandit black isort safety
-        
+
     - name: Run Python syntax check
       id: python-check
       continue-on-error: true  # Never fail the pipeline on linting issues
       run: |
         echo "🔍 Running Python code quality checks..."
-        
+
         ISSUES_FILE="/tmp/python_issues.txt"
         TOTAL_ISSUES=0
-        
+
         # Find Python files
         PYTHON_FILES=$(find . -name "*.py" -not -path "./node_modules/*" -not -path "./.git/*" -not -path "./.venv/*" -not -path "./venv/*")
-        
+
         if [ -z "$PYTHON_FILES" ]; then
           echo "ℹ️  No Python files found to lint"
           echo "issues=0" >> $GITHUB_OUTPUT
           exit 0
         fi
-        
+
         echo "Found Python files to check:"
         echo "$PYTHON_FILES"
-        
+
         # Flake8 for style and syntax
         echo -e "\n📋 Running Flake8 (style/syntax)..." | tee -a "$ISSUES_FILE"
         if ! flake8 $PYTHON_FILES --max-line-length=120 --extend-ignore=E203,W503 --statistics > /tmp/flake8.out 2>&1; then
@@ -195,7 +195,7 @@ jobs:
         else
           echo "✅ No Flake8 issues found" | tee -a "$ISSUES_FILE"
         fi
-        
+
         # Bandit for security issues
         echo -e "\n🔒 Running Bandit (security)..." | tee -a "$ISSUES_FILE"
         if ! bandit -r . -f txt -o /tmp/bandit.out -x "./node_modules/*,./venv/*,./.venv/*" 2>/dev/null; then
@@ -208,9 +208,9 @@ jobs:
         else
           echo "✅ No Bandit security issues found" | tee -a "$ISSUES_FILE"
         fi
-        
+
         echo "issues=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
-        
+
         if [ "$TOTAL_ISSUES" -gt 0 ]; then
           echo "⚠️  Total Python issues found: $TOTAL_ISSUES"
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
@@ -219,7 +219,7 @@ jobs:
         else
           echo "✅ No Python code quality issues found"
         fi
-        
+
     - name: Upload Python lint results
       if: always()
       uses: actions/upload-artifact@v4
@@ -234,41 +234,41 @@ jobs:
     continue-on-error: true  # Never hard fail the pipeline
     outputs:
       js_issues: ${{ steps.js-check.outputs.issues }}
-      
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v5
-      
+
     - name: Set up Node.js
       uses: actions/setup-node@v5
       with:
         node-version: ${{ env.NODE_VERSION }}
-        
+
     - name: Install JavaScript linting tools
       run: |
         npm install -g eslint jshint
-        
+
     - name: Run JavaScript linting
       id: js-check
       continue-on-error: true  # Never fail the pipeline on linting issues
       run: |
         echo "🔍 Running JavaScript code quality checks..."
-        
+
         ISSUES_FILE="/tmp/js_issues.txt"
         TOTAL_ISSUES=0
-        
+
         # Find JavaScript files
         JS_FILES=$(find . -name "*.js" -not -path "./node_modules/*" -not -path "./.git/*")
-        
+
         if [ -z "$JS_FILES" ]; then
           echo "ℹ️  No JavaScript files found to lint"
           echo "issues=0" >> $GITHUB_OUTPUT
           exit 0
         fi
-        
+
         echo "Found JavaScript files to check:"
         echo "$JS_FILES"
-        
+
         # Basic syntax check with Node.js
         echo -e "\n📋 Running JavaScript syntax check..." | tee -a "$ISSUES_FILE"
         for file in $JS_FILES; do
@@ -278,7 +278,7 @@ jobs:
             TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
           fi
         done
-        
+
         # JSHint for code quality
         echo -e "\n📊 Running JSHint (code quality)..." | tee -a "$ISSUES_FILE"
         if ! jshint $JS_FILES > /tmp/jshint.out 2>&1; then
@@ -291,9 +291,9 @@ jobs:
         else
           echo "✅ No JSHint issues found" | tee -a "$ISSUES_FILE"
         fi
-        
+
         echo "issues=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
-        
+
         if [ "$TOTAL_ISSUES" -gt 0 ]; then
           echo "⚠️  Total JavaScript issues found: $TOTAL_ISSUES"
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
@@ -302,7 +302,7 @@ jobs:
         else
           echo "✅ No JavaScript code quality issues found"
         fi
-        
+
     - name: Upload JavaScript lint results
       if: always()
       uses: actions/upload-artifact@v4
@@ -317,37 +317,37 @@ jobs:
     continue-on-error: true  # Never hard fail the pipeline
     outputs:
       docker_issues: ${{ steps.docker-check.outputs.issues }}
-      
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v5
-      
+
     - name: Install Hadolint
       run: |
         wget -O /usr/local/bin/hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
         chmod +x /usr/local/bin/hadolint
-        
+
     - name: Run Dockerfile linting
       id: docker-check
       continue-on-error: true  # Never fail the pipeline on linting issues
       run: |
         echo "🔍 Running Dockerfile linting..."
-        
+
         ISSUES_FILE="/tmp/docker_issues.txt"
         TOTAL_ISSUES=0
-        
+
         # Find Dockerfiles
         DOCKERFILES=$(find . -name "Dockerfile*" -not -path "./.git/*")
-        
+
         if [ -z "$DOCKERFILES" ]; then
           echo "ℹ️  No Dockerfiles found to lint"
           echo "issues=0" >> $GITHUB_OUTPUT
           exit 0
         fi
-        
+
         echo "Found Dockerfiles to check:"
         echo "$DOCKERFILES"
-        
+
         # Run Hadolint on each Dockerfile
         for dockerfile in $DOCKERFILES; do
           echo -e "\n📋 Checking: $dockerfile" | tee -a "$ISSUES_FILE"
@@ -360,9 +360,9 @@ jobs:
             echo "✅ No issues found in $dockerfile" | tee -a "$ISSUES_FILE"
           fi
         done
-        
+
         echo "issues=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
-        
+
         if [ "$TOTAL_ISSUES" -gt 0 ]; then
           echo "⚠️  Total Dockerfile issues found: $TOTAL_ISSUES"
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
@@ -371,7 +371,7 @@ jobs:
         else
           echo "✅ No Dockerfile linting issues found"
         fi
-        
+
     - name: Upload Dockerfile lint results
       if: always()
       uses: actions/upload-artifact@v4
@@ -386,41 +386,41 @@ jobs:
     continue-on-error: true  # Never hard fail the pipeline
     outputs:
       terraform_issues: ${{ steps.terraform-check.outputs.issues }}
-      
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v5
-      
+
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: latest
-        
+
     - name: Install TFLint
       run: |
         curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
-        
+
     - name: Run Terraform linting
       id: terraform-check
       continue-on-error: true  # Never fail the pipeline on linting issues
       run: |
         echo "🔍 Running Terraform linting..."
-        
+
         ISSUES_FILE="/tmp/terraform_issues.txt"
         TOTAL_ISSUES=0
-        
+
         # Find Terraform files
         TF_FILES=$(find . -name "*.tf" -not -path "./.git/*")
-        
+
         if [ -z "$TF_FILES" ]; then
           echo "ℹ️  No Terraform files found to lint"
           echo "issues=0" >> $GITHUB_OUTPUT
           exit 0
         fi
-        
+
         echo "Found Terraform files to check:"
         echo "$TF_FILES"
-        
+
         # Run terraform fmt check
         echo -e "\n📋 Running terraform fmt check..." | tee -a "$ISSUES_FILE"
         if ! terraform fmt -check -recursive . > /tmp/tf_fmt.out 2>&1; then
@@ -431,7 +431,7 @@ jobs:
         else
           echo "✅ No Terraform formatting issues found" | tee -a "$ISSUES_FILE"
         fi
-        
+
         # Run terraform validate on directories with .tf files
         echo -e "\n🔍 Running terraform validate..." | tee -a "$ISSUES_FILE"
         find . -name "*.tf" -not -path "./.git/*" -exec dirname {} \; | sort -u | while read -r dir; do
@@ -449,9 +449,9 @@ jobs:
           fi
           cd - >/dev/null || exit
         done
-        
+
         echo "issues=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
-        
+
         if [ "$TOTAL_ISSUES" -gt 0 ]; then
           echo "⚠️  Total Terraform issues found: $TOTAL_ISSUES"
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
@@ -460,7 +460,7 @@ jobs:
         else
           echo "✅ No Terraform linting issues found"
         fi
-        
+
     - name: Upload Terraform lint results
       if: always()
       uses: actions/upload-artifact@v4
@@ -477,7 +477,7 @@ jobs:
     outputs:
       status: ${{ steps.summary.outputs.status }}
       issues_found: ${{ steps.summary.outputs.total_issues }}
-      
+
     steps:
     - name: Generate linting summary
       id: summary
@@ -488,11 +488,11 @@ jobs:
         JS_ISSUES="${{ needs.javascript-lint.outputs.js_issues || '0' }}"
         DOCKER_ISSUES="${{ needs.dockerfile-lint.outputs.docker_issues || '0' }}"
         TERRAFORM_ISSUES="${{ needs.terraform-lint.outputs.terraform_issues || '0' }}"
-        
+
         TOTAL_ISSUES=$((YAML_ISSUES + JSON_ISSUES + PYTHON_ISSUES + JS_ISSUES + DOCKER_ISSUES + TERRAFORM_ISSUES))
-        
+
         echo "total_issues=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
-        
+
         echo "📊 Linting Summary:"
         echo "==================="
         echo "YAML Issues: $YAML_ISSUES"
@@ -503,7 +503,7 @@ jobs:
         echo "Terraform Issues: $TERRAFORM_ISSUES"
         echo "==================="
         echo "Total Issues: $TOTAL_ISSUES"
-        
+
         if [ "$TOTAL_ISSUES" -eq 0 ]; then
           echo "status=success" >> $GITHUB_OUTPUT
           echo "✅ All linting checks passed!"
@@ -512,12 +512,12 @@ jobs:
           echo "⚠️  Linting found $TOTAL_ISSUES issues across all file types"
           echo "::warning title=Linting Summary::Found $TOTAL_ISSUES total linting issues. Pipeline will continue but issues should be addressed."
         fi
-        
+
     - name: Download all lint results
       if: always()
       uses: actions/download-artifact@v5
       continue-on-error: true
-      
+
     - name: Create combined lint report
       if: always()
       run: |
@@ -525,9 +525,9 @@ jobs:
         echo "" >> lint_report.md
         echo "Generated on: $(date)" >> lint_report.md
         echo "" >> lint_report.md
-        
+
         TOTAL_ISSUES="${{ steps.summary.outputs.total_issues }}"
-        
+
         if [ "$TOTAL_ISSUES" -eq 0 ]; then
           echo "## ✅ All linting checks passed!" >> lint_report.md
         else
@@ -535,7 +535,7 @@ jobs:
           echo "" >> lint_report.md
           echo "The following linting issues were detected:" >> lint_report.md
           echo "" >> lint_report.md
-          
+
           # Add details from each linter if files exist
           for lint_type in yaml json python js dockerfile terraform; do
             if [ -f "${lint_type}-lint-results/${lint_type}_issues.txt" ]; then
@@ -547,7 +547,7 @@ jobs:
             fi
           done
         fi
-        
+
     - name: Upload combined lint report
       if: always()
       uses: actions/upload-artifact@v4

@@ -1,0 +1,180 @@
+name: Infrastructure Security Scanner
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      iac_path:
+        description: 'Relative path to the infrastructure-as-code directory to scan'
+        required: false
+        type: string
+        default: 'infrastructure'
+      python_version:
+        description: 'Python version to use for IaC scanners'
+        required: false
+        type: string
+        default: '3.12'
+      aws_region:
+        description: 'AWS region used for IaC tooling that requires region context'
+        required: false
+        type: string
+        default: 'us-east-1'
+      enable_code_security:
+        description: 'Whether GitHub Code Security is enabled for this repository'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+
+env:
+  PYTHON_VERSION: ${{ inputs.python_version }}
+  AWS_REGION: ${{ inputs.aws_region }}
+
+jobs:
+  infrastructure-security:
+    name: Infrastructure Security Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Prepare infrastructure scan directory
+      run: |
+        IAC_PATH="${{ inputs.iac_path }}"
+        if [ -z "$IAC_PATH" ]; then
+          IAC_PATH='infrastructure'
+        fi
+
+        if [ ! -d "$IAC_PATH" ]; then
+          echo "⚠️  Directory '$IAC_PATH' not found. Skipping infrastructure scans."
+          exit 0
+        fi
+
+        mkdir -p "$IAC_PATH"/security-reports
+        echo "📁 Created security reports directory: $IAC_PATH/security-reports"
+
+    - name: Run Trivy Infrastructure Scan
+      uses: aquasecurity/trivy-action@0.28.0
+      with:
+        scan-type: 'config'
+        scan-ref: '${{ inputs.iac_path }}'
+        format: 'sarif'
+        output: '${{ inputs.iac_path }}/security-reports/trivy-results.sarif'
+        hide-progress: true
+      continue-on-error: true
+
+    - name: Run Checkov Infrastructure Scan
+      uses: bridgecrewio/checkov-action@master
+      with:
+        directory: ${{ inputs.iac_path }}
+        framework: terraform
+        output_format: sarif, json
+        output_file_path: ${{ inputs.iac_path }}/security-reports/checkov-results.sarif,${{ inputs.iac_path }}/security-reports/checkov-results.json
+      continue-on-error: true
+
+    - name: Upload infrastructure SARIF results
+      uses: github/codeql-action/upload-sarif@v3
+      if: inputs.enable_code_security == true && always() && github.actor != 'nektos/act'
+      with:
+        sarif_file: ${{ inputs.iac_path }}/security-reports/trivy-results.sarif
+        category: infrastructure-trivy
+      continue-on-error: true
+
+    - name: Upload Checkov SARIF results
+      uses: github/codeql-action/upload-sarif@v3
+      if: inputs.enable_code_security == true && always() && github.actor != 'nektos/act' && hashFiles('${{ inputs.iac_path }}/security-reports/checkov-results.sarif') != ''
+      with:
+        sarif_file: ${{ inputs.iac_path }}/security-reports/checkov-results.sarif
+        category: infrastructure-checkov
+      continue-on-error: true
+
+    - name: Upload infrastructure artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: infrastructure-security-reports
+        path: |
+          ${{ inputs.iac_path }}/security-reports/
+        retention-days: 30
+
+    - name: Generate Infrastructure summary section
+      if: always()
+      run: |
+        mkdir -p scanner-summaries
+
+        echo "<details>" > scanner-summaries/infrastructure.md
+        echo "<summary>🔍 Infrastructure Security</summary>" >> scanner-summaries/infrastructure.md
+        echo "" >> scanner-summaries/infrastructure.md
+
+        if [ -d "${{ inputs.iac_path }}/security-reports" ] && [ "$(ls -A ${{ inputs.iac_path }}/security-reports 2>/dev/null)" ]; then
+          echo "**Status:** ✅ Completed" >> scanner-summaries/infrastructure.md
+          echo "" >> scanner-summaries/infrastructure.md
+
+          # Count issues from SARIF files
+          ISSUE_COUNT=0
+          HIGH_COUNT=0
+          MEDIUM_COUNT=0
+          LOW_COUNT=0
+
+          for sarif_file in $(find ${{ inputs.iac_path }}/security-reports -name "*.sarif" -type f 2>/dev/null); do
+            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
+              issues=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              ISSUE_COUNT=$((ISSUE_COUNT + issues))
+
+              high=$(jq -r '.runs[]?.results[]? | select(.level == "error" or .level == "warning") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              HIGH_COUNT=$((HIGH_COUNT + high))
+
+              medium=$(jq -r '.runs[]?.results[]? | select(.level == "note") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              MEDIUM_COUNT=$((MEDIUM_COUNT + medium))
+
+              low=$(jq -r '.runs[]?.results[]? | select(.level == "info") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              LOW_COUNT=$((LOW_COUNT + low))
+            fi
+          done
+
+          echo "**Issues Found:** $ISSUE_COUNT" >> scanner-summaries/infrastructure.md
+          echo "" >> scanner-summaries/infrastructure.md
+
+          if [ $ISSUE_COUNT -gt 0 ]; then
+            echo "| Severity | Count |" >> scanner-summaries/infrastructure.md
+            echo "|----------|-------|" >> scanner-summaries/infrastructure.md
+            [ $HIGH_COUNT -gt 0 ] && echo "| 🟠 High | $HIGH_COUNT |" >> scanner-summaries/infrastructure.md
+            [ $MEDIUM_COUNT -gt 0 ] && echo "| 🟡 Medium | $MEDIUM_COUNT |" >> scanner-summaries/infrastructure.md
+            [ $LOW_COUNT -gt 0 ] && echo "| 🔵 Low | $LOW_COUNT |" >> scanner-summaries/infrastructure.md
+            echo "" >> scanner-summaries/infrastructure.md
+          fi
+
+          echo "**📁 Artifacts:** [Infrastructure Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/infrastructure.md
+        else
+          echo "**Status:** ⏭️ Skipped" >> scanner-summaries/infrastructure.md
+        fi
+
+        echo "" >> scanner-summaries/infrastructure.md
+        echo "</details>" >> scanner-summaries/infrastructure.md
+        echo "" >> scanner-summaries/infrastructure.md
+      continue-on-error: true
+
+    - name: Upload Infrastructure summary section
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scanner-summary-infrastructure
+        path: scanner-summaries/infrastructure.md
+        retention-days: 7
+      continue-on-error: true

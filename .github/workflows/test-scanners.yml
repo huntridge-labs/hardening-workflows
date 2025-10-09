@@ -1,0 +1,158 @@
+name: Test Scanners Input
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_scanners:
+        description: 'Comma-separated list of scanners to test'
+        required: true
+        default: 'codeql,gitleaks'
+        type: string
+
+jobs:
+  test-scanners:
+    name: Test Scanner Selection
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Test Scanner Resolution
+      id: test
+      run: |
+        echo "Testing scanners input: ${{ github.event.inputs.test_scanners }}"
+
+        # Simulate the scanner resolution logic from the workflow
+        SCANNERS="${{ github.event.inputs.test_scanners }}"
+        echo "Input scanners: $SCANNERS"
+
+        # Parse scanners (simplified version of the logic)
+        declare -A RUN=(
+          [codeql]=false
+          [opengrep]=false
+          [bandit]=false
+          [gitleaks]=false
+          [container]=false
+          [infrastructure]=false
+          [lint]=false
+        )
+
+        DEFAULT_SCANNERS=(codeql opengrep bandit gitleaks container infrastructure)
+        SELECTED=()
+
+        normalize() {
+          echo "$1" | tr '[:upper:]' '[:lower:]' | tr -d ' \t' | tr '_' '-'
+        }
+
+        add_scanner() {
+          local key="$1"
+          if [[ -z "${RUN[$key]+_}" ]]; then
+            echo "::notice title=Unknown scanner token::Scanner '$key' is not recognized and will be ignored."
+            return
+          fi
+          if [[ "${RUN[$key]}" != "true" ]]; then
+            RUN[$key]=true
+            SELECTED+=("$key")
+          fi
+        }
+
+        apply_token() {
+          local token="$1"
+          case "$token" in
+            '' ) ;;
+            all|full)
+              for key in "${DEFAULT_SCANNERS[@]}"; do add_scanner "$key"; done
+              ;;
+            sast|sast-only)
+              for key in codeql semgrep bandit gitleaks; do add_scanner "$key"; done
+              ;;
+            secrets|secrets-only)
+              add_scanner gitleaks
+              ;;
+            codeql|code-ql)
+              add_scanner codeql
+              ;;
+            semgrep|opengrep|open-grep)
+              add_scanner semgrep
+              ;;
+            bandit)
+              add_scanner bandit
+              ;;
+            gitleaks|git-leaks)
+              add_scanner gitleaks
+              ;;
+            container|containers|container-scan|docker)
+              add_scanner container
+              ;;
+            infrastructure|infra|iac|terraform)
+              add_scanner infrastructure
+              ;;
+            lint|linting|code-quality)
+              add_scanner lint
+              ;;
+            none|off)
+              SELECTED=()
+              for key in "${!RUN[@]}"; do
+                RUN[$key]=false
+              done
+              ;;
+            *)
+              echo "::notice title=Unknown scanner token::Value '$token' is not recognized and will be ignored."
+              ;;
+          esac
+        }
+
+        IFS=',' read -ra TOKENS <<< "$SCANNERS"
+        for raw in "${TOKENS[@]}"; do
+          apply_token "$(normalize "$raw")"
+        done
+
+        if [[ ${#SELECTED[@]} -eq 0 ]]; then
+          for key in "${DEFAULT_SCANNERS[@]}"; do add_scanner "$key"; done
+        fi
+
+        RUN_ANY=false
+        for key in "${!RUN[@]}"; do
+          if [[ "${RUN[$key]}" == "true" ]]; then
+            RUN_ANY=true
+          fi
+        done
+
+        SELECTED_STR=$(IFS=','; echo "${SELECTED[*]}")
+        if [[ -z "$SELECTED_STR" ]]; then
+          SELECTED_STR=""
+        fi
+
+        echo "resolved_scanners=$SELECTED_STR" >> $GITHUB_OUTPUT
+        echo "run_any=$RUN_ANY" >> $GITHUB_OUTPUT
+
+        echo ""
+        echo "🔧 Resolved scanners: ${SELECTED_STR:-none}"
+        echo "🚀 Will run scanners: $RUN_ANY"
+
+        # Show which individual scanners would run
+        echo ""
+        echo "Individual scanner status:"
+        for key in "${!RUN[@]}"; do
+          status="❌"
+          if [[ "${RUN[$key]}" == "true" ]]; then
+            status="✅"
+          fi
+          echo "  $status $key"
+        done
+
+    - name: Test Summary
+      if: always()
+      run: |
+        echo "🧪 Scanner Input Test Complete"
+        echo ""
+        echo "Input: ${{ github.event.inputs.test_scanners }}"
+        echo "Resolved: ${{ steps.test.outputs.resolved_scanners }}"
+        echo "Would run: ${{ steps.test.outputs.run_any }}"
+        echo ""
+        if [[ "${{ steps.test.outputs.run_any }}" == "true" ]]; then
+          echo "✅ Workflow executed successfully with selected scanners"
+        else
+          echo "⚠️  No scanners selected - workflow would skip execution"
+        fi

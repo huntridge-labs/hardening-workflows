@@ -20,6 +20,11 @@ on:
         required: false
         type: boolean
         default: true
+      enable_code_security:
+        description: 'Whether GitHub Code Security is enabled for this repository'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -169,7 +174,7 @@ jobs:
         output: 'trivy-${{ matrix.container.name }}-results.txt'
 
     - name: Upload Trivy scan results to GitHub Security tab
-      if: steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act' && hashFiles('trivy-${{ matrix.container.name }}-results.sarif') != ''
+      if: inputs.enable_code_security == true && steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act' && hashFiles('trivy-${{ matrix.container.name }}-results.sarif') != ''
       uses: github/codeql-action/upload-sarif@v3
       continue-on-error: true  # Never fail the pipeline
       with:
@@ -186,7 +191,7 @@ jobs:
         output-format: sarif
 
     - name: Upload Grype scan results
-      if: steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act' && steps.grype-scan.outputs.sarif != ''
+      if: inputs.enable_code_security == true && steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act' && steps.grype-scan.outputs.sarif != ''
       uses: github/codeql-action/upload-sarif@v3
       continue-on-error: true  # Never fail the pipeline
       with:
@@ -344,15 +349,15 @@ jobs:
               if [ -d "$container_dir" ]; then
                 container_name=$(echo "$container_dir" | sed 's/container-scan-results-//')
                 trivy_json="$container_dir/trivy-${container_name}-results.json"
-                
+
                 # Check if container built successfully by looking for results
                 if [ -f "$trivy_json" ]; then
                   counts=$(parse_trivy "$trivy_json")
                   read crit high med low <<< "$counts"
                   container_total=$((crit + high + med + low))
-                  
+
                   echo "| $container_name | $crit | $high | $med | $low | $container_total | ✅ Success |" >> container-security-report.md
-                  
+
                   # Add to totals
                   total_crit=$((total_crit + crit))
                   total_high=$((total_high + high))
@@ -394,7 +399,7 @@ jobs:
 
           if [ $total_high -gt 0 ]; then
             echo "## ⚠️ HIGH PRIORITY" >> container-security-report.md
-            echo "" >> container-security-report.md
+            echo "" >> container-security_report.md
             echo "**$total_high high-severity vulnerabilities found.** Address these as soon as possible." >> container-security-report.md
             echo "" >> container-security-report.md
           fi
@@ -423,19 +428,19 @@ jobs:
               if [ -f "$summary" ]; then
                 container_name=$(basename "$summary" .md | sed 's/container-summary-//')
                 echo "### 🐳 $container_name" >> container-security-report.md
-                
+
                 # Add vulnerability breakdown for this container
                 trivy_json="container-scan-results-${container_name}/trivy-${container_name}-results.json"
                 if [ -f "$trivy_json" ]; then
                   counts=$(parse_trivy "$trivy_json")
                   read crit high med low <<< "$counts"
                   container_total=$((crit + high + med + low))
-                  
+
                   echo "" >> container-security-report.md
                   echo "**Vulnerability Summary:** $container_total total ($crit critical, $high high, $med medium, $low low)" >> container-security-report.md
                   echo "" >> container-security-report.md
                 fi
-                
+
                 cat "$summary" >> container-security-report.md
                 echo "" >> container-security-report.md
               fi
@@ -463,9 +468,9 @@ jobs:
         echo "" >> container-security-report.md
         echo "This repository contains both secure and vulnerable container examples for testing:" >> container-security-report.md
         echo "" >> container-security-report.md
-        echo "- **Secure containers** should show minimal vulnerabilities" >> container-security-report.md
-        echo "- **Vulnerable containers** are intentionally insecure for testing detection capabilities" >> container-security-report.md
-        echo "- **Build failures** on vulnerable containers may be expected due to intentional issues" >> container-security-report.md
+        echo "- **Secure containers** should show minimal vulnerabilities" >> container-security_report.md
+        echo "- **Vulnerable containers** are intentionally insecure for testing detection capabilities" >> container-security_report.md
+        echo "- **Build failures** on vulnerable containers may be expected due to intentional issues" >> container-security_report.md
         echo "" >> container-security-report.md
 
         echo "## Recommendations" >> container-security-report.md
@@ -473,10 +478,10 @@ jobs:
         echo "1. **Download artifacts** to review detailed vulnerability findings" >> container-security-report.md
         echo "2. **Address high and critical severity vulnerabilities** first" >> container-security-report.md
         echo "3. **Update base images and dependencies** with known vulnerabilities" >> container-security-report.md
-        echo "4. **Use minimal base images** (Alpine, distroless) to reduce attack surface" >> container-security-report.md
-        echo "5. **Implement multi-stage builds** to minimize final image size" >> container-security-report.md
-        echo "6. **Run containers as non-root users** when possible" >> container-security-report.md
-        echo "7. **Consider enabling GitHub Advanced Security** for integrated security dashboard" >> container-security-report.md
+        echo "4. **Use minimal base images** (Alpine, distroless) to reduce attack surface" >> container-security_report.md
+        echo "5. **Implement multi-stage builds** to minimize final image size" >> container-security_report.md
+        echo "6. **Run containers as non-root users** when possible" >> container-security_report.md
+        echo "7. **Consider enabling GitHub Advanced Security** for integrated security dashboard" >> container-security_report.md
         echo "" >> container-security-report.md
 
         echo "## GitHub Advanced Security" >> container-security-report.md
@@ -499,8 +504,80 @@ jobs:
         path: container-security-report.md
         retention-days: 30
 
+    - name: Generate Container summary section
+      if: always()
+      run: |
+        mkdir -p scanner-summaries
+
+        echo "<details>" > scanner-summaries/container.md
+        echo "<summary>🔍 Container Security</summary>" >> scanner-summaries/container.md
+        echo "" >> scanner-summaries/container.md
+
+        # Check if we have container scan results
+        if compgen -G "container-scan-results-*" > /dev/null 2>&1 || compgen -G "trivy-*-results.sarif" > /dev/null 2>&1; then
+          echo "**Status:** ✅ Completed" >> scanner-summaries/container.md
+          echo "" >> scanner-summaries/container.md
+
+          # Count vulnerabilities from SARIF files
+          VULN_COUNT=0
+          CRITICAL_COUNT=0
+          HIGH_COUNT=0
+          MEDIUM_COUNT=0
+          LOW_COUNT=0
+
+          for sarif_file in $(find . -name "trivy-*-results.sarif" -type f 2>/dev/null); do
+            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
+              vulns=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              VULN_COUNT=$((VULN_COUNT + vulns))
+
+              critical=$(jq -r '.runs[]?.results[]? | select(.level == "error") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              CRITICAL_COUNT=$((CRITICAL_COUNT + critical))
+
+              high=$(jq -r '.runs[]?.results[]? | select(.level == "warning") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              HIGH_COUNT=$((HIGH_COUNT + high))
+
+              medium=$(jq -r '.runs[]?.results[]? | select(.level == "note") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              MEDIUM_COUNT=$((MEDIUM_COUNT + medium))
+
+              low=$(jq -r '.runs[]?.results[]? | select(.level == "info") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              LOW_COUNT=$((LOW_COUNT + low))
+            fi
+          done
+
+          echo "**Vulnerabilities Found:** $VULN_COUNT" >> scanner-summaries/container.md
+          echo "" >> scanner-summaries/container.md
+
+          if [ $VULN_COUNT -gt 0 ]; then
+            echo "| Severity | Count |" >> scanner-summaries/container.md
+            echo "|----------|-------|" >> scanner-summaries/container.md
+            [ $CRITICAL_COUNT -gt 0 ] && echo "| 🔴 Critical | $CRITICAL_COUNT |" >> scanner-summaries/container.md
+            [ $HIGH_COUNT -gt 0 ] && echo "| 🟠 High | $HIGH_COUNT |" >> scanner-summaries/container.md
+            [ $MEDIUM_COUNT -gt 0 ] && echo "| 🟡 Medium | $MEDIUM_COUNT |" >> scanner-summaries/container.md
+            [ $LOW_COUNT -gt 0 ] && echo "| 🔵 Low | $LOW_COUNT |" >> scanner-summaries/container.md
+            echo "" >> scanner-summaries/container.md
+          fi
+
+          echo "**📁 Artifacts:** [Container Scan Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/container.md
+        else
+          echo "**Status:** ⏭️ Skipped" >> scanner-summaries/container.md
+        fi
+
+        echo "" >> scanner-summaries/container.md
+        echo "</details>" >> scanner-summaries/container.md
+        echo "" >> scanner-summaries/container.md
+      continue-on-error: true
+
+    - name: Upload Container summary section
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scanner-summary-container
+        path: scanner-summaries/container.md
+        retention-days: 7
+      continue-on-error: true
+
     - name: Comment PR with enhanced container security results
-      if: github.event_name == 'pull_request' && (inputs.post_pr_comment == null || inputs.post_pr_comment == true)
+      if: false  # Disabled - consolidated into main security hardening comment
       uses: actions/github-script@v8
       continue-on-error: true
       with:
@@ -508,35 +585,35 @@ jobs:
         script: |
           const fs = require('fs');
           const path = require('path');
-          
+
           // Import the enhanced comment generator
           const enhancerPath = path.join(process.cwd(), '.github', 'scripts', 'enhance-pr-comments.js');
           let enhancer;
-          
+
           try {
             enhancer = require(enhancerPath);
           } catch (error) {
             console.log('⚠️ Enhanced comment generator not found, falling back to basic comments');
             enhancer = null;
           }
-          
+
           // Check if we have the necessary permissions and context
           console.log('Repository:', context.repo.owner + '/' + context.repo.repo);
           console.log('Event name:', context.eventName);
           console.log('Actor:', context.actor);
           console.log('PR number:', context.issue?.number);
           console.log('Is from fork:', context.payload.pull_request?.head?.repo?.fork || false);
-          
+
           // Check if running from a fork
           const isFromFork = context.payload.pull_request?.head?.repo?.fork || false;
           if (isFromFork) {
             console.log('⚠️  Running from a fork - PR commenting may be restricted');
           }
-          
+
           try {
             const report = fs.readFileSync('container-security-report.md', 'utf8');
             let commentBody;
-            
+
             if (enhancer) {
               // Use enhanced comment generator
               console.log('📝 Generating enhanced PR comment...');
@@ -544,7 +621,7 @@ jobs:
               const runId = context.runId;
               const repoOwner = context.repo.owner;
               const repoName = context.repo.repo;
-              
+
               commentBody = enhancer.generateEnhancedContainerComment(containerData, runId, repoOwner, repoName);
             } else {
               // Fallback to basic comment
@@ -560,20 +637,20 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.issue.number
             });
-            
-            const existingComment = comments.data.find(comment => 
-              (comment.body.includes('🐳 Container Security Analysis') || 
-               comment.body.includes('🐳 Container Security')) && 
+
+            const existingComment = comments.data.find(comment =>
+              (comment.body.includes('🐳 Container Security Analysis') ||
+               comment.body.includes('🐳 Container Security')) &&
               comment.user.type === 'Bot'
             );
-            
+
             if (existingComment) {
               // Update existing comment with latest information
               console.log('🔄 Updating existing container security comment');
               const timestamp = new Date().toLocaleString();
               const commitSha = context.sha.substring(0, 8);
               const updatedBody = commentBody + `\n\n---\n*Last updated: ${timestamp} | Commit: ${commitSha} | [View Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
-              
+
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -590,13 +667,13 @@ jobs:
                 body: commentBody
               });
             }
-            
+
             console.log('✅ Successfully posted/updated container security summary comment');
             core.setOutput('comment_posted', 'true');
           } catch (error) {
             console.log('❌ Failed to post container security comment:', error.message);
             console.log('Error status:', error.status);
-            
+
             if (error.status === 403) {
               console.log('🔒 Permission denied - this can happen when:');
               console.log('   • Running on a fork (security restriction)');
@@ -605,9 +682,9 @@ jobs:
             } else if (error.status === 404) {
               console.log('🔍 Resource not found - check if PR exists');
             }
-            
+
             console.log('📋 Container security report is still available in workflow artifacts');
-            
+
             // Set step output to indicate comment failed
             core.setOutput('comment_posted', 'false');
             core.setOutput('comment_error', error.message);

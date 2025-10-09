@@ -1,0 +1,122 @@
+name: Gitleaks Secrets Scanner
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      post_pr_comment:
+        description: 'Whether to post PR comments'
+        required: false
+        type: boolean
+        default: true
+      enable_code_security:
+        description: 'Whether GitHub Code Security is enabled for this repository'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+
+jobs:
+  secrets-detection:
+    name: Secrets Detection - Gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+
+    - name: Run Gitleaks Secrets Detection
+      uses: gitleaks/gitleaks-action@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+      continue-on-error: true
+
+    - name: Organize Gitleaks results
+      run: |
+        echo "📦 Organizing Gitleaks results into directory..."
+        mkdir -p gitleaks-reports
+        if [ -f results.json ]; then
+          mv results.json gitleaks-reports/
+        fi
+        if [ -f results.sarif ]; then
+          mv results.sarif gitleaks-reports/
+        fi
+        echo "Generated Gitleaks files:"
+        ls -la gitleaks-reports/ || echo "No files generated"
+      continue-on-error: true
+
+    - name: Upload Gitleaks artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: gitleaks-reports
+        path: gitleaks-reports/
+        retention-days: 30
+      if: always()
+
+    - name: Upload SARIF to GitHub Code Scanning
+      uses: github/codeql-action/upload-sarif@v3
+      if: inputs.enable_code_security == true && always() && github.actor != 'nektos/act' && hashFiles('results.sarif') != ''
+      with:
+        sarif_file: results.sarif
+        category: secrets-gitleaks
+      continue-on-error: true
+
+    - name: Generate GitLeaks summary section
+      if: always()
+      run: |
+        mkdir -p scanner-summaries
+
+        echo "<details>" > scanner-summaries/gitleaks.md
+        echo "<summary>🔍 GitLeaks</summary>" >> scanner-summaries/gitleaks.md
+        echo "" >> scanner-summaries/gitleaks.md
+
+        if [ -d "gitleaks-reports" ] && [ "$(ls -A gitleaks-reports)" ]; then
+          echo "**Status:** ✅ Completed" >> scanner-summaries/gitleaks.md
+          echo "" >> scanner-summaries/gitleaks.md
+
+          # Count secrets from SARIF files
+          SECRET_COUNT=0
+
+          for sarif_file in $(find ./gitleaks-reports -name "*.sarif" -type f 2>/dev/null); do
+            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
+              secrets=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              SECRET_COUNT=$((SECRET_COUNT + secrets))
+            fi
+          done
+
+          echo "**Secrets Found:** $SECRET_COUNT" >> scanner-summaries/gitleaks.md
+          echo "" >> scanner-summaries/gitleaks.md
+
+          if [ $SECRET_COUNT -gt 0 ]; then
+            echo "⚠️ **WARNING:** Potential secrets detected in your repository!" >> scanner-summaries/gitleaks.md
+            echo "" >> scanner-summaries/gitleaks.md
+          fi
+
+          echo "**📁 Artifacts:** [GitLeaks Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/gitleaks.md
+        else
+          echo "**Status:** ⏭️ Skipped" >> scanner-summaries/gitleaks.md
+        fi
+
+        echo "" >> scanner-summaries/gitleaks.md
+        echo "</details>" >> scanner-summaries/gitleaks.md
+        echo "" >> scanner-summaries/gitleaks.md
+      continue-on-error: true
+
+    - name: Upload GitLeaks summary section
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scanner-summary-gitleaks
+        path: scanner-summaries/gitleaks.md
+        retention-days: 7
+      continue-on-error: true

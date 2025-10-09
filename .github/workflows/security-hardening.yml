@@ -3,8 +3,9 @@ name: Security Hardening Pipeline
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  # Disabled pull_request trigger - use pr-verification.yml for PR checks instead
+  # pull_request:
+  #   branches: [ main ]
   # Reduced schedule frequency to reduce noise - now monthly instead of weekly
   schedule:
     # Run comprehensive security checks monthly on the first Sunday at 1 AM UTC
@@ -36,28 +37,18 @@ env:
   PYTHON_VERSION: '3.12'
 
 jobs:
-  # Run linting first to catch basic code quality issues
-  code-quality-linting:
-    name: Code Quality & Linting
-    uses: ./.github/workflows/linting.yml
-    permissions:
-      contents: read
-      pull-requests: write
-      checks: write
-    # Never fail the pipeline on linting issues
+  # Note: Linting is intentionally NOT included in this workflow
+  # Add a separate linting job in your workflow if code quality checks are needed
+  # See example-granular-workflow.yml for how to structure this
 
   scan-coordinator:
     name: Scan Coordinator
     runs-on: ubuntu-latest
-    needs: [code-quality-linting]  # Wait for linting to complete
-    if: always()  # Run even if linting finds issues
     outputs:
       scan_type: ${{ steps.determine-scan.outputs.scan_type }}
       should_run_sast: ${{ steps.determine-scan.outputs.should_run_sast }}
       should_run_container: ${{ steps.determine-scan.outputs.should_run_container }}
       should_run_infrastructure: ${{ steps.determine-scan.outputs.should_run_infrastructure }}
-      linting_status: ${{ needs.code-quality-linting.outputs.linting_status }}
-      linting_issues: ${{ needs.code-quality-linting.outputs.issues_found }}
 
     steps:
     - name: Determine scan type
@@ -69,18 +60,6 @@ jobs:
         fi
 
         echo "scan_type=$SCAN_TYPE" >> $GITHUB_OUTPUT
-
-        # Display linting results
-        LINTING_STATUS="${{ needs.code-quality-linting.outputs.linting_status }}"
-        LINTING_ISSUES="${{ needs.code-quality-linting.outputs.issues_found }}"
-        
-        echo "📊 Code Quality Summary:"
-        echo "Linting Status: $LINTING_STATUS"
-        echo "Issues Found: $LINTING_ISSUES"
-        
-        if [ "$LINTING_ISSUES" != "0" ] && [ -n "$LINTING_ISSUES" ]; then
-          echo "::warning title=Code Quality Issues::Found $LINTING_ISSUES linting issues. Security scans will continue."
-        fi
 
         case "$SCAN_TYPE" in
           "full")
@@ -260,7 +239,7 @@ jobs:
         # Check if AWS credentials were configured successfully
         if aws sts get-caller-identity >/dev/null 2>&1; then
           echo "✅ AWS credentials configured successfully"
-          
+
           # Check S3 bucket security
           echo "# AWS Security Assessment Report" > aws-security-report/aws-security.md
           echo "" >> aws-security-report/aws-security.md
@@ -385,14 +364,14 @@ jobs:
               continue
             fi
             processed_files="$processed_files $filename"
-            
+
             if command -v jq >/dev/null 2>&1; then
               crit=$(jq -r '.runs[]?.results[]? | select(.level == "error" or .properties?.severity == "critical") | .ruleId' "$sarif_file" 2>/dev/null | wc -l || echo 0)
               high=$(jq -r '.runs[]?.results[]? | select(.level == "warning" or .properties?.severity == "high") | .ruleId' "$sarif_file" 2>/dev/null | wc -l || echo 0)
               med=$(jq -r '.runs[]?.results[]? | select(.properties?.severity == "medium") | .ruleId' "$sarif_file" 2>/dev/null | wc -l || echo 0)
               low=$(jq -r '.runs[]?.results[]? | select(.properties?.severity == "low") | .ruleId' "$sarif_file" 2>/dev/null | wc -l || echo 0)
               info=$(jq -r '.runs[]?.results[]? | select(.level == "note" or .properties?.severity == "info") | .ruleId' "$sarif_file" 2>/dev/null | wc -l || echo 0)
-              
+
               CRITICAL_COUNT=$((CRITICAL_COUNT + crit))
               HIGH_COUNT=$((HIGH_COUNT + high))
               MEDIUM_COUNT=$((MEDIUM_COUNT + med))
@@ -429,7 +408,7 @@ jobs:
 
         echo "## � Next Steps" >> security-hardening-report.md
         echo "" >> security-hardening-report.md
-        
+
         if [ "$CRITICAL_COUNT" -gt 0 ]; then
           echo "1. � **URGENT:** Download security reports and patch critical vulnerabilities" >> security-hardening-report.md
           echo "2. 🔍 Focus on: Container vulnerabilities, code security issues, exposed secrets" >> security-hardening-report.md
@@ -438,7 +417,7 @@ jobs:
         else
           echo "1. 🔍 Review medium/low findings during next sprint planning" >> security-hardening-report.md
         fi
-        
+
         echo "3. � **Download reports:** [View all artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> security-hardening-report.md
         echo "4. 🤖 **Automation:** Enable [Dependabot](${{ github.server_url }}/${{ github.repository }}/settings/security_analysis) for dependency updates" >> security-hardening-report.md
         echo "" >> security-hardening-report.md
@@ -447,23 +426,23 @@ jobs:
     - name: Upload comprehensive security report
       uses: actions/upload-artifact@v4
       with:
-        name: security-hardening-report
+        name: security-hardening-report-${{ github.run_id }}
         path: security-hardening-report.md
-        retention-days: 90
+        retention-days: 30
 
     - name: Comment PR with security summary
-      if: github.event_name == 'pull_request'
+      if: false  # Disabled - use reusable-security-hardening.yml for consolidated comments
       uses: actions/github-script@v8
       continue-on-error: true  # Don't fail the workflow if commenting fails
       with:
         script: |
           const fs = require('fs');
-          
+
           console.log('Repository:', context.repo.owner + '/' + context.repo.repo);
           console.log('Event name:', context.eventName);
           console.log('PR number:', context.issue?.number);
           console.log('Is from fork:', context.payload.pull_request?.head?.repo?.fork || false);
-          
+
           try {
             const report = fs.readFileSync('security-hardening-report.md', 'utf8');
             const summary = report.length > 65000 ?
@@ -478,23 +457,23 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.issue.number
             });
-            
+
             console.log('🔍 Found', comments.data.length, 'existing comments');
-            
+
             const existingComment = comments.data.find(comment => {
               const hasMarker = comment.body.includes('security-hardening-comment-marker');
               const isGitHubActions = comment.user.login === 'github-actions[bot]' || comment.user.type === 'Bot';
               console.log('Comment from', comment.user.login, 'type:', comment.user.type, 'has marker:', hasMarker);
               return hasMarker && isGitHubActions;
             });
-            
+
             if (existingComment) {
               // Update existing comment with latest information
               console.log('🔄 Updating existing security hardening comment');
               const timestamp = new Date().toLocaleString();
               const commitSha = context.sha.substring(0, 8);
               const updatedBody = commentBody + `\n\n---\n*Last updated: ${timestamp} | Commit: ${commitSha} | [View Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
-              
+
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -511,12 +490,12 @@ jobs:
                 body: commentBody
               });
             }
-            
+
             console.log('✅ Successfully posted/updated security hardening summary comment');
           } catch (error) {
             console.log('❌ Failed to post security summary comment:', error.message);
             console.log('Error status:', error.status);
-            
+
             if (error.status === 403) {
               console.log('🔒 Permission denied - this can happen when:');
               console.log('   • Running on a fork (security restriction)');
@@ -525,6 +504,6 @@ jobs:
             } else if (error.status === 404) {
               console.log('🔍 Resource not found - check if PR exists');
             }
-            
+
             console.log('📋 Security hardening report is still available in workflow artifacts');
           }

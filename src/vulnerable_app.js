@@ -39,7 +39,7 @@ class VulnerableWebApp {
         // Building SQL query with string concatenation
         const query = `SELECT * FROM users WHERE id = ${userId}`;
         console.log(`Executing query: ${query}`);
-        
+
         // Simulated database query (vulnerable)
         return `Database result for query: ${query}`;
     }
@@ -50,7 +50,7 @@ class VulnerableWebApp {
     readUserFile(filename) {
         // No validation on file path
         const filePath = `./uploads/${filename}`;
-        
+
         try {
             const content = fs.readFileSync(filePath, 'utf8');
             return content;
@@ -164,7 +164,7 @@ class VulnerableWebApp {
     uploadFile(filename, content) {
         // No validation on file type or size
         const uploadPath = `./uploads/${filename}`;
-        
+
         try {
             fs.writeFileSync(uploadPath, content);
             return `File uploaded successfully to ${uploadPath}`;
@@ -179,14 +179,14 @@ class VulnerableWebApp {
     processPayment(userId, amount) {
         // No proper locking mechanism
         let userBalance = this.getUserBalance(userId);
-        
+
         if (userBalance >= amount) {
             // Potential race condition here
             setTimeout(() => {
                 userBalance -= amount;
                 this.updateUserBalance(userId, userBalance);
             }, 100);
-            
+
             return 'Payment processed';
         } else {
             return 'Insufficient funds';
@@ -241,7 +241,7 @@ class VulnerableWebApp {
         if (inputPassword.length !== storedPassword.length) {
             return false;
         }
-        
+
         for (let i = 0; i < inputPassword.length; i++) {
             if (inputPassword[i] !== storedPassword[i]) {
                 return false;

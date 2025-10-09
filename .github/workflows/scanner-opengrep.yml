@@ -1,0 +1,131 @@
+name: OpenGrep Scanner
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      post_pr_comment:
+        description: 'Whether to post PR comments'
+        required: false
+        type: boolean
+        default: true
+      enable_code_security:
+        description: 'Whether GitHub Code Security is enabled for this repository'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+
+env:
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  opengrep-analysis:
+    name: OpenGrep SAST
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Install OpenGrep
+      run: |
+        echo "🔧 Installing OpenGrep..."
+        curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
+        echo "$HOME/.opengrep/cli/latest" >> $GITHUB_PATH
+
+    - name: Run OpenGrep Security Analysis
+      run: |
+        echo "🔍 Running OpenGrep comprehensive security analysis..."
+        mkdir -p opengrep-reports
+        opengrep scan --config=auto --sarif --output=opengrep-reports/opengrep.sarif . || true
+        opengrep scan --config=auto --json --output=opengrep-reports/opengrep.json . || true
+      continue-on-error: true
+
+    - name: Upload OpenGrep artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: opengrep-reports
+        path: opengrep-reports/
+        retention-days: 30
+      if: always()
+
+    - name: Upload SARIF file
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: opengrep.sarif
+      if: inputs.enable_code_security == true && always() && github.actor != 'nektos/act' && hashFiles('opengrep.sarif') != ''
+      continue-on-error: true
+
+    - name: Generate OpenGrep summary section
+      if: always()
+      run: |
+        mkdir -p scanner-summaries
+
+        echo "<details>" > scanner-summaries/opengrep.md
+        echo "<summary>🔍 OpenGrep</summary>" >> scanner-summaries/opengrep.md
+        echo "" >> scanner-summaries/opengrep.md
+
+        if [ -d "opengrep-reports" ] && [ "$(ls -A opengrep-reports)" ]; then
+          echo "**Status:** ✅ Completed" >> scanner-summaries/opengrep.md
+          echo "" >> scanner-summaries/opengrep.md
+
+          # Count issues from JSON files (OpenGrep uses JSON, not SARIF)
+          ISSUE_COUNT=0
+          ERROR_COUNT=0
+          WARNING_COUNT=0
+          INFO_COUNT=0
+
+          for json_file in $(find ./opengrep-reports -name "*.json" -type f 2>/dev/null); do
+            if [ -f "$json_file" ] && [ -s "$json_file" ] && command -v jq >/dev/null 2>&1; then
+              issues=$(jq -r '.results[]? | .check_id' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
+              ISSUE_COUNT=$((ISSUE_COUNT + issues))
+
+              errors=$(jq -r '.results[]? | select(.extra.severity == "ERROR") | .check_id' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
+              ERROR_COUNT=$((ERROR_COUNT + errors))
+
+              warnings=$(jq -r '.results[]? | select(.extra.severity == "WARNING") | .check_id' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
+              WARNING_COUNT=$((WARNING_COUNT + warnings))
+
+              infos=$(jq -r '.results[]? | select(.extra.severity == "INFO") | .check_id' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
+              INFO_COUNT=$((INFO_COUNT + infos))
+            fi
+          done
+
+          echo "**Issues Found:** $ISSUE_COUNT" >> scanner-summaries/opengrep.md
+          echo "" >> scanner-summaries/opengrep.md
+
+          if [ $ISSUE_COUNT -gt 0 ]; then
+            echo "| Severity | Count |" >> scanner-summaries/opengrep.md
+            echo "|----------|-------|" >> scanner-summaries/opengrep.md
+            [ $ERROR_COUNT -gt 0 ] && echo "| 🔴 Error | $ERROR_COUNT |" >> scanner-summaries/opengrep.md
+            [ $WARNING_COUNT -gt 0 ] && echo "| 🟠 Warning | $WARNING_COUNT |" >> scanner-summaries/opengrep.md
+            [ $INFO_COUNT -gt 0 ] && echo "| 🔵 Info | $INFO_COUNT |" >> scanner-summaries/opengrep.md
+            echo "" >> scanner-summaries/opengrep.md
+          fi
+
+          echo "**📁 Artifacts:** [OpenGrep Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/opengrep.md
+        else
+          echo "**Status:** ⏭️ Skipped" >> scanner-summaries/opengrep.md
+        fi
+
+        echo "" >> scanner-summaries/opengrep.md
+        echo "</details>" >> scanner-summaries/opengrep.md
+        echo "" >> scanner-summaries/opengrep.md
+      continue-on-error: true
+
+    - name: Upload OpenGrep summary section
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scanner-summary-opengrep
+        path: scanner-summaries/opengrep.md
+        retention-days: 7
+      continue-on-error: true

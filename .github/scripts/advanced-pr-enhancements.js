@@ -2,7 +2,7 @@
 
 /**
  * Advanced PR Comment Enhancements
- * 
+ *
  * Additional UX improvements for security PR comments:
  * - Interactive status check visualization
  * - Deep links to specific security findings
@@ -17,19 +17,19 @@ const fs = require('fs');
  */
 function generateWorkflowBadges(runId, repoOwner, repoName, workflowStatuses = {}) {
   const badges = [];
-  
+
   if (workflowStatuses.sast !== undefined) {
     const sastStatus = workflowStatuses.sast ? 'passing' : 'failing';
     const sastColor = workflowStatuses.sast ? 'brightgreen' : 'red';
     badges.push(`![SAST](https://img.shields.io/badge/SAST-${sastStatus}-${sastColor})`);
   }
-  
+
   if (workflowStatuses.container !== undefined) {
     const containerStatus = workflowStatuses.container ? 'passing' : 'failing';
     const containerColor = workflowStatuses.container ? 'brightgreen' : 'red';
     badges.push(`![Container](https://img.shields.io/badge/Container-${containerStatus}-${containerColor})`);
   }
-  
+
   return badges.join(' ');
 }
 
@@ -71,11 +71,11 @@ function generateActionButtons(runId, repoOwner, repoName) {
  */
 function generateSummaryCards(sastData, containerData) {
   const cards = [];
-  
+
   if (sastData) {
     const { totalCritical, totalHigh, totalMedium, totalLow } = sastData;
     const total = totalCritical + totalHigh + totalMedium + totalLow;
-    
+
     cards.push(`
 <table>
 <tr><th colspan="2">🔍 SAST Analysis</th></tr>
@@ -86,11 +86,11 @@ function generateSummaryCards(sastData, containerData) {
 <tr><td><strong>📊 Total</strong></td><td><strong>${total}</strong></td></tr>
 </table>`);
   }
-  
+
   if (containerData) {
     const { totalCritical, totalHigh, totalMedium, totalLow } = containerData;
     const total = totalCritical + totalHigh + totalMedium + totalLow;
-    
+
     cards.push(`
 <table>
 <tr><th colspan="2">🐳 Container Security</th></tr>
@@ -101,7 +101,7 @@ function generateSummaryCards(sastData, containerData) {
 <tr><td><strong>📦 Total</strong></td><td><strong>${total}</strong></td></tr>
 </table>`);
   }
-  
+
   return `
 <div align="center">
 
@@ -115,7 +115,7 @@ ${cards.join('\n')}
  */
 function generateSecurityTimeline(findings) {
   if (!findings || findings.length === 0) return '';
-  
+
   return `
 <details>
 <summary>📈 <strong>Security Timeline</strong></summary>
@@ -125,7 +125,7 @@ gantt
     title Security Scan Progress
     dateFormat X
     axisFormat %H:%M
-    
+
     section Analysis
     SAST Scan     :sast, 0, 5
     Container Scan:container, 3, 8
@@ -140,7 +140,7 @@ gantt
  */
 function generateEnhancedRemediationGuide(sastData, containerData) {
   const guides = [];
-  
+
   if (sastData && (sastData.totalCritical > 0 || sastData.totalHigh > 0)) {
     guides.push(`
 #### 🔧 Code Security Issues
@@ -169,7 +169,7 @@ element.textContent = userInput;
 
 </details>`);
   }
-  
+
   if (containerData && (containerData.totalCritical > 0 || containerData.totalHigh > 0)) {
     guides.push(`
 #### 🐳 Container Security Fixes
@@ -197,7 +197,7 @@ COPY --from=dependencies --chown=nextjs:nodejs /app .
 
 </details>`);
   }
-  
+
   return guides.join('\n');
 }
 
@@ -214,10 +214,10 @@ ${data?.map(item => `- ${item}`).join('\n') || 'No items found'}
 
 </details>`;
   }
-  
+
   const preview = data.slice(0, threshold);
   const remaining = data.slice(threshold);
-  
+
   return `
 <details>
 <summary>${title} (${data.length} items - showing first ${threshold})</summary>
@@ -243,15 +243,15 @@ function generateComprehensiveSecurityOverview(sastData, containerData, runId, r
   const totalMedium = (sastData?.totalMedium || 0) + (containerData?.totalMedium || 0);
   const totalLow = (sastData?.totalLow || 0) + (containerData?.totalLow || 0);
   const totalVulns = totalCritical + totalHigh + totalMedium + totalLow;
-  
+
   const riskLevel = totalCritical > 0 ? 'CRITICAL' : totalHigh > 0 ? 'HIGH' : 'LOW';
   const riskEmoji = totalCritical > 0 ? '🚨' : totalHigh > 0 ? '⚠️' : '✅';
-  
+
   const workflowStatuses = {
     sast: sastData !== null,
     container: containerData !== null
   };
-  
+
   return `## 🛡️ Security Hardening Pipeline ${riskEmoji}
 
 ${generateWorkflowBadges(runId, repoOwner, repoName, workflowStatuses)}
@@ -299,7 +299,7 @@ ${generateEnhancedRemediationGuide(sastData, containerData)}
 <details>
 <summary>ℹ️ <strong>About This Report</strong></summary>
 
-This automated security analysis helps identify potential vulnerabilities before they reach production. 
+This automated security analysis helps identify potential vulnerabilities before they reach production.
 
 **What's included:**
 - 🔍 **Static Analysis (SAST)** - Code-level security scanning
@@ -334,7 +334,7 @@ module.exports = {
 if (require.main === module) {
   console.log('Advanced PR Comment Enhancement Utilities');
   console.log('==========================================\n');
-  
+
   // Example implementation showing comprehensive overview
   const sastData = {
     totalCritical: 3,
@@ -342,22 +342,22 @@ if (require.main === module) {
     totalMedium: 5,
     totalLow: 0
   };
-  
+
   const containerData = {
     totalCritical: 2,
     totalHigh: 8,
     totalMedium: 15,
     totalLow: 3
   };
-  
+
   const comprehensive = generateComprehensiveSecurityOverview(
-    sastData, 
-    containerData, 
-    '12345', 
-    'huntridge-labs', 
+    sastData,
+    containerData,
+    '12345',
+    'huntridge-labs',
     'hardening-workflows'
   );
-  
+
   console.log('Comprehensive Security Overview:');
   console.log(comprehensive);
 }
