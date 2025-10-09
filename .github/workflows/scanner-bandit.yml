@@ -129,9 +129,9 @@ jobs:
           if [ $ISSUE_COUNT -gt 0 ]; then
             echo "| Severity | Count |" >> scanner-summaries/bandit.md
             echo "|----------|-------|" >> scanner-summaries/bandit.md
-            [ $HIGH_COUNT -gt 0 ] && echo "| � High | $HIGH_COUNT |" >> scanner-summaries/bandit.md
-            [ $MEDIUM_COUNT -gt 0 ] && echo "| � Medium | $MEDIUM_COUNT |" >> scanner-summaries/bandit.md
-            [ $LOW_COUNT -gt 0 ] && echo "| � Low | $LOW_COUNT |" >> scanner-summaries/bandit.md
+            [ $HIGH_COUNT -gt 0 ] && echo "| 🔴 High | $HIGH_COUNT |" >> scanner-summaries/bandit.md
+            [ $MEDIUM_COUNT -gt 0 ] && echo "| 🟠 Medium | $MEDIUM_COUNT |" >> scanner-summaries/bandit.md
+            [ $LOW_COUNT -gt 0 ] && echo "| 🟢 Low | $LOW_COUNT |" >> scanner-summaries/bandit.md
             echo "" >> scanner-summaries/bandit.md
           fi
 
