@@ -92,3 +92,6 @@ jobs:
 ## More examples
 
 Check `QUICK-START.md` for curated recipes and browse the `examples/` directory for ready-to-copy snippets, from nightly runs to matrix fan-outs.
+
+## License
+This project is licensed under the [GNU Affero General Public License v3](./LICENSE.md).
