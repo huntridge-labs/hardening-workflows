@@ -89,7 +89,6 @@ jobs:
             # Extract list of files being updated from the release output
             echo "\`\`\`" >> preview.md
             grep "^Updating version in" release_output.txt | sed 's/Updating version in //' | sed 's/^/- /' >> preview.md
-            echo "- CHANGELOG.md (updated with new entries)" >> preview.md
             echo "\`\`\`" >> preview.md
 
             # Extract changeset information
@@ -97,14 +96,6 @@ jobs:
               echo "\`\`\`" >> preview.md
               sed -n '/^Changeset:/,/^🔗/p' release_output.txt | sed '1d;$d' | grep -E "^\s*[MAD]\s" >> preview.md || echo "No file changes detected" >> preview.md
               echo "\`\`\`" >> preview.md
-            else
-              echo "- CHANGELOG.md (updated with new entries)" >> preview.md
-              echo "- package.json (version bump)" >> preview.md
-
-              # Check if regex bumper would make changes
-              if grep -q "release-it-regex-bumper" .release-it.json; then
-                echo "- docs/reusing-workflows.md (version references updated)" >> preview.md
-              fi
             fi
 
             echo "" >> preview.md
