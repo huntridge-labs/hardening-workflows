@@ -1,8 +1,9 @@
 # Example: How to use the reusable security hardening workflow in another project
 
+# yamllint disable rule:brackets
 name: Security Pipeline
 
-on:
+on:  # yamllint disable-line rule:truthy
   push:
     branches: [ main ]
   pull_request:
@@ -11,23 +12,25 @@ on:
     - cron: '0 2 * * 1'  # Run weekly on Mondays at 2 AM UTC
   workflow_dispatch:
     inputs:
-      scan_type:
-        description: 'Type of security scan to run'
+      scanners:
+        description: 'Comma-separated scanner tokens'
         required: true
-        default: 'full'
+        default: 'all'
         type: choice
         options:
-          - full
-          - sast-only
-          - container-only
-          - infrastructure-only
+          - all
+          - sast
+          - container
+          - infrastructure
+          - codeql
+          - secrets
 
 jobs:
   security-hardening:
     name: Security Hardening
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
     with:
-      scan_type: ${{ github.event.inputs.scan_type || 'full' }}
+      scanners: ${{ github.event.inputs.scanners || 'all' }}
       python_version: '3.11'
       aws_region: 'us-west-2'
       post_pr_comment: true

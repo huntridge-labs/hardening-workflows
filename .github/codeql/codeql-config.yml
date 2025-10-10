@@ -22,9 +22,7 @@ paths-ignore:
 
 paths:
   - "src/"
-  - "backend/"
   - "infrastructure/"
-  - "scripts/"
 
 # Simplified packs configuration - use built-in query suites
 packs:

@@ -3,8 +3,9 @@ name: Security Hardening Pipeline
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  # Disabled pull_request trigger - use pr-verification.yml for PR checks instead
+  # pull_request:
+  #   branches: [ main ]
   # Reduced schedule frequency to reduce noise - now monthly instead of weekly
   schedule:
     # Run comprehensive security checks monthly on the first Sunday at 1 AM UTC
@@ -36,28 +37,18 @@ env:
   PYTHON_VERSION: '3.12'
 
 jobs:
-  # Run linting first to catch basic code quality issues
-  code-quality-linting:
-    name: Code Quality & Linting
-    uses: ./.github/workflows/linting.yml
-    permissions:
-      contents: read
-      pull-requests: write
-      checks: write
-    # Never fail the pipeline on linting issues
+  # Note: Linting is intentionally NOT included in this workflow
+  # Add a separate linting job in your workflow if code quality checks are needed
+  # See example-granular-workflow.yml for how to structure this
 
   scan-coordinator:
     name: Scan Coordinator
     runs-on: ubuntu-latest
-    needs: [code-quality-linting]  # Wait for linting to complete
-    if: always()  # Run even if linting finds issues
     outputs:
       scan_type: ${{ steps.determine-scan.outputs.scan_type }}
       should_run_sast: ${{ steps.determine-scan.outputs.should_run_sast }}
       should_run_container: ${{ steps.determine-scan.outputs.should_run_container }}
       should_run_infrastructure: ${{ steps.determine-scan.outputs.should_run_infrastructure }}
-      linting_status: ${{ needs.code-quality-linting.outputs.linting_status }}
-      linting_issues: ${{ needs.code-quality-linting.outputs.issues_found }}
 
     steps:
     - name: Determine scan type
@@ -69,18 +60,6 @@ jobs:
         fi
 
         echo "scan_type=$SCAN_TYPE" >> $GITHUB_OUTPUT
-
-        # Display linting results
-        LINTING_STATUS="${{ needs.code-quality-linting.outputs.linting_status }}"
-        LINTING_ISSUES="${{ needs.code-quality-linting.outputs.issues_found }}"
-
-        echo "📊 Code Quality Summary:"
-        echo "Linting Status: $LINTING_STATUS"
-        echo "Issues Found: $LINTING_ISSUES"
-
-        if [ "$LINTING_ISSUES" != "0" ] && [ -n "$LINTING_ISSUES" ]; then
-          echo "::warning title=Code Quality Issues::Found $LINTING_ISSUES linting issues. Security scans will continue."
-        fi
 
         case "$SCAN_TYPE" in
           "full")
@@ -447,12 +426,12 @@ jobs:
     - name: Upload comprehensive security report
       uses: actions/upload-artifact@v4
       with:
-        name: security-hardening-report
+        name: security-hardening-report-${{ github.run_id }}
         path: security-hardening-report.md
-        retention-days: 90
+        retention-days: 30
 
     - name: Comment PR with security summary
-      if: github.event_name == 'pull_request'
+      if: false  # Disabled - use reusable-security-hardening.yml for consolidated comments
       uses: actions/github-script@v8
       continue-on-error: true  # Don't fail the workflow if commenting fails
       with:

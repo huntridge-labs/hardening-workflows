@@ -1,0 +1,354 @@
+name: CodeQL Scanner
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      codeql_languages:
+        description: 'Comma-separated list of languages for CodeQL analysis (e.g., "python,javascript" or "python")'
+        required: false
+        type: string
+        default: 'python,javascript'
+      post_pr_comment:
+        description: 'Whether to post PR comments'
+        required: false
+        type: boolean
+        default: true
+      enable_code_security:
+        description: 'Whether GitHub Code Security is enabled for this repository'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+
+env:
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  generate-codeql-matrix:
+    name: Generate CodeQL Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - name: Generate matrix
+      id: set-matrix
+      run: |
+        # Parse the codeql_languages input (comma-separated)
+        LANGUAGES="${{ inputs.codeql_languages }}"
+        if [ -z "$LANGUAGES" ]; then
+          LANGUAGES="python,javascript"
+        fi
+
+        echo "Input languages: $LANGUAGES"
+
+        # Validate languages and remove spaces
+        LANGUAGES=$(echo "$LANGUAGES" | tr -d ' ')
+
+        # Convert comma-separated string to JSON array
+        MATRIX_JSON=$(echo "$LANGUAGES" | sed 's/,/","/g' | sed 's/^/["/' | sed 's/$/"]/')
+        echo "Generated matrix: $MATRIX_JSON"
+
+        # Validate JSON syntax
+        if ! echo "$MATRIX_JSON" | python3 -m json.tool > /dev/null 2>&1; then
+          echo "Error: Invalid JSON generated: $MATRIX_JSON"
+          echo "Falling back to default languages"
+          MATRIX_JSON='["python","javascript"]'
+        fi
+
+        echo "matrix={\"language\":$MATRIX_JSON}" >> $GITHUB_OUTPUT
+
+  codeql-analysis:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    needs: generate-codeql-matrix
+    timeout-minutes: 45
+    continue-on-error: true
+    if: github.actor != 'nektos/act'
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.generate-codeql-matrix.outputs.matrix) }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        config-file: ./.github/codeql/codeql-config.yml
+        tools: latest
+
+    - name: Debug - Show files to analyze
+      run: |
+        echo "🔍 Files that will be analyzed for ${{ matrix.language }}:"
+        if [ "${{ matrix.language }}" = "javascript" ]; then
+          find . -name "*.js" -o -name "*.ts" | head -20
+        elif [ "${{ matrix.language }}" = "python" ]; then
+          find . -name "*.py" | head -20
+        fi
+
+    - name: Set up Python
+      if: matrix.language == 'python'
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Set up Node.js
+      if: matrix.language == 'javascript'
+      uses: actions/setup-node@v5
+      with:
+        node-version: '22'
+
+    - name: Install Python dependencies
+      if: matrix.language == 'python'
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then
+          pip install -r requirements.txt
+        fi
+      continue-on-error: true
+
+    - name: Install Node.js dependencies
+      if: matrix.language == 'javascript'
+      run: |
+        # Find all package.json files and install dependencies
+        find . -name "package.json" -not -path "*/node_modules/*" | while read package; do
+          dir=$(dirname "$package")
+          echo "Installing dependencies in $dir"
+          cd "$dir"
+          npm install || true
+          cd - > /dev/null
+        done
+      continue-on-error: true
+
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v3
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
+        output: sarif-results
+        upload: ${{ inputs.enable_code_security && 'always' || 'never' }}
+      continue-on-error: true
+
+    - name: Extract Raw BQRS Results as JSON
+      run: |
+        # Use CodeQL CLI to decode BQRS files to clean JSON format
+        # This provides raw query results without SARIF metadata overhead
+
+        # CodeQL CLI should be available after init action
+        # The action installs it to /opt/hostedtoolcache/CodeQL/.../codeql
+        CODEQL_PATH=$(find /opt/hostedtoolcache/CodeQL -name "codeql" -type f 2>/dev/null | head -1)
+
+        if [ -n "$CODEQL_PATH" ]; then
+          echo "✅ CodeQL CLI found at: $CODEQL_PATH"
+
+          # Database directory is typically in /home/runner/work/_temp/codeql_databases
+          # or we can use the CODEQL_DATABASE_* environment variables
+          DB_DIR="/home/runner/work/_temp/codeql_databases"
+
+          if [ -d "$DB_DIR" ]; then
+            echo "Found database directory: $DB_DIR"
+            mkdir -p codeql-reports/bqrs-json
+            mkdir -p codeql-reports/sarif
+            mkdir -p codeql-reports/sarif-json
+
+            # Find and decode all BQRS files to JSON
+            find "$DB_DIR" -name "*.bqrs" | while read bqrs_file; do
+              echo "Decoding BQRS file: $bqrs_file"
+              basename=$(basename "$bqrs_file" .bqrs)
+
+              # Decode BQRS to JSON format
+              "$CODEQL_PATH" bqrs decode \
+                --format=json \
+                --output="codeql-reports/bqrs-json/${basename}.json" \
+                "$bqrs_file" 2>/dev/null || echo "Failed to decode $bqrs_file"
+            done
+
+            echo "✅ BQRS decoding completed"
+          else
+            echo "❌ Could not find CodeQL database directory at $DB_DIR"
+            # Fallback: try to find any codeql_databases directory
+            DB_DIR=$(find . -name "codeql_databases" -type d 2>/dev/null | head -1)
+            if [ -n "$DB_DIR" ]; then
+              echo "Found database directory (fallback): $DB_DIR"
+              mkdir -p codeql-reports/bqrs-json
+
+              # Find and decode all BQRS files to JSON
+              find "$DB_DIR" -name "*.bqrs" | while read bqrs_file; do
+                echo "Decoding BQRS file: $bqrs_file"
+                basename=$(basename "$bqrs_file" .bqrs)
+
+                # Decode BQRS to JSON format
+                "$CODEQL_PATH" bqrs decode \
+                  --format=json \
+                  --output="codeql-reports/bqrs-json/${basename}.json" \
+                  "$bqrs_file" 2>/dev/null || echo "Failed to decode $bqrs_file"
+              done
+
+              echo "✅ BQRS decoding (fallback) completed"
+            else
+              echo "❌ No CodeQL database directory found - BQRS decoding skipped"
+            fi
+          fi
+        else
+          echo "❌ CodeQL CLI not found in tool cache"
+        fi
+      continue-on-error: true
+
+    - name: Convert SARIF to JSON
+      run: |
+        # Convert SARIF results to JSON format for easier processing
+        # SARIF is already JSON, but we extract a cleaner format for downstream tools
+        if [ -d "sarif-results" ]; then
+          # Find all SARIF files and convert them to JSON
+          find sarif-results -name "*.sarif" | while read sarif_file; do
+            echo "Converting SARIF to JSON: $sarif_file"
+            basename=$(basename "$sarif_file" .sarif)
+
+            # Copy SARIF file to consolidated location
+            cp "$sarif_file" "codeql-reports/sarif/${basename}.sarif"
+
+            # SARIF is already JSON format, so we can simply copy it
+            # Optionally extract just the results for cleaner output
+            if command -v jq &> /dev/null; then
+              # Use jq to extract results if available
+              jq '{
+                version: .version,
+                runs: .runs | map({
+                  results: .results,
+                  tool: .tool,
+                  language: "${{ matrix.language }}"
+                })
+              }' "$sarif_file" > "codeql-reports/sarif-json/${basename}.json" 2>/dev/null || cp "$sarif_file" "codeql-reports/sarif-json/${basename}.json"
+            else
+              # Fallback: just copy the SARIF file as JSON (SARIF is valid JSON)
+              cp "$sarif_file" "codeql-reports/sarif-json/${basename}.json"
+            fi
+          done
+
+          echo "✅ SARIF to JSON conversion completed"
+        else
+          echo "❌ No SARIF results directory found"
+        fi
+      continue-on-error: true
+
+    - name: Upload CodeQL Reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: codeql-reports-${{ matrix.language }}
+        path: codeql-reports/
+        retention-days: 30
+      if: always()
+
+  codeql-summary:
+    name: CodeQL Summary
+    runs-on: ubuntu-latest
+    needs: [codeql-analysis]
+    if: always()
+
+    steps:
+    - name: Download CodeQL Reports
+      uses: actions/download-artifact@v5
+      with:
+        pattern: codeql-reports-*
+        merge-multiple: true
+      continue-on-error: true
+
+    - name: Generate CodeQL summary section
+      if: always()
+      run: |
+        mkdir -p scanner-summaries
+
+        echo "<details>" > scanner-summaries/codeql.md
+        echo "<summary>🔍 CodeQL</summary>" >> scanner-summaries/codeql.md
+        echo "" >> scanner-summaries/codeql.md
+
+        if [ -d "sarif" ] && [ "$(ls -A sarif 2>/dev/null)" ]; then
+          echo "**Status:** ✅ Completed" >> scanner-summaries/codeql.md
+          echo "" >> scanner-summaries/codeql.md
+
+          # Count issues from SARIF files
+          ISSUE_COUNT=0
+          ERROR_COUNT=0
+          WARNING_COUNT=0
+          NOTE_COUNT=0
+          NONE_COUNT=0
+
+          for sarif_file in $(find ./sarif -name "*.sarif" -type f 2>/dev/null); do
+            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
+              # Count total issues
+              issues=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              ISSUE_COUNT=$((ISSUE_COUNT + issues))
+
+              # CodeQL SARIF uses .level field with values: error, warning, note, none
+              # If level is missing, it defaults to "warning"
+              error=$(jq -r '.runs[]?.results[]? | select(.level == "error") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              ERROR_COUNT=$((ERROR_COUNT + error))
+
+              warning=$(jq -r '.runs[]?.results[]? | select(.level == "warning") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              WARNING_COUNT=$((WARNING_COUNT + warning))
+
+              note=$(jq -r '.runs[]?.results[]? | select(.level == "note") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              NOTE_COUNT=$((NOTE_COUNT + note))
+
+              none=$(jq -r '.runs[]?.results[]? | select(.level == "none") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              NONE_COUNT=$((NONE_COUNT + none))
+
+              # Count results without a level field (default to warning)
+              no_level=$(jq -r '.runs[]?.results[]? | select(.level == null) | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              WARNING_COUNT=$((WARNING_COUNT + no_level))
+            fi
+          done
+
+          echo "**Issues Found:** $ISSUE_COUNT" >> scanner-summaries/codeql.md
+          echo "" >> scanner-summaries/codeql.md
+
+          if [ $ISSUE_COUNT -gt 0 ]; then
+            echo "| Severity | Count |" >> scanner-summaries/codeql.md
+            echo "|----------|-------|" >> scanner-summaries/codeql.md
+            [ $ERROR_COUNT -gt 0 ] && echo "| 🔴 Error | $ERROR_COUNT |" >> scanner-summaries/codeql.md
+            [ $WARNING_COUNT -gt 0 ] && echo "| 🟠 Warning | $WARNING_COUNT |" >> scanner-summaries/codeql.md
+            [ $NOTE_COUNT -gt 0 ] && echo "| 🟡 Note | $NOTE_COUNT |" >> scanner-summaries/codeql.md
+            [ $NONE_COUNT -gt 0 ] && echo "| 🔵 Recommendation | $NONE_COUNT |" >> scanner-summaries/codeql.md
+            echo "" >> scanner-summaries/codeql.md
+          fi
+
+          echo "**📁 Artifacts:** [CodeQL Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/codeql.md
+        else
+          echo "**Status:** ⏭️ Skipped" >> scanner-summaries/codeql.md
+        fi
+
+        echo "" >> scanner-summaries/codeql.md
+        echo "</details>" >> scanner-summaries/codeql.md
+        echo "" >> scanner-summaries/codeql.md
+      continue-on-error: true
+
+    - name: Upload CodeQL summary section
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scanner-summary-codeql
+        path: scanner-summaries/codeql.md
+        retention-days: 7
+      continue-on-error: true
+
+    - name: Comment PR with CodeQL Results
+      if: false  # Disabled - consolidated into main security hardening comment
+      uses: actions/github-script@v8
+      with:
+        script: |
+          // Disabled - consolidated into main security hardening comment

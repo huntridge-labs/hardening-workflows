@@ -35,9 +35,9 @@ repos:
       - id: python-check-blanket-type-ignore
       - id: python-check-mock-methods
       - id: python-no-eval
-        exclude: ^(src/vulnerable_code\.py)$
+        exclude: ^(tests)|vulnerable_code\.py
       - id: python-use-type-annotations
-        exclude: ^(docs)
+        exclude: ^(docs|tests)
   # renovate: datasource=github-tags depName=compilerla/conventional-pre-commit versioning=semver
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.0.0
