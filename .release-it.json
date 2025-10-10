@@ -82,7 +82,13 @@
       "out": [
         "version.yaml",
         {
-          "file": "docs/reusing-workflows.md",
+          "files": [
+            "CONTRIBUTING.md",
+            "QUICK-START.md",
+            "README.md",
+            "examples/scanner-list-examples.yml",
+            "examples/use-reusable-workflow.yml"
+          ],
           "search": {
             "pattern": "reusable-security-hardening.yml@\\d+\\.\\d+\\.\\d+",
             "flags": "g"
