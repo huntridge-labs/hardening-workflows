@@ -88,7 +88,7 @@ jobs:
 
             # Extract list of files being updated from the release output
             echo "\`\`\`" >> preview.md
-            grep "^Updating version in" release_output.txt | sed 's/Updating version in //' | sed 's/^/- /' >> preview.md || echo "- CHANGELOG.md (updated with new entries)" >> preview.md
+            grep "^Updating version in" release_output.txt | sed 's/Updating version in //' | sed 's/^/- /' >> preview.md
             echo "- CHANGELOG.md (updated with new entries)" >> preview.md
             echo "\`\`\`" >> preview.md
 
