@@ -106,37 +106,69 @@ jobs:
 
       - name: Comment PR
         uses: actions/github-script@v7
+        continue-on-error: true
         with:
           script: |
             const fs = require('fs');
-            const previewContent = fs.readFileSync('preview.md', 'utf8');
 
-            // Find existing comment
-            const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
+            console.log('Repository:', context.repo.owner + '/' + context.repo.repo);
+            console.log('Event name:', context.eventName);
+            console.log('PR number:', context.issue?.number);
 
-            const botComment = comments.data.find(comment =>
-              comment.user.type === 'Bot' &&
-              comment.body.includes('🚀 Release Preview')
-            );
+            try {
+              const previewContent = fs.readFileSync('preview.md', 'utf8');
 
-            if (botComment) {
-              // Update existing comment
-              await github.rest.issues.updateComment({
+              // Add hidden marker for identifying our comments
+              const commentBody = `<!-- release-preview-comment-marker -->\n\n${previewContent}`;
+
+              // Check for existing release preview comments to update instead of creating new ones
+              const comments = await github.rest.issues.listComments({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: previewContent
+                issue_number: context.issue.number
               });
-            } else {
-              // Create new comment
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: previewContent
+
+              console.log('🔍 Found', comments.data.length, 'existing comments');
+
+              const existingComment = comments.data.find(comment => {
+                const hasMarker = comment.body.includes('release-preview-comment-marker');
+                const isGitHubActions = comment.user.login === 'github-actions[bot]' || comment.user.type === 'Bot';
+                console.log('Comment from', comment.user.login, 'type:', comment.user.type, 'has marker:', hasMarker);
+                return hasMarker && isGitHubActions;
               });
+
+              if (existingComment) {
+                // Update existing comment with latest information
+                console.log('🔄 Updating existing release preview comment');
+                const timestamp = new Date().toLocaleString();
+                const commitSha = context.sha.substring(0, 8);
+                const updatedBody = commentBody + `\n\n---\n*Last updated: ${timestamp} | Commit: ${commitSha} | [View Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
+
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existingComment.id,
+                  body: updatedBody
+                });
+              } else {
+                // Create new comment
+                console.log('📝 Creating new release preview comment');
+                await github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: commentBody
+                });
+              }
+
+              console.log('✅ Successfully posted/updated release preview comment');
+            } catch (error) {
+              console.log('❌ Failed to post release preview comment:', error.message);
+              console.log('Error status:', error.status);
+
+              if (error.status === 403) {
+                console.log('🔒 Permission denied - check workflow permissions');
+              }
+
+              throw error;
             }
