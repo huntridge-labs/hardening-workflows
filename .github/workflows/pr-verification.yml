@@ -50,6 +50,7 @@ jobs:
             expect_gitleaks: 'false'
             expect_container: 'false'
             expect_infrastructure: 'false'
+            expect_sbom: 'false'
           - name: 'sast-scanners'
             scanners: 'codeql,opengrep,bandit,gitleaks'
             enable_code_security: 'true'
@@ -59,6 +60,7 @@ jobs:
             expect_gitleaks: 'true'
             expect_container: 'false'
             expect_infrastructure: 'false'
+            expect_sbom: 'false'
           - name: 'container-only'
             scanners: 'container'
             expect_codeql: 'false'
@@ -67,6 +69,7 @@ jobs:
             expect_gitleaks: 'false'
             expect_container: 'true'
             expect_infrastructure: 'false'
+            expect_sbom: 'false'
           - name: 'infrastructure-only'
             scanners: 'infrastructure'
             expect_codeql: 'false'
@@ -75,6 +78,16 @@ jobs:
             expect_gitleaks: 'false'
             expect_container: 'false'
             expect_infrastructure: 'true'
+            expect_sbom: 'false'
+          - name: 'sbom-only'
+            scanners: 'sbom'
+            expect_codeql: 'false'
+            expect_opengrep: 'false'
+            expect_bandit: 'false'
+            expect_gitleaks: 'false'
+            expect_container: 'false'
+            expect_infrastructure: 'false'
+            expect_sbom: 'true'
           - name: 'all-scanners'
             scanners: 'all'
             enable_code_security: 'true'
@@ -84,6 +97,7 @@ jobs:
             expect_gitleaks: 'true'
             expect_container: 'true'
             expect_infrastructure: 'true'
+            expect_sbom: 'true'
           - name: 'empty-defaults'
             scanners: ''
             enable_code_security: 'true'
@@ -93,6 +107,7 @@ jobs:
             expect_gitleaks: 'true'
             expect_container: 'true'
             expect_infrastructure: 'true'
+            expect_sbom: 'true'
           - name: 'codeql-disabled-by-code-security'
             scanners: 'codeql'
             enable_code_security: 'false'
@@ -102,6 +117,7 @@ jobs:
             expect_gitleaks: 'false'
             expect_container: 'false'
             expect_infrastructure: 'false'
+            expect_sbom: 'false'
 
     steps:
     - name: Checkout
@@ -123,9 +139,10 @@ jobs:
           [gitleaks]=false
           [container]=false
           [infrastructure]=false
+          [sbom]=false
         )
 
-        DEFAULT_SCANNERS=(codeql opengrep bandit gitleaks container infrastructure)
+        DEFAULT_SCANNERS=(codeql opengrep bandit gitleaks container infrastructure sbom)
         SELECTED=()
 
         normalize() {
@@ -187,6 +204,7 @@ jobs:
         echo "Expected Gitleaks: ${{ matrix.test.expect_gitleaks }}, Got: ${RUN[gitleaks]}"
         echo "Expected Container: ${{ matrix.test.expect_container }}, Got: ${RUN[container]}"
         echo "Expected Infrastructure: ${{ matrix.test.expect_infrastructure }}, Got: ${RUN[infrastructure]}"
+        echo "Expected SBOM: ${{ matrix.test.expect_sbom }}, Got: ${RUN[sbom]}"
 
         FAILED=false
 
@@ -217,6 +235,11 @@ jobs:
 
         if [ "${RUN[infrastructure]}" != "${{ matrix.test.expect_infrastructure }}" ]; then
           echo "❌ Infrastructure mismatch"
+          FAILED=true
+        fi
+
+        if [ "${RUN[sbom]}" != "${{ matrix.test.expect_sbom }}" ]; then
+          echo "❌ SBOM mismatch"
           FAILED=true
         fi
 
@@ -292,9 +315,10 @@ jobs:
           [gitleaks]=false
           [container]=false
           [infrastructure]=false
+          [sbom]=false
         )
 
-        DEFAULT_SCANNERS=(codeql opengrep bandit gitleaks container infrastructure)
+        DEFAULT_SCANNERS=(codeql opengrep bandit gitleaks container infrastructure sbom)
         SELECTED=()
 
         normalize() {
@@ -393,7 +417,7 @@ jobs:
     needs: [code-quality, test-scanner-resolution, test-scanners-input-validation]
     uses: ./.github/workflows/reusable-security-hardening.yml
     with:
-      scanners: 'sast,container,infrastructure'  # Common realistic use case
+      scanners: 'sast,container,infrastructure,sbom'  # Common realistic use case
       codeql_languages: 'python,javascript'
       enable_code_security: true
       post_pr_comment: true  # Test PR comment generation
