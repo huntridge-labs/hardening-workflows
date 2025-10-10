@@ -79,6 +79,7 @@ jobs:
       run_checkov: ${{ steps.resolve.outputs.run_checkov }}
       run_trivy_container: ${{ steps.resolve.outputs.run_trivy_container }}
       run_grype: ${{ steps.resolve.outputs.run_grype }}
+      run_sbom: ${{ steps.resolve.outputs.run_sbom }}
       run_lint: ${{ steps.resolve.outputs.run_lint }}
       run_any: ${{ steps.resolve.outputs.run_any }}
 
@@ -101,9 +102,10 @@ jobs:
           [trivy-container]=false
           [grype]=false
           [lint]=false
+          [sbom]=false
         )
 
-        DEFAULT_SCANNERS=(codeql opengrep bandit gitleaks container infrastructure)
+        DEFAULT_SCANNERS=(codeql opengrep bandit gitleaks container infrastructure sbom)
         SELECTED=()
 
         normalize() {
@@ -171,6 +173,9 @@ jobs:
               ;;
             grype)
               add_scanner grype
+              ;;
+            sbom)
+              add_scanner sbom
               ;;
             lint|linting|code-quality)
               add_scanner lint
@@ -432,6 +437,20 @@ jobs:
       pull-requests: write
     secrets: inherit
 
+  scanner-sbom:
+    name: SBOM Generator
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.run_sbom == 'true'
+    uses: ./.github/workflows/scanner-syft.yml
+    with:
+      enable_code_security: ${{ inputs.enable_code_security }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+    secrets: inherit
+
   security-summary:
     name: Security Hardening Summary
     runs-on: ubuntu-latest
@@ -448,6 +467,7 @@ jobs:
       - scanner-checkov
       - scanner-trivy-container
       - scanner-grype
+      - scanner-sbom
     if: always()
 
     steps:
@@ -528,6 +548,13 @@ jobs:
         pattern: '*lint*'
       continue-on-error: true
 
+    - name: Download SBOM artifacts
+      if: needs.scan-coordinator.outputs.run_sbom == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: sbom-*
+      continue-on-error: true
+
     - name: Download all scanner summaries
       uses: actions/download-artifact@v5
       with:
@@ -552,7 +579,7 @@ jobs:
         echo ""
 
         # Combine all scanner summaries in a specific order
-        for scanner in codeql opengrep bandit gitleaks container infrastructure trivy-iac checkov trivy-container grype; do
+        for scanner in codeql opengrep bandit gitleaks container infrastructure trivy-iac checkov trivy-container grype sbom; do
           if [ -f "${scanner}.md" ]; then
             echo "✅ Adding ${scanner} summary..."
             cat "${scanner}.md" >> security-hardening-report.md
