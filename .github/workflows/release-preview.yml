@@ -45,17 +45,24 @@ jobs:
           echo "Running release-it dry run to generate preview..."
           npm run release:dry > release_output.txt 2>&1 || echo "Release dry run completed"
 
-          # Extract version information
-          CURRENT_VERSION=$(grep -o "Let's release.*(\(.*\)\.\.\.\(.*\))" release_output.txt | sed 's/.*(\(.*\)\.\.\.\(.*\)).*/\1/' || echo "0.0.0")
-          NEW_VERSION=$(grep -o "Let's release.*(\(.*\)\.\.\.\(.*\))" release_output.txt | sed 's/.*(\(.*\)\.\.\.\(.*\)).*/\2/' || echo "unknown")
+          # Extract version information from the "Let's release" line
+          RELEASE_LINE=$(grep "Let's release" release_output.txt || echo "")
+          if [ -n "$RELEASE_LINE" ]; then
+            # Extract versions using more reliable pattern matching
+            CURRENT_VERSION=$(echo "$RELEASE_LINE" | grep -o '([0-9]\+\.[0-9]\+\.[0-9]\+' | tr -d '(' || echo "0.0.0")
+            NEW_VERSION=$(echo "$RELEASE_LINE" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+)' | sed 's/)//' | tail -1 || echo "unknown")
+          else
+            CURRENT_VERSION="0.0.0"
+            NEW_VERSION="unknown"
+          fi
 
           # Check if release-it found any conventional commits
-          HAS_CONVENTIONAL_COMMITS=$(grep -c "### " release_output.txt || echo "0")
+          HAS_CONVENTIONAL_COMMITS=$(grep -c "Let's release" release_output.txt || echo "0")
 
           echo "## 🚀 Release Preview" > preview.md
           echo "" >> preview.md
 
-          if [ "$NEW_VERSION" != "unknown" ] && [ "$NEW_VERSION" != "$CURRENT_VERSION" ] && [ "$HAS_CONVENTIONAL_COMMITS" -gt 0 ]; then
+          if [ "$NEW_VERSION" != "unknown" ] && [ "$NEW_VERSION" != "$CURRENT_VERSION" ] && [ "$RELEASE_WILL_HAPPEN" -gt 0 ]; then
             # Version will be bumped
             echo "### 📦 Version Update" >> preview.md
             echo "**Current:** \`$CURRENT_VERSION\` → **New:** \`$NEW_VERSION\`" >> preview.md
