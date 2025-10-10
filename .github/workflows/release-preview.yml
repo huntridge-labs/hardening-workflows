@@ -75,16 +75,22 @@ jobs:
             echo "" >> preview.md
 
             # Extract and format changelog
-            echo "### � Changelog" >> preview.md
+            echo "### 📋 Changelog" >> preview.md
             echo "" >> preview.md
 
-            # Extract changelog section from release output
-            sed -n '/^Changelog:/,/^Changeset:/p' release_output.txt | sed '1d;$d' | sed 's/^//' >> preview.md
+            # Extract changelog section from release output (between "Changelog:" and first "Updating version")
+            sed -n '/^Changelog:/,/^Updating version/p' release_output.txt | sed '1d;$d' | sed 's/^//' >> preview.md
             echo "" >> preview.md
 
             # Extract file changes that would be made
-            echo "### � Files that would be modified" >> preview.md
+            echo "### 📁 Files that would be modified" >> preview.md
             echo "" >> preview.md
+
+            # Extract list of files being updated from the release output
+            echo "\`\`\`" >> preview.md
+            grep "^Updating version in" release_output.txt | sed 's/Updating version in //' | sed 's/^/- /' >> preview.md || echo "- CHANGELOG.md (updated with new entries)" >> preview.md
+            echo "- CHANGELOG.md (updated with new entries)" >> preview.md
+            echo "\`\`\`" >> preview.md
 
             # Extract changeset information
             if grep -q "Changeset:" release_output.txt; then
