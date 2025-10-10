@@ -56,8 +56,8 @@ jobs:
             NEW_VERSION="unknown"
           fi
 
-          # Check if release-it found any conventional commits
-          HAS_CONVENTIONAL_COMMITS=$(grep -c "Let's release" release_output.txt || echo "0")
+          # Check if release-it found any conventional commits that would trigger a release
+          RELEASE_WILL_HAPPEN=$(grep -c "Let's release" release_output.txt || echo "0")
 
           # Debug output
           echo "DEBUG: Current version: $CURRENT_VERSION"
