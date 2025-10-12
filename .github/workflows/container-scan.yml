@@ -182,7 +182,7 @@ jobs:
 
     - name: Run Grype vulnerability scanner
       if: steps.build.outputs.build_success == 'true'
-      uses: anchore/scan-action@v3
+      uses: anchore/scan-action@v7
       id: grype-scan
       continue-on-error: true  # Never fail the pipeline
       with:
