@@ -34,7 +34,7 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.dryRun != 'true'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.dryRun != 'true')
 
     steps:
       - name: Checkout
