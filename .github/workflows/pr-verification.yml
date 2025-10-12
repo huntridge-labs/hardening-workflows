@@ -3,12 +3,6 @@ name: PR Verification - Test Scanner Controls
 on:
   pull_request:
     branches: [main]
-    paths:
-      - '.github/workflows/reusable-security-hardening.yml'
-      - '.github/workflows/container-scan.yml'
-      - '.github/workflows/sast.yml'
-      - '.github/workflows/scanners/**'
-      - '.github/workflows/pr-verification.yml'
 
 permissions:
   contents: read

@@ -16,9 +16,9 @@ repos:
         exclude: ^(docs)
       - id: check-case-conflict
       - id: check-json
-        exclude: ^(tests)
+        exclude: ^(tests/invalid\.json)$
       - id: detect-private-key
-        exclude: ^(tests)
+        exclude: ^(tests/secrets_test\.py)$
       - id: mixed-line-ending
         args: ["--fix=lf"]
         exclude: \.md$
@@ -26,7 +26,7 @@ repos:
       #   args: [--branch, main]
       - id: pretty-format-json
         args: [--autofix, --no-sort-keys]
-        exclude: ^(docs|tests)
+        exclude: ^(docs|tests/invalid\.json)$
   # renovate: datasource=github-tags depName=pre-commit/pygrep-hooks versioning=semver
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0  # Use the ref you want to point at
@@ -62,7 +62,7 @@ repos:
     hooks:
       - id: yamllint
         args: [-c=.yamllint.yml]
-        exclude: ^(docs|tests)|invalid-config\.yml
+        exclude: ^(config/invalid-config\.yml|examples/use-reusable-workflow\.yml)$
   # renovate: datasource=github-tags depName=gitleaks/gitleaks versioning=semver
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.24.2

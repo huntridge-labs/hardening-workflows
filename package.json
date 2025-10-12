@@ -1,22 +1,18 @@
 {
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.1.0",
     "@commitlint/config-conventional": "^20.0.0",
-    "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/commit-analyzer": "^13.0.0",
-    "@semantic-release/exec": "^7.1.0",
-    "@semantic-release/git": "^10.0.1",
-    "@semantic-release/gitlab-config": "^14.0.0",
-    "@semantic-release/release-notes-generator": "^14.0.1",
+    "@j-ulrich/release-it-regex-bumper": "^5.3.0",
+    "@release-it/conventional-changelog": "^10.0.1",
     "commitizen": "^4.3.0",
     "cz-conventional-changelog": "^3.3.0",
     "husky": "^9.1.4",
     "is-ci": "^4.1.0",
     "pre-commit": "^1.2.2",
-    "semantic-release": "^24.2.9"
+    "release-it": "^19.0.5"
   },
   "dependencies": {
     "@digitalroute/cz-conventional-changelog-for-jira": "^8.0.1",
@@ -29,95 +25,12 @@
   "scripts": {
     "prepare": "husky",
     "test": "npm ci",
-    "commitizen": "commitizen init cz-conventional-changelog --save-dev --save-exact --force"
-  },
-  "release": {
-    "branches": [
-      "+([0-9])?(.{+([0-9]),x}).x",
-      "master",
-      "main",
-      "next",
-      "next-major"
-    ],
-    "tagFormat": "${version}",
-    "plugins": [
-      [
-        "@semantic-release/commit-analyzer",
-        {
-          "preset": "angular",
-          "releaseRules": [
-            {
-              "breaking": true,
-              "release": "major"
-            },
-            {
-              "type": "chore",
-              "scope": "deps",
-              "release": "patch"
-            },
-            {
-              "type": "refactor",
-              "release": "patch"
-            },
-            {
-              "type": "fix",
-              "release": "patch"
-            },
-            {
-              "type": "feat",
-              "release": "minor"
-            }
-          ],
-          "parserOpts": {
-            "noteKeywords": [
-              "BREAKING CHANGE",
-              "BREAKING CHANGES",
-              "BREAKING"
-            ]
-          }
-        }
-      ],
-      [
-        "@semantic-release/release-notes-generator",
-        {
-          "preset": "angular",
-          "parserOpts": {
-            "noteKeywords": [
-              "BREAKING CHANGE",
-              "BREAKING CHANGES",
-              "BREAKING"
-            ]
-          },
-          "writerOpts": {
-            "commitsSort": [
-              "subject",
-              "scope"
-            ]
-          }
-        }
-      ],
-      [
-        "@semantic-release/changelog",
-        {
-          "changelogFile": "CHANGELOG.md"
-        }
-      ],
-      [
-        "@semantic-release/exec",
-        {
-          "prepareCmd": "powershell ./build.ps1 -Version ${nextRelease.version}"
-        }
-      ],
-      [
-        "@semantic-release/git",
-        {
-          "assets": [
-            "CHANGELOG.md"
-          ],
-          "message": "chore(release): ${nextRelease.version}\n\n${nextRelease.notes}"
-        }
-      ]
-    ]
+    "commitizen": "commitizen init cz-conventional-changelog --save-dev --save-exact --force",
+    "release": "release-it",
+    "release:dry": "release-it --dry-run",
+    "release:ci": "release-it --ci",
+    "release:preview": "release-it --dry-run --ci",
+    "release:changelog": "release-it --changelog --dry-run"
   },
   "config": {
     "commitizen": {
