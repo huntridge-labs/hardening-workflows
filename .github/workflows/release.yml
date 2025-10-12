@@ -65,12 +65,14 @@ jobs:
         run: npm run release:ci
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HUSKY: 0
 
       - name: Release (Specific Type)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.releaseType != 'auto'
         run: npm run release:ci -- ${{ github.event.inputs.releaseType }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HUSKY: 0
 
   dry-run:
     name: Release Preview (Dry Run)
@@ -100,6 +102,8 @@ jobs:
 
       - name: Release Preview
         run: npm run release:dry
+        env:
+          HUSKY: 0
 
   security-check:
     name: Security Check
