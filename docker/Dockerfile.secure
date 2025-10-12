@@ -1,6 +1,6 @@
 # Secure Dockerfile following best practices
 # Multi-stage build for minimal attack surface
-FROM node:18-alpine AS builder
+FROM node:24-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -19,7 +19,7 @@ COPY --chown=nextjs:nodejs src/ ./src/
 COPY --chown=nextjs:nodejs config/ ./config/
 
 # Production stage
-FROM node:18-alpine AS production
+FROM node:24-alpine AS production
 
 # Install security updates
 RUN apk update && \
