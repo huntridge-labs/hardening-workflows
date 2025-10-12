@@ -1,6 +1,6 @@
 # Vulnerable Dockerfile with multiple security issues
 # Using older base image with known vulnerabilities
-FROM node:16-bullseye
+FROM node:24-bullseye
 
 # Running as root user (security risk)
 # No USER directive to switch to non-root user
