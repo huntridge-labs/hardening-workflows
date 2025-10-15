@@ -148,7 +148,7 @@ jobs:
 
     - name: Run Trivy vulnerability scanner (SARIF)
       if: steps.build.outputs.build_success == 'true'
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@0.33.1
       continue-on-error: true  # Never fail the pipeline
       with:
         image-ref: ${{ steps.build.outputs.full_image }}
@@ -157,7 +157,7 @@ jobs:
 
     - name: Run Trivy vulnerability scanner (JSON)
       if: steps.build.outputs.build_success == 'true'
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@0.33.1
       continue-on-error: true  # Never fail the pipeline
       with:
         image-ref: ${{ steps.build.outputs.full_image }}
@@ -166,7 +166,7 @@ jobs:
 
     - name: Run Trivy vulnerability scanner (Table)
       if: steps.build.outputs.build_success == 'true'
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@0.33.1
       continue-on-error: true  # Never fail the pipeline
       with:
         image-ref: ${{ steps.build.outputs.full_image }}
