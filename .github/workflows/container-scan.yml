@@ -1,7 +1,7 @@
 name: Container Security Scanning
 
 on:
-  # Remove direct PR triggers since this workflow is called by security-hardening.yml
+  # Remove direct PR triggers since this workflow is called by reusable-security-hardening.yml
   # push:
   #   branches: [ main, develop ]
   #   paths:
@@ -13,7 +13,7 @@ on:
   #     - '**/Dockerfile*'
   #     - '.github/workflows/container-scan.yml'
   workflow_dispatch:  # Keep for manual testing
-  workflow_call:      # Keep for reusable workflow calls from security-hardening.yml
+  workflow_call:      # Keep for reusable workflow calls from reusable-security-hardening.yml
     inputs:
       post_pr_comment:
         description: 'Whether to post PR comments (disabled when called from other workflows)'
@@ -174,7 +174,7 @@ jobs:
         output: 'trivy-${{ matrix.container.name }}-results.txt'
 
     - name: Upload Trivy scan results to GitHub Security tab
-      if: inputs.enable_code_security == true && steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act' && hashFiles('trivy-${{ matrix.container.name }}-results.sarif') != ''
+      if: inputs.enable_code_security == true && steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act'
       uses: github/codeql-action/upload-sarif@v3
       continue-on-error: true  # Never fail the pipeline
       with:

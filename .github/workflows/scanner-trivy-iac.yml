@@ -1,0 +1,203 @@
+name: Trivy IaC Scanner
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      iac_path:
+        description: 'Relative path to the infrastructure-as-code directory to scan'
+        required: false
+        type: string
+        default: 'infrastructure'
+      enable_code_security:
+        description: 'Whether GitHub Code Security is enabled for this repository'
+        required: false
+        type: boolean
+        default: false
+      post_pr_comment:
+        description: 'Whether to post PR comments'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+
+jobs:
+  trivy-iac-scan:
+    name: Trivy IaC Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Validate scan directory
+      id: validate
+      run: |
+        IAC_PATH="${{ inputs.iac_path }}"
+        if [ -z "$IAC_PATH" ]; then
+          IAC_PATH='infrastructure'
+        fi
+
+        if [ ! -d "$IAC_PATH" ]; then
+          echo "⚠️  Directory '$IAC_PATH' not found. Skipping Trivy IaC scan."
+          echo "has_iac=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        echo "has_iac=true" >> $GITHUB_OUTPUT
+        echo "iac_path=$IAC_PATH" >> $GITHUB_OUTPUT
+        echo "✅ Found IaC directory: $IAC_PATH"
+
+        mkdir -p "$IAC_PATH"/security-reports
+        echo "📁 Created security reports directory"
+
+    - name: Run Trivy Infrastructure Scan (SARIF)
+      if: steps.validate.outputs.has_iac == 'true'
+      uses: aquasecurity/trivy-action@0.33.1
+      with:
+        scan-type: 'config'
+        scan-ref: '${{ steps.validate.outputs.iac_path }}'
+        format: 'sarif'
+        output: '${{ steps.validate.outputs.iac_path }}/security-reports/trivy-results.sarif'
+        hide-progress: true
+      continue-on-error: true
+
+    - name: Run Trivy Infrastructure Scan (JSON)
+      if: steps.validate.outputs.has_iac == 'true'
+      uses: aquasecurity/trivy-action@0.33.1
+      with:
+        scan-type: 'config'
+        scan-ref: '${{ steps.validate.outputs.iac_path }}'
+        format: 'json'
+        output: '${{ steps.validate.outputs.iac_path }}/security-reports/trivy-results.json'
+        hide-progress: true
+      continue-on-error: true
+
+    - name: Run Trivy Infrastructure Scan (Table)
+      if: steps.validate.outputs.has_iac == 'true'
+      uses: aquasecurity/trivy-action@0.33.1
+      with:
+        scan-type: 'config'
+        scan-ref: '${{ steps.validate.outputs.iac_path }}'
+        format: 'table'
+        output: '${{ steps.validate.outputs.iac_path }}/security-reports/trivy-results.txt'
+        hide-progress: true
+      continue-on-error: true
+
+    - name: Upload Trivy SARIF results to GitHub Security
+      if: inputs.enable_code_security == true && steps.validate.outputs.has_iac == 'true' && always() && github.actor != 'nektos/act'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ steps.validate.outputs.iac_path }}/security-reports/trivy-results.sarif
+        category: trivy-iac
+      continue-on-error: true
+
+    - name: Analyze Trivy results
+      if: steps.validate.outputs.has_iac == 'true' && always()
+      run: |
+        IAC_PATH="${{ steps.validate.outputs.iac_path }}"
+        JSON_FILE="$IAC_PATH/security-reports/trivy-results.json"
+
+        if [ ! -f "$JSON_FILE" ]; then
+          echo "⚠️  No Trivy results found"
+          exit 0
+        fi
+
+        echo "📊 Trivy IaC Security Analysis"
+        echo "================================"
+
+        CRITICAL=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "CRITICAL")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+        HIGH=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "HIGH")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+        MEDIUM=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "MEDIUM")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+        LOW=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "LOW")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+
+        echo "🔍 Misconfiguration Summary:"
+        echo "  Critical: $CRITICAL"
+        echo "  High: $HIGH"
+        echo "  Medium: $MEDIUM"
+        echo "  Low: $LOW"
+
+        TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
+
+        if [ "$TOTAL" -gt 0 ]; then
+          echo "⚠️  Found $TOTAL total misconfigurations"
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+            echo "::warning title=High Severity Misconfigurations::Found $CRITICAL critical and $HIGH high severity misconfigurations in IaC"
+          fi
+        else
+          echo "✅ No misconfigurations found"
+        fi
+
+    - name: Upload Trivy artifacts
+      if: steps.validate.outputs.has_iac == 'true' && always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: trivy-iac-scan-results
+        path: |
+          ${{ steps.validate.outputs.iac_path }}/security-reports/trivy-results.*
+        retention-days: 30
+
+    - name: Generate scanner summary section
+      if: always()
+      run: |
+        mkdir -p scanner-summaries
+
+        echo "<details>" > scanner-summaries/trivy-iac.md
+        echo "<summary>🔍 Trivy IaC Scanner</summary>" >> scanner-summaries/trivy-iac.md
+        echo "" >> scanner-summaries/trivy-iac.md
+
+        if [ "${{ steps.validate.outputs.has_iac }}" == "true" ]; then
+          IAC_PATH="${{ steps.validate.outputs.iac_path }}"
+          JSON_FILE="$IAC_PATH/security-reports/trivy-results.json"
+
+          if [ -f "$JSON_FILE" ]; then
+            echo "**Status:** ✅ Completed" >> scanner-summaries/trivy-iac.md
+            echo "" >> scanner-summaries/trivy-iac.md
+
+            CRITICAL=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "CRITICAL")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+            HIGH=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "HIGH")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+            MEDIUM=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "MEDIUM")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+            LOW=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "LOW")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+            TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
+
+            echo "**Issues Found:** $TOTAL" >> scanner-summaries/trivy-iac.md
+            echo "" >> scanner-summaries/trivy-iac.md
+
+            if [ $TOTAL -gt 0 ]; then
+              echo "| Severity | Count |" >> scanner-summaries/trivy-iac.md
+              echo "|----------|-------|" >> scanner-summaries/trivy-iac.md
+              [ $CRITICAL -gt 0 ] && echo "| 🔴 Critical | $CRITICAL |" >> scanner-summaries/trivy-iac.md
+              [ $HIGH -gt 0 ] && echo "| 🟠 High | $HIGH |" >> scanner-summaries/trivy-iac.md
+              [ $MEDIUM -gt 0 ] && echo "| 🟡 Medium | $MEDIUM |" >> scanner-summaries/trivy-iac.md
+              [ $LOW -gt 0 ] && echo "| 🔵 Low | $LOW |" >> scanner-summaries/trivy-iac.md
+              echo "" >> scanner-summaries/trivy-iac.md
+            fi
+
+            echo "**📁 Artifacts:** [Trivy IaC Results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/trivy-iac.md
+          else
+            echo "**Status:** ⚠️ No results generated" >> scanner-summaries/trivy-iac.md
+          fi
+        else
+          echo "**Status:** ⏭️ Skipped (no IaC directory found)" >> scanner-summaries/trivy-iac.md
+        fi
+
+        echo "" >> scanner-summaries/trivy-iac.md
+        echo "</details>" >> scanner-summaries/trivy-iac.md
+        echo "" >> scanner-summaries/trivy-iac.md
+      continue-on-error: true
+
+    - name: Upload scanner summary section
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scanner-summary-trivy-iac
+        path: scanner-summaries/trivy-iac.md
+        retention-days: 7
+      continue-on-error: true

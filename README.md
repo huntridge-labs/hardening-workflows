@@ -6,7 +6,11 @@ One reusable GitHub Actions workflow, many scanners. Pick the components you nee
 
 **Workflow:** `.github/workflows/reusable-security-hardening.yml`
 
-**Available scanners:** `codeql`, `opengrep`, `bandit`, `gitleaks`, `container`, `infrastructure`, `lint`
+**Available scanners:**
+- **SAST:** `codeql`, `opengrep`, `bandit`, `gitleaks`
+- **Container:** `container`, `trivy-container`, `grype`
+- **Infrastructure:** `infrastructure`, `trivy-iac`, `checkov`
+- **Linting:** `lint`
 
 ### Quick start
 
@@ -34,6 +38,9 @@ jobs:
 
 - **Full coverage:** `scanners: all`
 - **Single scanner:** `scanners: opengrep`
+- **SAST only:** `scanners: codeql,opengrep,bandit,gitleaks`
+- **Infrastructure only:** `scanners: trivy-iac,checkov`
+- **Container only:** `scanners: trivy-container,grype`
 - **Focused mix:** `scanners: container,infrastructure,gitleaks`
 
 ### Inputs at a glance
@@ -88,6 +95,65 @@ jobs:
 - GitHub Security tab for SARIF uploads (CodeQL/OpenGrep/Bandit)
 - Workflow artifacts for each scanner plus combined Markdown report
 - Optional PR comment summarizing the run
+
+## Individual scanner workflows
+
+For more granular control, you can call individual scanner workflows directly:
+
+### Infrastructure scanning
+
+```yaml
+jobs:
+  trivy-iac:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@main
+    with:
+      iac_path: 'infrastructure'
+      enable_code_security: true
+
+  checkov:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@main
+    with:
+      iac_path: 'infrastructure'
+      framework: 'terraform'
+```
+
+### Container scanning
+
+```yaml
+jobs:
+  trivy-container:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@main
+    with:
+      image_ref: 'myapp:latest'
+      enable_code_security: true
+
+  grype:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@main
+    with:
+      image_ref: 'myapp:latest'
+```
+
+### SAST scanning
+
+```yaml
+jobs:
+  codeql:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@main
+    with:
+      codeql_languages: 'python,javascript'
+      enable_code_security: true
+
+  opengrep:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@main
+
+  bandit:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@main
+
+  gitleaks:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@main
+```
+
+All individual scanners support `workflow_dispatch` for manual runs and `workflow_call` for reusable workflow integration.
 
 ## More examples
 

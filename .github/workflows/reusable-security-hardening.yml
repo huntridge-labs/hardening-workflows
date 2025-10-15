@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       scanners:
-        description: 'Comma-separated list of scanners to run (codeql, opengrep, bandit, gitleaks, container, infrastructure, lint, all, sast, secrets, etc.)'
+        description: 'Comma-separated list of scanners to run (codeql, opengrep, bandit, gitleaks, container, infrastructure, trivy-iac, checkov, trivy-container, grype, lint, all, sast, secrets, etc.)'
         required: false
         default: 'all'
         type: string
@@ -75,6 +75,10 @@ jobs:
       run_gitleaks: ${{ steps.resolve.outputs.run_gitleaks }}
       run_container: ${{ steps.resolve.outputs.run_container }}
       run_infrastructure: ${{ steps.resolve.outputs.run_infrastructure }}
+      run_trivy_iac: ${{ steps.resolve.outputs.run_trivy_iac }}
+      run_checkov: ${{ steps.resolve.outputs.run_checkov }}
+      run_trivy_container: ${{ steps.resolve.outputs.run_trivy_container }}
+      run_grype: ${{ steps.resolve.outputs.run_grype }}
       run_lint: ${{ steps.resolve.outputs.run_lint }}
       run_any: ${{ steps.resolve.outputs.run_any }}
 
@@ -92,6 +96,10 @@ jobs:
           [gitleaks]=false
           [container]=false
           [infrastructure]=false
+          [trivy-iac]=false
+          [checkov]=false
+          [trivy-container]=false
+          [grype]=false
           [lint]=false
         )
 
@@ -151,6 +159,18 @@ jobs:
               ;;
             infrastructure|infra|iac|terraform)
               add_scanner infrastructure
+              ;;
+            trivy-iac|trivyiac)
+              add_scanner trivy-iac
+              ;;
+            checkov)
+              add_scanner checkov
+              ;;
+            trivy-container|trivycontainer)
+              add_scanner trivy-container
+              ;;
+            grype)
+              add_scanner grype
               ;;
             lint|linting|code-quality)
               add_scanner lint
@@ -348,6 +368,70 @@ jobs:
       pull-requests: write
     secrets: inherit
 
+  scanner-trivy-iac:
+    name: Trivy IaC Scanner
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.run_trivy_iac == 'true'
+    uses: ./.github/workflows/scanner-trivy-iac.yml
+    with:
+      iac_path: ${{ inputs.iac_path }}
+      post_pr_comment: ${{ inputs.post_pr_comment }}
+      enable_code_security: ${{ inputs.enable_code_security }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+    secrets: inherit
+
+  scanner-checkov:
+    name: Checkov Scanner
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.run_checkov == 'true'
+    uses: ./.github/workflows/scanner-checkov.yml
+    with:
+      iac_path: ${{ inputs.iac_path }}
+      post_pr_comment: ${{ inputs.post_pr_comment }}
+      enable_code_security: ${{ inputs.enable_code_security }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+    secrets: inherit
+
+  scanner-trivy-container:
+    name: Trivy Container Scanner
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.run_trivy_container == 'true'
+    uses: ./.github/workflows/scanner-trivy-container.yml
+    with:
+      image_ref: 'nginx:latest'
+      post_pr_comment: ${{ inputs.post_pr_comment }}
+      enable_code_security: ${{ inputs.enable_code_security }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+    secrets: inherit
+
+  scanner-grype:
+    name: Grype Scanner
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.run_grype == 'true'
+    uses: ./.github/workflows/scanner-grype.yml
+    with:
+      image_ref: 'nginx:latest'
+      post_pr_comment: ${{ inputs.post_pr_comment }}
+      enable_code_security: ${{ inputs.enable_code_security }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+    secrets: inherit
+
   security-summary:
     name: Security Hardening Summary
     runs-on: ubuntu-latest
@@ -360,6 +444,10 @@ jobs:
       - scanner-gitleaks
       - scanner-container
       - scanner-infrastructure
+      - scanner-trivy-iac
+      - scanner-checkov
+      - scanner-trivy-container
+      - scanner-grype
     if: always()
 
     steps:
@@ -405,6 +493,34 @@ jobs:
         pattern: infrastructure-*
       continue-on-error: true
 
+    - name: Download Trivy IaC artifacts
+      if: needs.scan-coordinator.outputs.run_trivy_iac == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: trivy-iac-*
+      continue-on-error: true
+
+    - name: Download Checkov artifacts
+      if: needs.scan-coordinator.outputs.run_checkov == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: checkov-*
+      continue-on-error: true
+
+    - name: Download Trivy Container artifacts
+      if: needs.scan-coordinator.outputs.run_trivy_container == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: trivy-container-*
+      continue-on-error: true
+
+    - name: Download Grype artifacts
+      if: needs.scan-coordinator.outputs.run_grype == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: grype-*
+      continue-on-error: true
+
     - name: Download Linting artifacts
       if: needs.scan-coordinator.outputs.run_lint == 'true'
       uses: actions/download-artifact@v5
@@ -436,7 +552,7 @@ jobs:
         echo ""
 
         # Combine all scanner summaries in a specific order
-        for scanner in codeql opengrep bandit gitleaks container infrastructure; do
+        for scanner in codeql opengrep bandit gitleaks container infrastructure trivy-iac checkov trivy-container grype; do
           if [ -f "${scanner}.md" ]; then
             echo "✅ Adding ${scanner} summary..."
             cat "${scanner}.md" >> security-hardening-report.md
