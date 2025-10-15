@@ -120,7 +120,7 @@ jobs:
 
     - name: Upload Grype scan results to GitHub Security tab
       if: inputs.enable_code_security == true && github.actor != 'nektos/act'
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       continue-on-error: true
       with:
         sarif_file: 'grype-${{ steps.validate.outputs.scan_name }}-results.sarif'

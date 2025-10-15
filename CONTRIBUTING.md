@@ -150,7 +150,7 @@ jobs:
 
     # 6. Upload SARIF to GitHub Security (optional)
     - name: Upload [Scanner Name] SARIF
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       with:
         sarif_file: scanner-reports/report.sarif
       if: inputs.enable_code_security == true && always() && github.actor != 'nektos/act' && hashFiles('scanner-reports/report.sarif') != ''

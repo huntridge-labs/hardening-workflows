@@ -93,7 +93,7 @@ jobs:
 
     - name: Upload Trivy SARIF results to GitHub Security
       if: inputs.enable_code_security == true && steps.validate.outputs.has_iac == 'true' && always() && github.actor != 'nektos/act'
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       with:
         sarif_file: ${{ steps.validate.outputs.iac_path }}/security-reports/trivy-results.sarif
         category: trivy-iac
