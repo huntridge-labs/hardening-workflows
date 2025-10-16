@@ -175,7 +175,7 @@ jobs:
 
     - name: SBOM summary
       if: steps.build.outputs.build_success == 'true'
-      run: echo "✅ SBOM generated for ${{ steps.build.outputs.full_image }} → sbom-${{ matrix.container.name }}.json" >> $GITHUB_STEP_SUMMARY
+      run: echo "✅ SBOM generated for ${{ steps.build.outputs.full_image }} → container-scan-results-sbom-${{ matrix.container.name }}.json" >> $GITHUB_STEP_SUMMARY
 
     - name: Run Trivy vulnerability scanner (SARIF)
       if: steps.build.outputs.build_success == 'true'
