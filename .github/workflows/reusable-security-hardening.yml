@@ -249,7 +249,7 @@ jobs:
     name: Code Quality & Linting
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_lint == 'true'
-    uses: ./.github/workflows/linting.yml
+    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@2.1.0
     permissions:
       contents: read
       pull-requests: write
@@ -259,7 +259,7 @@ jobs:
     name: CodeQL Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_codeql == 'true'
-    uses: ./.github/workflows/scanner-codeql.yml
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@2.1.0
     with:
       codeql_languages: ${{ inputs.codeql_languages }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -275,7 +275,7 @@ jobs:
     name: OpenGrep Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_opengrep == 'true'
-    uses: ./.github/workflows/scanner-opengrep.yml
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@2.1.0
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -290,7 +290,7 @@ jobs:
     name: Bandit Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_bandit == 'true'
-    uses: ./.github/workflows/scanner-bandit.yml
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@2.1.0
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -305,7 +305,7 @@ jobs:
     name: Gitleaks Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_gitleaks == 'true'
-    uses: ./.github/workflows/scanner-gitleaks.yml
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@2.1.0
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -320,7 +320,7 @@ jobs:
     name: Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_container == 'true'
-    uses: ./.github/workflows/container-scan.yml
+    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@2.1.0
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -335,7 +335,7 @@ jobs:
     name: Infrastructure Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_infrastructure == 'true'
-    uses: ./.github/workflows/infrastructure.yml
+    uses: huntridge-labs/hardening-workflows/.github/workflows/infrastructure.yml@2.1.0
     with:
       iac_path: ${{ inputs.iac_path }}
       python_version: ${{ inputs.python_version }}
