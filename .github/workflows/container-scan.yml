@@ -152,26 +152,26 @@ jobs:
       with:
         image: ${{ steps.build.outputs.full_image }}
         format: cyclonedx-json
-        output-file: sbom-${{ matrix.container.name }}.json
+        output-file: container-scan-results-sbom-${{ matrix.container.name }}.json
 
     - name: Upload SBOM Artifact
       if: steps.build.outputs.build_success == 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: sbom-${{ matrix.container.name }}
-        path: sbom-${{ matrix.container.name }}.json
+        name: container-scan-results-sbom-${{ matrix.container.name }}
+        path: container-scan-results-sbom-${{ matrix.container.name }}.json
 
     - name: Generate human-readable SBOM (table)
       if: steps.build.outputs.build_success == 'true'
       run: |
-        syft ${{ steps.build.outputs.full_image }} -o table > sbom-${{ matrix.container.name }}.txt
+        syft ${{ steps.build.outputs.full_image }} -o table > container-scan-results-sbom-${{ matrix.container.name }}.txt
 
     - name: Upload human-readable SBOM Artifact
       if: steps.build.outputs.build_success == 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: sbom-table-${{ matrix.container.name }}
-        path: sbom-${{ matrix.container.name }}.txt
+        name: container-scan-results-sbom-table-${{ matrix.container.name }}
+        path: container-scan-results-sbom-${{ matrix.container.name }}.txt
 
     - name: SBOM summary
       if: steps.build.outputs.build_success == 'true'

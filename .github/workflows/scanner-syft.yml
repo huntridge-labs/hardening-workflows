@@ -49,7 +49,7 @@ jobs:
       - name: Create SBOM Summary
         run: |
           echo "<details>" > sbom.md
-          echo "<summary>SBOM Details</summary>" >> sbom.md
+          echo "<summary>🔍 SBOM Details</summary>" >> sbom.md
           echo "" >> sbom.md
           echo "## 📦 SBOM Summary" >> sbom.md
           echo "" >> sbom.md
@@ -60,6 +60,7 @@ jobs:
           echo "" >> sbom.md
           echo "### Artifact Details" >> sbom.md
           echo "- Both SBOMs are attached as workflow artifacts under **sbom-artifacts-${{ github.run_id }}**." >> sbom.md
+          echo "- Container image SBOM artifacts are named **container-scan-results-sbom-image-name**" >> sbom.md
           echo "" >> sbom.md
           echo "You can view dependencies directly in \`sbom.table.txt\` or import the JSON into a CycloneDX viewer / Dependency-Track." >> sbom.md
           echo "</details>" >> sbom.md
