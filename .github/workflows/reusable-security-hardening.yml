@@ -357,7 +357,7 @@ jobs:
     name: SBOM Generator
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_sbom == 'true'
-    uses: ./.github/workflows/sbom.yml
+    uses: ./.github/workflows/scanner-syft.yml
     with:
       enable_code_security: ${{ inputs.enable_code_security }}
     permissions:

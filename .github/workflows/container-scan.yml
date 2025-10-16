@@ -146,6 +146,12 @@ jobs:
           echo "::warning title=Build Failed::Failed to build ${{ matrix.container.name }} - this may be expected for vulnerable test containers"
         fi
 
+    - name: Generate SBOM for built image
+      if: steps.build.outputs.build_success == 'true'
+      uses: ./.github/workflows/scanner-syft.yml
+      with:
+        image: ${{ steps.build.outputs.full_image }}
+
     - name: Run Trivy vulnerability scanner (SARIF)
       if: steps.build.outputs.build_success == 'true'
       uses: aquasecurity/trivy-action@master
