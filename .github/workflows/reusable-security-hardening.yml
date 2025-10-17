@@ -381,7 +381,7 @@ jobs:
     name: SBOM Generator
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_sbom == 'true'
-    uses: ./.github/workflows/scanner-syft.yml
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@2.2.0
     with:
       enable_code_security: ${{ inputs.enable_code_security }}
     permissions:
@@ -395,7 +395,7 @@ jobs:
     name: Trivy IaC Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_trivy_iac == 'true'
-    uses: ./.github/workflows/scanner-trivy-iac.yml
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@2.2.0
     with:
       iac_path: ${{ inputs.iac_path }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -411,7 +411,7 @@ jobs:
     name: Checkov Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_checkov == 'true'
-    uses: ./.github/workflows/scanner-checkov.yml
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@2.2.0
     with:
       iac_path: ${{ inputs.iac_path }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -427,7 +427,7 @@ jobs:
     name: Trivy Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_trivy_container == 'true'
-    uses: ./.github/workflows/scanner-trivy-container.yml
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@2.2.0
     with:
       image_ref: 'nginx:latest'
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -443,7 +443,7 @@ jobs:
     name: Grype Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_grype == 'true'
-    uses: ./.github/workflows/scanner-grype.yml
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@2.2.0
     with:
       image_ref: 'nginx:latest'
       post_pr_comment: ${{ inputs.post_pr_comment }}
