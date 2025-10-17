@@ -80,7 +80,7 @@ jobs:
       continue-on-error: true
 
     - name: Run Checkov Infrastructure Scan
-      uses: bridgecrewio/checkov-action@v12.2842.0
+      uses: bridgecrewio/checkov-action@v12.3065.0
       with:
         directory: ${{ inputs.iac_path }}
         framework: terraform
