@@ -178,9 +178,6 @@ jobs:
             grype)
               add_scanner grype
               ;;
-            sbom)
-              add_scanner sbom
-              ;;
             lint|linting|code-quality)
               add_scanner lint
               ;;
