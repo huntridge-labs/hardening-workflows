@@ -664,4 +664,3 @@ jobs:
 
             console.log('📋 Security hardening report is still available in workflow artifacts');
           }
-
