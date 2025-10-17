@@ -103,6 +103,7 @@ jobs:
           [grype]=false
           [lint]=false
           [sbom]=false
+          [sbom]=false
         )
 
         DEFAULT_SCANNERS=(codeql opengrep bandit gitleaks container infrastructure sbom)
@@ -176,6 +177,9 @@ jobs:
               ;;
             grype)
               add_scanner grype
+              ;;
+            sbom)
+              add_scanner sbom
               ;;
             lint|linting|code-quality)
               add_scanner lint
