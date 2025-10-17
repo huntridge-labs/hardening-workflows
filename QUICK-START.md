@@ -68,4 +68,43 @@ jobs:
       post_pr_comment: false
 ```
 
+## Individual scanner workflows
+
+Use standalone scanners for more granular control:
+
+### Infrastructure scanning
+
+```yaml
+name: iac-security
+on: [pull_request]
+
+jobs:
+  trivy-iac:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@main
+    with:
+      iac_path: 'infrastructure'
+      enable_code_security: true
+
+  checkov:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@main
+    with:
+      iac_path: 'infrastructure'
+```
+
+### Container scanning
+
+```yaml
+name: container-security
+on:
+  push:
+    branches: [main]
+
+jobs:
+  scan-image:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@main
+    with:
+      image_ref: 'myapp:${{ github.sha }}'
+      enable_code_security: true
+```
+
 More examples in the `examples/` directory. See `README.md` for the complete scanner reference.

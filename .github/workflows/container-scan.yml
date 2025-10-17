@@ -1,7 +1,7 @@
 name: Container Security Scanning
 
 on:
-  # Remove direct PR triggers since this workflow is called by security-hardening.yml
+  # Remove direct PR triggers since this workflow is called by reusable-security-hardening.yml
   # push:
   #   branches: [ main, develop ]
   #   paths:
@@ -13,7 +13,7 @@ on:
   #     - '**/Dockerfile*'
   #     - '.github/workflows/container-scan.yml'
   workflow_dispatch:  # Keep for manual testing
-  workflow_call:      # Keep for reusable workflow calls from security-hardening.yml
+  workflow_call:      # Keep for reusable workflow calls from reusable-security-hardening.yml
     inputs:
       post_pr_comment:
         description: 'Whether to post PR comments (disabled when called from other workflows)'
@@ -148,7 +148,7 @@ jobs:
 
     - name: Run Trivy vulnerability scanner (SARIF)
       if: steps.build.outputs.build_success == 'true'
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@0.33.1
       continue-on-error: true  # Never fail the pipeline
       with:
         image-ref: ${{ steps.build.outputs.full_image }}
@@ -157,7 +157,7 @@ jobs:
 
     - name: Run Trivy vulnerability scanner (JSON)
       if: steps.build.outputs.build_success == 'true'
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@0.33.1
       continue-on-error: true  # Never fail the pipeline
       with:
         image-ref: ${{ steps.build.outputs.full_image }}
@@ -166,7 +166,7 @@ jobs:
 
     - name: Run Trivy vulnerability scanner (Table)
       if: steps.build.outputs.build_success == 'true'
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@0.33.1
       continue-on-error: true  # Never fail the pipeline
       with:
         image-ref: ${{ steps.build.outputs.full_image }}
@@ -174,8 +174,8 @@ jobs:
         output: 'trivy-${{ matrix.container.name }}-results.txt'
 
     - name: Upload Trivy scan results to GitHub Security tab
-      if: inputs.enable_code_security == true && steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act' && hashFiles('trivy-${{ matrix.container.name }}-results.sarif') != ''
-      uses: github/codeql-action/upload-sarif@v3
+      if: inputs.enable_code_security == true && steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act'
+      uses: github/codeql-action/upload-sarif@v4
       continue-on-error: true  # Never fail the pipeline
       with:
         sarif_file: 'trivy-${{ matrix.container.name }}-results.sarif'
@@ -192,7 +192,7 @@ jobs:
 
     - name: Upload Grype scan results
       if: inputs.enable_code_security == true && steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act' && steps.grype-scan.outputs.sarif != ''
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       continue-on-error: true  # Never fail the pipeline
       with:
         sarif_file: ${{ steps.grype-scan.outputs.sarif }}
