@@ -18,7 +18,7 @@ jobs:
 
     steps:
       - name: Checkout PR
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref }}
@@ -30,7 +30,7 @@ jobs:
           git fetch --tags
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
@@ -132,7 +132,7 @@ jobs:
           retention-days: 7
 
       - name: Comment PR
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         continue-on-error: true
         with:
           script: |

@@ -1,0 +1,239 @@
+name: Grype Container Scanner
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_ref:
+        description: 'Container image reference to scan (e.g., nginx:latest or locally built image)'
+        required: true
+        type: string
+      enable_code_security:
+        description: 'Whether to upload SARIF to GitHub Security'
+        required: false
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      image_ref:
+        description: 'Container image reference to scan'
+        required: true
+        type: string
+      scan_name:
+        description: 'Name for the scan artifacts'
+        required: false
+        type: string
+        default: 'container'
+      enable_code_security:
+        description: 'Whether to upload SARIF to GitHub Security'
+        required: false
+        type: boolean
+        default: false
+      post_pr_comment:
+        description: 'Whether to post PR comments'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+
+jobs:
+  grype-container-scan:
+    name: Grype Container Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Validate image reference
+      id: validate
+      run: |
+        IMAGE_REF="${{ inputs.image_ref }}"
+        SCAN_NAME="${{ inputs.scan_name }}"
+
+        if [ -z "$IMAGE_REF" ]; then
+          echo "❌ Error: image_ref is required"
+          exit 1
+        fi
+
+        if [ -z "$SCAN_NAME" ]; then
+          SCAN_NAME="container"
+        fi
+
+        echo "image_ref=$IMAGE_REF" >> $GITHUB_OUTPUT
+        echo "scan_name=$SCAN_NAME" >> $GITHUB_OUTPUT
+        echo "✅ Scanning image: $IMAGE_REF"
+
+    - name: Run Grype vulnerability scanner
+      uses: anchore/scan-action@v7
+      id: grype-scan
+      continue-on-error: true
+      with:
+        image: ${{ steps.validate.outputs.image_ref }}
+        fail-build: false
+        output-format: sarif
+
+    - name: Save Grype SARIF output
+      if: steps.grype-scan.outputs.sarif != ''
+      run: |
+        SCAN_NAME="${{ steps.validate.outputs.scan_name }}"
+        echo "${{ steps.grype-scan.outputs.sarif }}" > "grype-$SCAN_NAME-results.sarif"
+      continue-on-error: true
+
+    - name: Run Grype for JSON output
+      uses: anchore/scan-action@v7
+      id: grype-json
+      continue-on-error: true
+      with:
+        image: ${{ steps.validate.outputs.image_ref }}
+        fail-build: false
+        output-format: json
+
+    - name: Save Grype JSON output
+      if: steps.grype-json.outputs.json != ''
+      run: |
+        SCAN_NAME="${{ steps.validate.outputs.scan_name }}"
+        echo "${{ steps.grype-json.outputs.json }}" > "grype-$SCAN_NAME-results.json"
+      continue-on-error: true
+
+    - name: Run Grype for table output
+      uses: anchore/scan-action@v7
+      id: grype-table
+      continue-on-error: true
+      with:
+        image: ${{ steps.validate.outputs.image_ref }}
+        fail-build: false
+        output-format: table
+
+    - name: Save Grype table output
+      if: always()
+      run: |
+        SCAN_NAME="${{ steps.validate.outputs.scan_name }}"
+        echo "${{ steps.grype-table.outputs.table }}" > "grype-$SCAN_NAME-results.txt"
+      continue-on-error: true
+
+    - name: Upload Grype scan results to GitHub Security tab
+      if: inputs.enable_code_security == true && github.actor != 'nektos/act'
+      uses: github/codeql-action/upload-sarif@v4
+      continue-on-error: true
+      with:
+        sarif_file: 'grype-${{ steps.validate.outputs.scan_name }}-results.sarif'
+        category: grype-container-${{ steps.validate.outputs.scan_name }}
+
+    - name: Analyze scan results
+      if: always()
+      run: |
+        SCAN_NAME="${{ steps.validate.outputs.scan_name }}"
+        JSON_FILE="grype-$SCAN_NAME-results.json"
+
+        echo "📊 Container Security Analysis for ${{ steps.validate.outputs.image_ref }}"
+        echo "========================================"
+
+        if [ ! -f "$JSON_FILE" ]; then
+          echo "⚠️  No Grype results found"
+          exit 0
+        fi
+
+        # Count vulnerabilities from Grype JSON
+        CRITICAL=$(jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+        HIGH=$(jq '[.matches[] | select(.vulnerability.severity == "High")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+        MEDIUM=$(jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+        LOW=$(jq '[.matches[] | select(.vulnerability.severity == "Low")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+        NEGLIGIBLE=$(jq '[.matches[] | select(.vulnerability.severity == "Negligible")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+
+        echo "🔍 Vulnerability Summary:"
+        echo "  Critical: $CRITICAL"
+        echo "  High: $HIGH"
+        echo "  Medium: $MEDIUM"
+        echo "  Low: $LOW"
+        echo "  Negligible: $NEGLIGIBLE"
+
+        TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW + NEGLIGIBLE))
+
+        if [ "$TOTAL" -gt 0 ]; then
+          echo "⚠️  Found $TOTAL total vulnerabilities"
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+            echo "::warning title=High Severity Vulnerabilities::Found $CRITICAL critical and $HIGH high severity vulnerabilities in ${{ steps.validate.outputs.image_ref }}"
+          fi
+        else
+          echo "✅ No vulnerabilities found"
+        fi
+
+        # Display sample of results if available
+        TXT_FILE="grype-$SCAN_NAME-results.txt"
+        if [ -f "$TXT_FILE" ]; then
+          echo ""
+          echo "📋 Sample Grype Results:"
+          head -20 "$TXT_FILE" || echo "Could not display results"
+        fi
+
+    - name: Upload Grype artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: grype-container-${{ steps.validate.outputs.scan_name }}-results
+        path: |
+          grype-${{ steps.validate.outputs.scan_name }}-results.*
+        retention-days: 30
+
+    - name: Generate scanner summary section
+      if: always()
+      run: |
+        mkdir -p scanner-summaries
+        SCAN_NAME="${{ steps.validate.outputs.scan_name }}"
+        JSON_FILE="grype-$SCAN_NAME-results.json"
+
+        echo "<details>" > scanner-summaries/grype-$SCAN_NAME.md
+        echo "<summary>⚓ Grype Container Scanner ($SCAN_NAME)</summary>" >> scanner-summaries/grype-$SCAN_NAME.md
+        echo "" >> scanner-summaries/grype-$SCAN_NAME.md
+
+        if [ -f "$JSON_FILE" ]; then
+          echo "**Status:** ✅ Completed" >> scanner-summaries/grype-$SCAN_NAME.md
+          echo "**Image:** \`${{ steps.validate.outputs.image_ref }}\`" >> scanner-summaries/grype-$SCAN_NAME.md
+          echo "" >> scanner-summaries/grype-$SCAN_NAME.md
+
+          CRITICAL=$(jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+          HIGH=$(jq '[.matches[] | select(.vulnerability.severity == "High")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+          MEDIUM=$(jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+          LOW=$(jq '[.matches[] | select(.vulnerability.severity == "Low")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+          NEGLIGIBLE=$(jq '[.matches[] | select(.vulnerability.severity == "Negligible")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+          TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW + NEGLIGIBLE))
+
+          echo "**Vulnerabilities Found:** $TOTAL" >> scanner-summaries/grype-$SCAN_NAME.md
+          echo "" >> scanner-summaries/grype-$SCAN_NAME.md
+
+          if [ $TOTAL -gt 0 ]; then
+            echo "| Severity | Count |" >> scanner-summaries/grype-$SCAN_NAME.md
+            echo "|----------|-------|" >> scanner-summaries/grype-$SCAN_NAME.md
+            [ $CRITICAL -gt 0 ] && echo "| 🔴 Critical | $CRITICAL |" >> scanner-summaries/grype-$SCAN_NAME.md
+            [ $HIGH -gt 0 ] && echo "| 🟠 High | $HIGH |" >> scanner-summaries/grype-$SCAN_NAME.md
+            [ $MEDIUM -gt 0 ] && echo "| 🟡 Medium | $MEDIUM |" >> scanner-summaries/grype-$SCAN_NAME.md
+            [ $LOW -gt 0 ] && echo "| 🔵 Low | $LOW |" >> scanner-summaries/grype-$SCAN_NAME.md
+            [ $NEGLIGIBLE -gt 0 ] && echo "| ⚪ Negligible | $NEGLIGIBLE |" >> scanner-summaries/grype-$SCAN_NAME.md
+            echo "" >> scanner-summaries/grype-$SCAN_NAME.md
+          fi
+
+          echo "**📁 Artifacts:** [Grype Results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/grype-$SCAN_NAME.md
+        else
+          echo "**Status:** ⚠️ No results generated" >> scanner-summaries/grype-$SCAN_NAME.md
+        fi
+
+        echo "" >> scanner-summaries/grype-$SCAN_NAME.md
+        echo "</details>" >> scanner-summaries/grype-$SCAN_NAME.md
+        echo "" >> scanner-summaries/grype-$SCAN_NAME.md
+      continue-on-error: true
+
+    - name: Upload scanner summary section
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scanner-summary-grype-${{ steps.validate.outputs.scan_name }}
+        path: scanner-summaries/grype-${{ steps.validate.outputs.scan_name }}.md
+        retention-days: 7
+      continue-on-error: true

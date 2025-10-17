@@ -1,19 +1,131 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for more information:
-# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+# Dependabot configuration for automated dependency updates
+# Groups updates by semantic version level (major, minor, patch) to reduce PR noise
+# See: https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
 
 version: 2
 updates:
- - package-ecosystem: "npm"
-   directory: "/"
-   schedule:
-     interval: weekly
- - package-ecosystem: "docker"
-   directory: "/docker"
-   schedule:
-     interval: weekly
- - package-ecosystem: "github-actions"
-   directory: "/"
-   schedule:
-     interval: weekly
+  # GitHub Actions - grouped by semantic version level
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+
+    # Group updates by semantic version level
+    groups:
+      # Major version updates (e.g., v1 -> v2)
+      # These require careful review as they may contain breaking changes
+      github-actions-major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+
+      # Minor version updates (e.g., v1.2 -> v1.3)
+      # New features, should be relatively safe but still reviewed
+      github-actions-minor:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+
+      # Patch version updates (e.g., v1.2.3 -> v1.2.4)
+      # Bug fixes and security patches, safest to update
+      github-actions-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+
+    # Commit message configuration
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+    # PR configuration
+    open-pull-requests-limit: 10
+
+    # Labels for PRs
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "automated"
+
+    # Allow Dependabot to rebase PRs
+    rebase-strategy: "auto"
+
+  # NPM dependencies - grouped by semantic version level
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+
+    groups:
+      npm-major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+      npm-minor:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+      npm-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+
+    commit-message:
+      prefix: "chore(deps)"
+
+    labels:
+      - "dependencies"
+      - "npm"
+      - "automated"
+
+    open-pull-requests-limit: 10
+    rebase-strategy: "auto"
+
+  # Docker dependencies - grouped by semantic version level
+  - package-ecosystem: "docker"
+    directory: "/docker"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+
+    groups:
+      docker-major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+      docker-minor:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+      docker-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+
+    commit-message:
+      prefix: "chore(deps)"
+
+    labels:
+      - "dependencies"
+      - "docker"
+      - "automated"
+
+    open-pull-requests-limit: 10
+    rebase-strategy: "auto"

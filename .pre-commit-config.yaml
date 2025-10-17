@@ -77,3 +77,9 @@ repos:
     hooks:
       - id: editorconfig-checker
         alias: ec
+  # renovate: datasource=github-tags depName=rhysd/actionlint versioning=semver
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.8
+    hooks:
+      - id: actionlint
+        args: [-shellcheck=, --config-file=.github/actionlint.yaml]  # Disable shellcheck to avoid false positives in GitHub Actions context

@@ -1,8 +1,6 @@
 name: Security Hardening (Reusable Demo)
 
 # This workflow demonstrates using our own reusable security workflow
-# It runs in parallel with our main security-hardening.yml to validate
-# that the reusable workflow produces identical results
 
 on:
   workflow_dispatch:
@@ -52,12 +50,12 @@ jobs:
         echo ""
         echo "This workflow demonstrates that our reusable security pipeline works correctly."
         echo ""
-        echo "📊 To compare with the main workflow:"
-        echo "1. Run the main 'Security Hardening Pipeline' workflow"
-        echo "2. Compare the artifacts and security reports"
-        echo "3. Verify both produce identical security findings"
-        echo ""
         echo "✅ If you can see this message, the reusable workflow executed successfully!"
         echo ""
-        echo "🔗 Main workflow: .github/workflows/security-hardening.yml"
         echo "🔗 Reusable workflow: .github/workflows/reusable-security-hardening.yml"
+        echo "🔗 Individual scanners: .github/workflows/scanner-*.yml"
+        echo ""
+        echo "📦 Available scanners:"
+        echo "  • SAST: codeql, opengrep, bandit, gitleaks"
+        echo "  • Container: trivy-container, grype"
+        echo "  • Infrastructure: trivy-iac, checkov"

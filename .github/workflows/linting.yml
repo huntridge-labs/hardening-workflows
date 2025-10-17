@@ -9,7 +9,7 @@ on:
       issues_found:
         description: "Number of issues found"
         value: ${{ jobs.linting-summary.outputs.issues_found }}
-  # Remove direct PR/push triggers since this workflow is called by security-hardening.yml
+  # Remove direct PR/push triggers since this workflow is called by reusable-security-hardening.yml
   # push:
   #   branches: [ main, develop ]
   # pull_request:
