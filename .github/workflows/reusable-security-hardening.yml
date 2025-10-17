@@ -345,7 +345,7 @@ jobs:
     name: Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_container == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@2.1.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@feat/generate-sbom  # TODO: Change to release version
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
