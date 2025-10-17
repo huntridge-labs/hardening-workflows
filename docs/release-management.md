@@ -18,6 +18,46 @@ The release system automatically:
 ### Prerequisites
 - **Node.js 22+** (required for release-it v19 and latest tooling)
 - **npm 10.8+**
+- **Release Bot Token** (required for automated releases)
+
+### Release Bot Token Setup
+
+Due to GitHub security restrictions, the automated release process requires a Personal Access Token (PAT) with workflow permissions to update workflow files during releases.
+
+#### Creating the Token
+
+1. **Create a fine-grained Personal Access Token:**
+   - Go to: https://github.com/settings/tokens?type=beta
+   - Click "Generate new token" (fine-grained)
+   - Name it: `release-bot` or `workflow-updater`
+   - Set expiration as appropriate for your security policy
+
+2. **Configure token permissions:**
+   - **Repository access**: Select "Only select repositories" → `huntridge-labs/hardening-workflows`
+   - **Repository permissions**:
+     - `Contents`: **Read and write** (to push commits and tags)
+     - `Workflows`: **Read and write** (to modify workflow files)
+     - `Metadata`: **Read** (automatically included)
+
+3. **Add token to repository:**
+   - Go to repository: Settings → Environments → `prod`
+   - Under "Environment secrets", click "Add secret"
+   - Name: `RELEASE_BOT_TOKEN`
+   - Value: Paste your token
+   - Click "Add secret"
+
+#### Why This Token Is Required
+
+The release process automatically updates version references in workflow files (`.github/workflows/reusable-security-hardening.yml`) to keep them in sync with the released version. GitHub's default `GITHUB_TOKEN` cannot modify workflow files for security reasons, so a dedicated token with workflow permissions is required.
+
+**Without this token:**
+- ❌ Release will fail with permission error
+- ❌ Workflow file versions will not be updated
+
+**With this token:**
+- ✅ Automated releases work seamlessly
+- ✅ All version references stay synchronized
+- ✅ Workflow files are automatically updated
 
 ### Main Configuration
 The release configuration is stored in `.release-it.json`:
@@ -221,11 +261,17 @@ The release workflow includes security checks:
 
 ## Troubleshooting
 
+### Release Failed with Workflow Permission Error
+**Error**: `refusing to allow a GitHub App to create or update workflow without 'workflows' permission`
+
+**Solution**: Ensure the `RELEASE_BOT_TOKEN` is properly configured in the `prod` environment secrets. See [Release Bot Token Setup](#release-bot-token-setup) above.
+
 ### Release Failed
 1. Check the GitHub Actions logs
 2. Ensure all tests pass
 3. Verify commit message format
 4. Check for merge conflicts
+5. Verify `RELEASE_BOT_TOKEN` is set in the `prod` environment
 
 ### Version Not Bumped
 - Ensure commits follow conventional format

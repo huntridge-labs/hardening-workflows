@@ -41,7 +41,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_BOT_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -64,14 +64,14 @@ jobs:
         if: github.event_name == 'push' || github.event.inputs.releaseType == 'auto'
         run: npm run release:ci
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || secrets.GITHUB_TOKEN }}
           HUSKY: 0
 
       - name: Release (Specific Type)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.releaseType != 'auto'
         run: npm run release:ci -- ${{ github.event.inputs.releaseType }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || secrets.GITHUB_TOKEN }}
           HUSKY: 0
 
   dry-run:
