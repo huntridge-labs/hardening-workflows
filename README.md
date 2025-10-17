@@ -21,7 +21,7 @@ on: [push, pull_request]
 
 jobs:
   hardening:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.1.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.2.0
     with:
       scanners: all
       python_version: '3.12'
@@ -85,7 +85,7 @@ jobs:
   security:
     needs: linting
     if: always()
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.1.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.2.0
     with:
       scanners: all
 ```
