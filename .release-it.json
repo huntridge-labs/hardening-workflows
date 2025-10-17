@@ -94,6 +94,16 @@
             "flags": "g"
           },
           "replace": "reusable-security-hardening.yml@{{version}}"
+        },
+        {
+          "files": [
+            ".github/workflows/reusable-security-hardening.yml"
+          ],
+          "search": {
+            "pattern": "@\\d+\\.\\d+\\.\\d+",
+            "flags": "g"
+          },
+          "replace": "@{{version}}"
         }
       ]
     }

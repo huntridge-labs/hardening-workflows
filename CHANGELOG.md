@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.1.1](https://github.com/huntridge-labs/hardening-workflows/compare/2.1.0...2.1.1) (2025-10-16)
+
+### Bug Fixes
+
+* use absolute workflow paths in reusable workflow ([4a7b57e](https://github.com/huntridge-labs/hardening-workflows/commit/4a7b57eb48a6b431c1f4b4b40a901bf47a072dd9)), closes [#34](https://github.com/huntridge-labs/hardening-workflows/issues/34)
+
 ## [2.1.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.0.0...2.1.0) (2025-10-12)
 
 ### Features
