@@ -65,7 +65,7 @@ jobs:
 
     - name: Run Checkov Infrastructure Scan
       if: steps.validate.outputs.has_iac == 'true'
-      uses: bridgecrewio/checkov-action@v12.2842.0
+      uses: bridgecrewio/checkov-action@v12.3065.0
       with:
         directory: ${{ steps.validate.outputs.iac_path }}
         framework: ${{ inputs.framework }}

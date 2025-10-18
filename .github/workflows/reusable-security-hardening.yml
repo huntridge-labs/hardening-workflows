@@ -80,6 +80,7 @@ jobs:
       run_gitleaks: ${{ steps.resolve.outputs.run_gitleaks }}
       run_container: ${{ steps.resolve.outputs.run_container }}
       run_infrastructure: ${{ steps.resolve.outputs.run_infrastructure }}
+      run_sbom: ${{ steps.resolve.outputs.run_sbom }}
       run_trivy_iac: ${{ steps.resolve.outputs.run_trivy_iac }}
       run_checkov: ${{ steps.resolve.outputs.run_checkov }}
       run_trivy_container: ${{ steps.resolve.outputs.run_trivy_container }}
@@ -108,9 +109,10 @@ jobs:
           [grype]=false
           [lint]=false
           [clamav]=false
+          [sbom]=false
         )
 
-        DEFAULT_SCANNERS=(codeql opengrep bandit gitleaks container infrastructure)
+        DEFAULT_SCANNERS=(codeql opengrep bandit gitleaks container infrastructure sbom)
         SELECTED=()
 
         normalize() {
@@ -166,6 +168,9 @@ jobs:
               ;;
             infrastructure|infra|iac|terraform)
               add_scanner infrastructure
+              ;;
+            sbom)
+              add_scanner sbom
               ;;
             trivy-iac|trivyiac)
               add_scanner trivy-iac
@@ -279,7 +284,7 @@ jobs:
     name: Code Quality & Linting
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_lint == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@2.1.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@2.3.1
     permissions:
       contents: read
       pull-requests: write
@@ -289,7 +294,7 @@ jobs:
     name: CodeQL Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_codeql == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@2.1.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@2.3.1
     with:
       codeql_languages: ${{ inputs.codeql_languages }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -305,7 +310,7 @@ jobs:
     name: OpenGrep Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_opengrep == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@2.1.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@2.3.1
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -320,7 +325,7 @@ jobs:
     name: Bandit Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_bandit == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@2.1.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@2.3.1
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -335,7 +340,7 @@ jobs:
     name: Gitleaks Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_gitleaks == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@2.1.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@2.3.1
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -366,7 +371,7 @@ jobs:
     name: Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_container == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@2.1.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@2.3.1
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -381,7 +386,7 @@ jobs:
     name: Infrastructure Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_infrastructure == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/infrastructure.yml@2.1.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/infrastructure.yml@2.3.1
     with:
       iac_path: ${{ inputs.iac_path }}
       python_version: ${{ inputs.python_version }}
@@ -394,11 +399,25 @@ jobs:
       pull-requests: write
     secrets: inherit
 
+  scanner-sbom:
+    name: SBOM Generator
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.run_sbom == 'true'
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@2.3.1
+    with:
+      enable_code_security: ${{ inputs.enable_code_security }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+    secrets: inherit
+
   scanner-trivy-iac:
     name: Trivy IaC Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_trivy_iac == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@feat/clamav  # TODO: update version tag
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@2.3.1
     with:
       iac_path: ${{ inputs.iac_path }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -414,7 +433,7 @@ jobs:
     name: Checkov Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_checkov == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@feat/clamav  # TODO: update version tag
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@2.3.1
     with:
       iac_path: ${{ inputs.iac_path }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -430,7 +449,7 @@ jobs:
     name: Trivy Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_trivy_container == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@feat/clamav  # TODO: update version tag
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@2.3.1
     with:
       image_ref: 'nginx:latest'
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -446,7 +465,7 @@ jobs:
     name: Grype Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_grype == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@feat/clamav  # TODO: update version tag
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@2.3.1
     with:
       image_ref: 'nginx:latest'
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -471,6 +490,7 @@ jobs:
       - scanner-clamav
       - scanner-container
       - scanner-infrastructure
+      - scanner-sbom
       - scanner-trivy-iac
       - scanner-checkov
       - scanner-trivy-container
@@ -562,6 +582,13 @@ jobs:
         pattern: '*lint*'
       continue-on-error: true
 
+    - name: Download SBOM artifacts
+      if: needs.scan-coordinator.outputs.run_sbom == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: sbom-*
+      continue-on-error: true
+
     - name: Download all scanner summaries
       uses: actions/download-artifact@v5
       with:
@@ -586,7 +613,7 @@ jobs:
         echo ""
 
         # Combine all scanner summaries in a specific order
-        for scanner in codeql opengrep bandit gitleaks container infrastructure trivy-iac checkov trivy-container grype; do
+        for scanner in codeql opengrep bandit gitleaks container infrastructure sbom trivy-iac checkov trivy-container grype; do
           if [ -f "${scanner}.md" ]; then
             echo "✅ Adding ${scanner} summary..."
             cat "${scanner}.md" >> security-hardening-report.md

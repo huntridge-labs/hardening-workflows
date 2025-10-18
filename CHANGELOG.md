@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.3.1](https://github.com/huntridge-labs/hardening-workflows/compare/2.3.0...2.3.1) (2025-10-18)
+
+## [2.3.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.2.0...2.3.0) (2025-10-18)
+
+### Features
+
+* Add SBOM generation to hardening pipeline ([e5a0344](https://github.com/huntridge-labs/hardening-workflows/commit/e5a03444c3b76dbf797f131d0ef0dc0bc34f54cd))
+
+### Bug Fixes
+
+* Update conditions for release and dry-run jobs in workflow ([afa1462](https://github.com/huntridge-labs/hardening-workflows/commit/afa1462e7b71a0b6435fddfbc0d76c6604e22186))
+
+## [2.2.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.1.1...2.2.0) (2025-10-17)
+
+### Features
+
+* **scanners:** extract individual scanner workflows for modular usage ([b86f74f](https://github.com/huntridge-labs/hardening-workflows/commit/b86f74fca6006814a52d8703c165326d6d0509fa))
+
+### Bug Fixes
+
+* **release-it:** reusable workflow versions not updating ([3512942](https://github.com/huntridge-labs/hardening-workflows/commit/351294269239c7f8844c3fdf8a2df1e0f63a8be0))
+* **release:** update GITHUB_TOKEN usage to support RELEASE_BOT_TOKEN for automated releases ([eb6aeda](https://github.com/huntridge-labs/hardening-workflows/commit/eb6aeda2427e20e44e6e2bc78661fe0c7e6568b8))
+
+### Code Refactoring
+
+* deprecate legacy workflows ([f813c55](https://github.com/huntridge-labs/hardening-workflows/commit/f813c5506cfefbc2278f7a37a41b647a7b08be79))
+* update Trivy and Checkov actions to use pinned versions ([15a0e6e](https://github.com/huntridge-labs/hardening-workflows/commit/15a0e6efbf9cc180f2c3f213f42a92204e880617))
+
+### Continuous Integration
+
+* **deps:** organize Dependabot PRs by level ([09e1ff0](https://github.com/huntridge-labs/hardening-workflows/commit/09e1ff0d9764d769198bed0fd3820490dc0ab37e))
+
 ## [2.1.1](https://github.com/huntridge-labs/hardening-workflows/compare/2.1.0...2.1.1) (2025-10-16)
 
 ### Bug Fixes

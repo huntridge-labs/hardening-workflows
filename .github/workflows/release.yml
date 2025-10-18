@@ -34,17 +34,17 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.dryRun != 'true')
+    if: (github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(release):')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.dryRun != 'true')
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_BOT_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
@@ -64,14 +64,14 @@ jobs:
         if: github.event_name == 'push' || github.event.inputs.releaseType == 'auto'
         run: npm run release:ci
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || secrets.GITHUB_TOKEN }}
           HUSKY: 0
 
       - name: Release (Specific Type)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.releaseType != 'auto'
         run: npm run release:ci -- ${{ github.event.inputs.releaseType }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || secrets.GITHUB_TOKEN }}
           HUSKY: 0
 
   dry-run:
@@ -79,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    if: github.event_name == 'push' || github.event.inputs.dryRun == 'true'
+    if: (github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(release):')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.dryRun == 'true')
 
     steps:
       - name: Checkout
@@ -89,7 +89,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
