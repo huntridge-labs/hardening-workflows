@@ -8,7 +8,7 @@ One reusable GitHub Actions workflow, many scanners. Pick the components you nee
 
 **Available scanners:**
 - **SAST:** `codeql`, `opengrep`, `bandit`, `gitleaks`
-- **Container:** `container`, `trivy-container`, `grype`
+- **Container:** `container`, `trivy-container`, `grype`, `sbom`
 - **Infrastructure:** `infrastructure`, `trivy-iac`, `checkov`
 - **Linting:** `lint`
 
@@ -40,7 +40,7 @@ jobs:
 - **Single scanner:** `scanners: opengrep`
 - **SAST only:** `scanners: codeql,opengrep,bandit,gitleaks`
 - **Infrastructure only:** `scanners: trivy-iac,checkov`
-- **Container only:** `scanners: trivy-container,grype`
+- **Container only:** `scanners: trivy-container,grype,sbom`
 - **Focused mix:** `scanners: container,infrastructure,gitleaks`
 
 ### Inputs at a glance
@@ -131,6 +131,12 @@ jobs:
     uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@main
     with:
       image_ref: 'myapp:latest'
+
+  sbom:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@main
+    with:
+      scan-path: 'some/dirOrFile/path'
+      scan-image: 'myapp:latest' 
 ```
 
 ### SAST scanning
