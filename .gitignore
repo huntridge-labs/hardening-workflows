@@ -26,6 +26,7 @@ __pycache__/
 .Python
 *.so
 .coverage
+coverage.xml
 .pytest_cache/
 *.egg-info/
 dist/
