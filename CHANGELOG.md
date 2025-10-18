@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.3.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.2.0...2.3.0) (2025-10-18)
+
+### Features
+
+* Add SBOM generation to hardening pipeline ([e5a0344](https://github.com/huntridge-labs/hardening-workflows/commit/e5a03444c3b76dbf797f131d0ef0dc0bc34f54cd))
+
+### Bug Fixes
+
+* Update conditions for release and dry-run jobs in workflow ([afa1462](https://github.com/huntridge-labs/hardening-workflows/commit/afa1462e7b71a0b6435fddfbc0d76c6604e22186))
+
 ## [2.2.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.1.1...2.2.0) (2025-10-17)
 
 ### Features
