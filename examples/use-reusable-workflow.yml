@@ -28,7 +28,7 @@ on:  # yamllint disable-line rule:truthy
 jobs:
   security-hardening:
     name: Security Hardening
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.3.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.3.1
     with:
       scanners: ${{ github.event.inputs.scanners || 'all' }}
       python_version: '3.11'
