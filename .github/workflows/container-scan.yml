@@ -148,7 +148,7 @@ jobs:
 
     - name: Generate SBOM for built image (Syft)
       if: steps.build.outputs.build_success == 'true'
-      uses: anchore/sbom-action@v0.16.0
+      uses: anchore/sbom-action@v0.20.8
       with:
         image: ${{ steps.build.outputs.full_image }}
         format: cyclonedx-json
