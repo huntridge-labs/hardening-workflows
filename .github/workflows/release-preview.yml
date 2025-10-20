@@ -20,8 +20,10 @@ jobs:
       - name: Checkout PR
         uses: actions/checkout@v5
         with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-tags: true
 
       - name: Fetch base branch for comparison
@@ -132,6 +134,7 @@ jobs:
           retention-days: 7
 
       - name: Comment PR
+        if: success() && github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v8
         continue-on-error: true
         with:

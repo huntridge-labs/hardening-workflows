@@ -136,7 +136,7 @@ jobs:
     uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@main
     with:
       scan-path: 'some/dirOrFile/path'
-      scan-image: 'myapp:latest' 
+      scan-image: 'myapp:latest'
 ```
 
 ### SAST scanning
