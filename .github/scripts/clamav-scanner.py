@@ -330,34 +330,58 @@ class ClamAVScanner:
         error_files = 0
 
         dir_path = dir_path.resolve()
+        base_path = base_path or dir_path
         exclude_paths_resolved = [p.resolve() for p in (exclude_paths or [])]
 
-        for file_path in dir_path.rglob('*'):
-            # Skip excluded directories/patterns
-            if self._should_exclude(file_path, base_path or dir_path):
-                continue
+        # Use a manual recursive approach with early exclusion for better performance
+        files_scanned = 0
 
-            # Skip excluded paths
-            skip = False
-            for exclude_path in exclude_paths_resolved:
-                try:
-                    file_path.relative_to(exclude_path)
-                    skip = True
-                    break
-                except ValueError:
-                    continue
+        def scan_recursive(current_dir: Path):
+            """Recursively scan directory with early exclusion checks."""
+            nonlocal files_scanned
+            try:
+                for item in current_dir.iterdir():
+                    # Skip excluded paths
+                    if self._should_exclude(item, base_path):
+                        logger.debug("Skipping excluded: %s", item)
+                        continue
 
-            if skip:
-                continue
+                    # Check if item is in excluded paths
+                    skip = False
+                    for exclude_path in exclude_paths_resolved:
+                        try:
+                            item.relative_to(exclude_path)
+                            skip = True
+                            break
+                        except ValueError:
+                            continue
 
-            if file_path.is_file():
-                result = self.scan_file(file_path)
-                results.append(result)
+                    if skip:
+                        continue
 
-                if result['status'] == 'infected':
-                    infected_files += 1
-                elif result['status'] == 'error':
-                    error_files += 1
+                    if item.is_file():
+                        files_scanned += 1
+                        if files_scanned % 100 == 0:
+                            logger.info("Scanned %d files so far...", files_scanned)
+
+                        result = self.scan_file(item)
+                        results.append(result)
+
+                        if result['status'] == 'infected':
+                            nonlocal infected_files
+                            infected_files += 1
+                        elif result['status'] == 'error':
+                            nonlocal error_files
+                            error_files += 1
+                    elif item.is_dir():
+                        # Recursively scan subdirectory
+                        scan_recursive(item)
+            except PermissionError:
+                logger.warning("Permission denied: %s", current_dir)
+            except OSError as e:
+                logger.warning("Error accessing directory %s: %s", current_dir, e)
+
+        scan_recursive(dir_path)
 
         return {
             'total_files': len(results),
