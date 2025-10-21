@@ -7,8 +7,6 @@ for malware detection. It supports various archive formats and provides detailed
 reporting of scan results.
 """
 
-import os
-import sys
 import json
 import shutil
 import logging
@@ -233,16 +231,23 @@ class ClamAVScanner:
                 return line.split(':')[1].strip() if ':' in line else line.strip()
         return 'Unknown infection'
 
-def main(input_paths: List[str], output_dir: str):
+def main(input_paths: List[str], output_dir: str, json_report: str = None, text_report: str = None):
     """
     Main function to extract archives and scan files with ClamAV.
 
     Args:
         input_paths (List[str]): List of input file or directory paths.
         output_dir (str): Output directory for extracted files.
+        json_report (str): Path to save JSON report.
+        text_report (str): Path to save text report.
     """
     extractor = ArchiveExtractor(output_dir)
     scanner = ClamAVScanner()
+
+    all_scan_results = []
+    total_scanned = 0
+    total_infected = 0
+    total_errors = 0
 
     for input_path in input_paths:
         path = Path(input_path)
@@ -256,6 +261,11 @@ def main(input_paths: List[str], output_dir: str):
                 logger.info("Scan completed: %d files scanned, %d infected, %d errors",
                             scan_results['total_files'], scan_results['infected_files'], scan_results['error_files'])
 
+                all_scan_results.extend(scan_results['results'])
+                total_scanned += scan_results['total_files']
+                total_infected += scan_results['infected_files']
+                total_errors += scan_results['error_files']
+
                 # Log infections
                 for result in scan_results['results']:
                     if result['status'] == 'infected':
@@ -265,10 +275,55 @@ def main(input_paths: List[str], output_dir: str):
         else:
             logger.warning("Path does not exist: %s", path)
 
+    # Save JSON report if requested
+    if json_report:
+        json_data = {
+            'total_files': total_scanned,
+            'infected_files': total_infected,
+            'error_files': total_errors,
+            'results': all_scan_results
+        }
+        json_path = Path(json_report)
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(json_data, f, indent=2)
+        logger.info("JSON report saved to %s", json_report)
+
+    # Save text report if requested
+    if text_report:
+        text_path = Path(text_report)
+        text_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(text_path, 'w', encoding='utf-8') as f:
+            f.write("ClamAV Malware Scan Report\n")
+            f.write("=" * 60 + "\n\n")
+            f.write(f"Total files scanned: {total_scanned}\n")
+            f.write(f"Infected files: {total_infected}\n")
+            f.write(f"Errors: {total_errors}\n\n")
+
+            if total_infected > 0:
+                f.write("Infected Files:\n")
+                f.write("-" * 60 + "\n")
+                for result in all_scan_results:
+                    if result['status'] == 'infected':
+                        f.write(f"File: {result['file']}\n")
+                        f.write(f"Infection: {result.get('infection', 'Unknown')}\n\n")
+
+            if total_errors > 0:
+                f.write("\nErrors:\n")
+                f.write("-" * 60 + "\n")
+                for result in all_scan_results:
+                    if result['status'] == 'error':
+                        f.write(f"File: {result['file']}\n")
+                        f.write(f"Error: {result.get('error', 'Unknown')}\n\n")
+
+        logger.info("Text report saved to %s", text_report)
+
 if __name__ == "__main__":
     parser = ArgumentParser(description="ClamAV Malware Scanner with Archive Extraction")
     parser.add_argument('input_paths', nargs='+', help="Input file or directory paths")
     parser.add_argument('--output_dir', help="Output directory for extracted files")
+    parser.add_argument('--json-report', dest='json_report', help="Path to save JSON report")
+    parser.add_argument('--text-report', dest='text_report', help="Path to save text report")
     args = parser.parse_args()
 
-    main(args.input_paths, args.output_dir)
+    main(args.input_paths, args.output_dir, args.json_report, args.text_report)

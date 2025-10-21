@@ -37,6 +37,16 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v5
 
+    - name: Checkout hardening-workflows for scripts
+      uses: actions/checkout@v5
+      with:
+        repository: huntridge-labs/hardening-workflows
+        # TODO: Update release-it config to set this ref appropriately
+        ref: feat/clamav
+        path: .hardening-workflows
+        sparse-checkout: |
+          .github/scripts/clamav-scanner.py
+
     - name: Install ClamAV
       run: |
         echo "🔧 Installing ClamAV..."
@@ -62,8 +72,8 @@ jobs:
         echo "🔍 Running ClamAV malware analysis..."
         mkdir -p clamav-reports
 
-        # Run the ClamAV scanner script
-        python .github/scripts/clamav-scanner.py "${{ inputs.scan_path }}" \
+        # Run the ClamAV scanner script from hardening-workflows
+        python .hardening-workflows/.github/scripts/clamav-scanner.py "${{ inputs.scan_path }}" \
           --json-report clamav-reports/clamav-report.json \
           --text-report clamav-reports/clamav-report.txt
 
