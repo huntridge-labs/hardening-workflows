@@ -100,10 +100,10 @@
             ".github/workflows/reusable-security-hardening.yml"
           ],
           "search": {
-            "pattern": "@\\d+\\.\\d+\\.\\d+",
+            "pattern": "\\.yml@[^\\s]+",
             "flags": "g"
           },
-          "replace": "@{{version}}"
+          "replace": ".yml@{{version}}"
         }
       ]
     }

@@ -355,7 +355,7 @@ jobs:
     name: ClamAV Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_clamav == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-clamav.yml@feat/clamav  # TODO: update version tag
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-clamav.yml@feat/clamav
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -663,7 +663,7 @@ jobs:
         echo "## 📋 Next Steps" >> security-hardening-report.md
         echo "1. Review the detailed scanner results in the collapsible sections above" >> security-hardening-report.md
         echo "2. Download and review security reports from workflow artifacts" >> security-hardening-report.md
-        echo "3. Address any critical or high-severity findings" >> security-hardening_report.md
+        echo "3. Address any critical or high-severity findings" >> security-hardening-report.md
         echo "4. Consider enabling automated dependency updates" >> security-hardening-report.md
 
     - name: Capture job run id
