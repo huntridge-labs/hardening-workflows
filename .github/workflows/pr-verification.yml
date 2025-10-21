@@ -11,6 +11,65 @@ permissions:
   checks: write
 
 jobs:
+  # Detect which scanner workflows have changed
+  detect-changes:
+    name: Detect Changed Scanners
+    runs-on: ubuntu-latest
+    outputs:
+      scanner_codeql: ${{ steps.filter.outputs.scanner_codeql }}
+      scanner_opengrep: ${{ steps.filter.outputs.scanner_opengrep }}
+      scanner_bandit: ${{ steps.filter.outputs.scanner_bandit }}
+      scanner_gitleaks: ${{ steps.filter.outputs.scanner_gitleaks }}
+      scanner_syft: ${{ steps.filter.outputs.scanner_syft }}
+      scanner_trivy_iac: ${{ steps.filter.outputs.scanner_trivy_iac }}
+      scanner_checkov: ${{ steps.filter.outputs.scanner_checkov }}
+      scanner_trivy_container: ${{ steps.filter.outputs.scanner_trivy_container }}
+      scanner_grype: ${{ steps.filter.outputs.scanner_grype }}
+      reusable_workflow: ${{ steps.filter.outputs.reusable_workflow }}
+      any_scanner: ${{ steps.filter.outputs.any_scanner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            scanner_codeql:
+              - '.github/workflows/scanner-codeql.yml'
+            scanner_opengrep:
+              - '.github/workflows/scanner-opengrep.yml'
+            scanner_bandit:
+              - '.github/workflows/scanner-bandit.yml'
+            scanner_gitleaks:
+              - '.github/workflows/scanner-gitleaks.yml'
+            scanner_syft:
+              - '.github/workflows/scanner-syft.yml'
+            scanner_trivy_iac:
+              - '.github/workflows/scanner-trivy-iac.yml'
+            scanner_checkov:
+              - '.github/workflows/scanner-checkov.yml'
+            scanner_trivy_container:
+              - '.github/workflows/scanner-trivy-container.yml'
+            scanner_grype:
+              - '.github/workflows/scanner-grype.yml'
+            reusable_workflow:
+              - '.github/workflows/reusable-security-hardening.yml'
+              - '.github/workflows/pr-reusable-security-hardening.yml'
+            any_scanner:
+              - '.github/workflows/scanner-*.yml'
+
+  # Validate PR and production reusable workflows stay in sync
+  validate-workflow-sync:
+    name: Validate Workflow Sync
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.reusable_workflow == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check workflows are in sync
+        run: .github/scripts/validate-reusable-workflow-sync.sh
+
   # Run code quality checks once for all tests
   code-quality:
     name: Code Quality & Linting
@@ -410,17 +469,22 @@ jobs:
 
         echo "✅ Scanners input validation test '${{ matrix.test.name }}' passed"
 
-  # Integration test - run the reusable workflow as it's meant to be used
-  # This tests the full end-to-end flow including summary generation
+  # Test individual scanners directly with relative paths to verify branch changes
+  # These only run if the corresponding scanner workflow was modified
+  # Note: Using pr-reusable-security-hardening.yml which tests ALL scanners with branch versions
+
+  # Integration test - run the PR testing version of reusable workflow
+  # This uses relative paths for ALL scanner workflows to test branch changes
   integration-test-full-scan:
-    name: Integration Test - Full Security Scan
-    needs: [code-quality, test-scanner-resolution, test-scanners-input-validation]
-    uses: ./.github/workflows/reusable-security-hardening.yml
+    name: Integration Test - Full Scan (Branch Versions)
+    needs: [detect-changes, code-quality, test-scanner-resolution, test-scanners-input-validation]
+    if: needs.detect-changes.outputs.any_scanner == 'true' || needs.detect-changes.outputs.reusable_workflow == 'true'
+    uses: ./.github/workflows/pr-reusable-security-hardening.yml
     with:
-      scanners: 'sast,container,infrastructure,sbom'  # Common realistic use case
+      scanners: 'all'  # Test all scanners with branch versions
       codeql_languages: 'python,javascript'
       enable_code_security: true
-      post_pr_comment: true  # Test PR comment generation
+      post_pr_comment: true
     permissions:
       contents: read
       security-events: write
@@ -435,6 +499,7 @@ jobs:
     name: PR Verification Summary
     runs-on: ubuntu-latest
     needs: [
+      detect-changes,
       code-quality,
       test-scanner-resolution,
       test-scanners-input-validation,
@@ -450,12 +515,65 @@ jobs:
         echo "Testing reusable security hardening workflow..." >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
+        # Show which scanners were changed and tested
+        echo "## 📦 Changed Scanners Detected" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        CHANGED_COUNT=0
+        if [ "${{ needs.detect-changes.outputs.scanner_codeql }}" = "true" ]; then
+          echo "- ✏️ **CodeQL** scanner modified (tested with branch version)" >> $GITHUB_STEP_SUMMARY
+          CHANGED_COUNT=$((CHANGED_COUNT + 1))
+        fi
+        if [ "${{ needs.detect-changes.outputs.scanner_opengrep }}" = "true" ]; then
+          echo "- ✏️ **Opengrep** scanner modified (tested with branch version)" >> $GITHUB_STEP_SUMMARY
+          CHANGED_COUNT=$((CHANGED_COUNT + 1))
+        fi
+        if [ "${{ needs.detect-changes.outputs.scanner_bandit }}" = "true" ]; then
+          echo "- ✏️ **Bandit** scanner modified (tested with branch version)" >> $GITHUB_STEP_SUMMARY
+          CHANGED_COUNT=$((CHANGED_COUNT + 1))
+        fi
+        if [ "${{ needs.detect-changes.outputs.scanner_gitleaks }}" = "true" ]; then
+          echo "- ✏️ **Gitleaks** scanner modified (tested with branch version)" >> $GITHUB_STEP_SUMMARY
+          CHANGED_COUNT=$((CHANGED_COUNT + 1))
+        fi
+        if [ "${{ needs.detect-changes.outputs.scanner_syft }}" = "true" ]; then
+          echo "- ✏️ **Syft** scanner modified (tested with branch version)" >> $GITHUB_STEP_SUMMARY
+          CHANGED_COUNT=$((CHANGED_COUNT + 1))
+        fi
+        if [ "${{ needs.detect-changes.outputs.scanner_trivy_iac }}" = "true" ]; then
+          echo "- ✏️ **Trivy IaC** scanner modified (tested with branch version)" >> $GITHUB_STEP_SUMMARY
+          CHANGED_COUNT=$((CHANGED_COUNT + 1))
+        fi
+        if [ "${{ needs.detect-changes.outputs.scanner_checkov }}" = "true" ]; then
+          echo "- ✏️ **Checkov** scanner modified (tested with branch version)" >> $GITHUB_STEP_SUMMARY
+          CHANGED_COUNT=$((CHANGED_COUNT + 1))
+        fi
+        if [ "${{ needs.detect-changes.outputs.scanner_trivy_container }}" = "true" ]; then
+          echo "- ✏️ **Trivy Container** scanner modified (tested with branch version)" >> $GITHUB_STEP_SUMMARY
+          CHANGED_COUNT=$((CHANGED_COUNT + 1))
+        fi
+        if [ "${{ needs.detect-changes.outputs.scanner_grype }}" = "true" ]; then
+          echo "- ✏️ **Grype** scanner modified (tested with branch version)" >> $GITHUB_STEP_SUMMARY
+          CHANGED_COUNT=$((CHANGED_COUNT + 1))
+        fi
+        if [ "${{ needs.detect-changes.outputs.reusable_workflow }}" = "true" ]; then
+          echo "- ✏️ **Reusable workflow** modified" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [ "$CHANGED_COUNT" -eq 0 ]; then
+          echo "_No scanner workflows modified in this PR_" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+
         # Check each test result
         LINTING="${{ needs.code-quality.result }}"
         SCANNER_RESOLUTION="${{ needs.test-scanner-resolution.result }}"
         INPUT_VALIDATION="${{ needs.test-scanners-input-validation.result }}"
         INTEGRATION_FULL="${{ needs.integration-test-full-scan.result }}"
 
+        echo "## 📊 Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Test | Result |" >> $GITHUB_STEP_SUMMARY
         echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
 
@@ -477,30 +595,41 @@ jobs:
           echo "| ❌ Scanners Input Validation (4 edge cases) | Failed |" >> $GITHUB_STEP_SUMMARY
         fi
 
-        if [ "$INTEGRATION_FULL" = "success" ]; then
-          echo "| ✅ Integration Test - Full Scan (SAST + Container + Infrastructure) | Passed |" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "| ❌ Integration Test - Full Scan (SAST + Container + Infrastructure) | Failed |" >> $GITHUB_STEP_SUMMARY
+        # Integration test - tests ALL scanners with branch versions
+        if [ "${{ needs.detect-changes.outputs.any_scanner }}" = "true" ] || [ "${{ needs.detect-changes.outputs.reusable_workflow }}" = "true" ]; then
+          RESULT="${{ needs.integration-test-full-scan.result }}"
+          if [ "$RESULT" = "success" ]; then
+            echo "| ✅ Integration Test - All Scanners (Branch Versions) | Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [ "$RESULT" = "skipped" ]; then
+            echo "| ⏭️  Integration Test - All Scanners | Skipped (no changes) |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| ❌ Integration Test - All Scanners (Branch Versions) | $RESULT |" >> $GITHUB_STEP_SUMMARY
+          fi
         fi
 
         echo "" >> $GITHUB_STEP_SUMMARY
 
-        # Calculate pass rate
-        TOTAL=4
+        # Calculate pass rate (core tests only - scanner tests are conditional)
+        TOTAL=3
         PASSED=0
         [ "$LINTING" = "success" ] && PASSED=$((PASSED + 1))
         [ "$SCANNER_RESOLUTION" = "success" ] && PASSED=$((PASSED + 1))
         [ "$INPUT_VALIDATION" = "success" ] && PASSED=$((PASSED + 1))
-        [ "$INTEGRATION_FULL" = "success" ] && PASSED=$((PASSED + 1))
 
-        echo "## Summary" >> $GITHUB_STEP_SUMMARY
-        echo "**$PASSED of $TOTAL test suites passed**" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 📝 Summary" >> $GITHUB_STEP_SUMMARY
+        echo "**$PASSED of $TOTAL core test suites passed**" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Test Coverage:" >> $GITHUB_STEP_SUMMARY
-        echo "- **Code Quality & Linting**: Validates code style and quality" >> $GITHUB_STEP_SUMMARY
-        echo "- **Scanner Resolution Logic**: 6 test scenarios validating scanner selection" >> $GITHUB_STEP_SUMMARY
-        echo "- **Input Validation**: 4 edge cases (case sensitivity, whitespace, duplicates, unknowns)" >> $GITHUB_STEP_SUMMARY
-        echo "- **Full Integration Test**: End-to-end test with SAST, Container, and Infrastructure scanners + PR comment" >> $GITHUB_STEP_SUMMARY
+        echo "- **Code Quality & Linting**: Validates code style and quality (always runs)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Scanner Resolution Logic**: 6 test scenarios validating scanner selection (always runs)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Input Validation**: 4 edge cases - case sensitivity, whitespace, duplicates, unknowns (always runs)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Full Integration Test**: Tests ALL scanners with branch versions when any scanner or reusable workflow is modified" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "> **Solution**: Uses \`pr-reusable-security-hardening.yml\` which is identical to the production workflow " >> $GITHUB_STEP_SUMMARY
+        echo "> but with relative paths instead of pinned tags. This allows complete testing of all scanner changes " >> $GITHUB_STEP_SUMMARY
+        echo "> while staying within GitHub's 20 reusable workflow limit. External consumers continue using the " >> $GITHUB_STEP_SUMMARY
+        echo "> stable \`reusable-security-hardening.yml\` with pinned versions." >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
         if [ $PASSED -eq $TOTAL ]; then
