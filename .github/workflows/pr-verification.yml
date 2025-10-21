@@ -549,7 +549,7 @@ jobs:
         fi
 
     - name: Comment PR with verification results
-      if: always() && github.event_name == 'pull_request'
+      if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
       uses: actions/github-script@v8
       with:
         script: |
