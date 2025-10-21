@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.4.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.3.1...2.4.0) (2025-10-21)
+
+### Features
+
+* **ci:** add conditional scanner testing based on file changes ([f472660](https://github.com/huntridge-labs/hardening-workflows/commit/f47266093d4fc77b5f837095fb415d0d86ed35fc))
+* **ci:** add PR testing workflow with relative paths for scanner validation ([53b7dff](https://github.com/huntridge-labs/hardening-workflows/commit/53b7dffa69d380ab221101b8712fa6ea4471884e))
+* **ci:** implement workflow synchronization validation script ([bdae6da](https://github.com/huntridge-labs/hardening-workflows/commit/bdae6da6db5ef3429f3889ff9a16e3a1f165cfe7))
+
+### Bug Fixes
+
+* **ci:** enable release preview and PR verification workflows for forked PRs ([ce559d9](https://github.com/huntridge-labs/hardening-workflows/commit/ce559d9aed9cc98659ffb50f7d1b0aeee8faf743))
+* **ci:** update checkout ref to use pull request head ref ([9d20643](https://github.com/huntridge-labs/hardening-workflows/commit/9d206434010e84ea402b952a5e8b06649562a63b))
+* update SBOM summary to reflect dynamic Syft version ([633851e](https://github.com/huntridge-labs/hardening-workflows/commit/633851e34da4e26453c6fd10d3569487261e2a5d))
+
+### Documentation
+
+* **LICENSE.md:** include text of GNU Affero GPL ([4e4fe09](https://github.com/huntridge-labs/hardening-workflows/commit/4e4fe09732b9e435157a1b99af22810d92aca397)), closes [#42](https://github.com/huntridge-labs/hardening-workflows/issues/42)
+* **LICENSE.md:** remove duplicated verbiage ([791bdef](https://github.com/huntridge-labs/hardening-workflows/commit/791bdefbceef907c70173004a88d46782f33ebd7))
+
 ## [2.3.1](https://github.com/huntridge-labs/hardening-workflows/compare/2.3.0...2.3.1) (2025-10-18)
 
 ## [2.3.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.2.0...2.3.0) (2025-10-18)
