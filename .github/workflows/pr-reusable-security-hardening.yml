@@ -279,7 +279,7 @@ jobs:
     name: Code Quality & Linting
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_lint == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@2.3.1
+    uses: ./.github/workflows/linting.yml
     permissions:
       contents: read
       pull-requests: write
@@ -350,7 +350,7 @@ jobs:
     name: Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_container == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@2.3.1
+    uses: ./.github/workflows/container-scan.yml
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -365,7 +365,7 @@ jobs:
     name: Infrastructure Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_infrastructure == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/infrastructure.yml@2.3.1
+    uses: ./.github/workflows/infrastructure.yml
     with:
       iac_path: ${{ inputs.iac_path }}
       python_version: ${{ inputs.python_version }}
