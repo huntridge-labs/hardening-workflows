@@ -54,8 +54,27 @@ jobs:
               - '.github/workflows/scanner-grype.yml'
             reusable_workflow:
               - '.github/workflows/reusable-security-hardening.yml'
+              - '.github/workflows/pr-reusable-security-hardening.yml'
             any_scanner:
               - '.github/workflows/scanner-*.yml'
+
+  # Validate PR and production reusable workflows stay in sync
+  validate-workflow-sync:
+    name: Validate Workflow Sync
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.reusable_workflow == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check workflows are in sync
+        run: |
+          # Remove comments and compare structure
+          diff \
+            <(grep -v "^#" .github/workflows/reusable-security-hardening.yml | sed 's/@2.3.1//' | sed 's|huntridge-labs/hardening-workflows/||') \
+            <(grep -v "^#" .github/workflows/pr-reusable-security-hardening.yml | sed 's|./||') \
+          && echo "✅ Workflows are in sync" \
+          || (echo "::error::pr-reusable-security-hardening.yml is out of sync with reusable-security-hardening.yml" && exit 1)
 
   # Run code quality checks once for all tests
   code-quality:
@@ -458,146 +477,20 @@ jobs:
 
   # Test individual scanners directly with relative paths to verify branch changes
   # These only run if the corresponding scanner workflow was modified
+  # Note: Using pr-reusable-security-hardening.yml which tests ALL scanners with branch versions
 
-  test-codeql-scanner:
-    name: Test CodeQL Scanner (Branch)
-    needs: [detect-changes, code-quality]
-    if: needs.detect-changes.outputs.scanner_codeql == 'true'
-    uses: ./.github/workflows/scanner-codeql.yml
-    with:
-      codeql_languages: 'python,javascript'
-      post_pr_comment: false
-      enable_code_security: true
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-
-  test-opengrep-scanner:
-    name: Test Opengrep Scanner (Branch)
-    needs: [detect-changes, code-quality]
-    if: needs.detect-changes.outputs.scanner_opengrep == 'true'
-    uses: ./.github/workflows/scanner-opengrep.yml
-    with:
-      post_pr_comment: false
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-
-  test-bandit-scanner:
-    name: Test Bandit Scanner (Branch)
-    needs: [detect-changes, code-quality]
-    if: needs.detect-changes.outputs.scanner_bandit == 'true'
-    uses: ./.github/workflows/scanner-bandit.yml
-    with:
-      post_pr_comment: false
-      enable_code_security: false
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-
-  test-gitleaks-scanner:
-    name: Test Gitleaks Scanner (Branch)
-    needs: [detect-changes, code-quality]
-    if: needs.detect-changes.outputs.scanner_gitleaks == 'true'
-    uses: ./.github/workflows/scanner-gitleaks.yml
-    with:
-      post_pr_comment: false
-      enable_code_security: false
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-
-  test-syft-scanner:
-    name: Test Syft Scanner (Branch)
-    needs: [detect-changes, code-quality]
-    if: needs.detect-changes.outputs.scanner_syft == 'true'
-    uses: ./.github/workflows/scanner-syft.yml
-    with:
-      enable_code_security: false
-      scan-path: '.'
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-
-  test-trivy-iac-scanner:
-    name: Test Trivy IaC Scanner (Branch)
-    needs: [detect-changes, code-quality]
-    if: needs.detect-changes.outputs.scanner_trivy_iac == 'true'
-    uses: ./.github/workflows/scanner-trivy-iac.yml
-    with:
-      iac_path: 'infrastructure'
-      post_pr_comment: false
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-
-  test-checkov-scanner:
-    name: Test Checkov Scanner (Branch)
-    needs: [detect-changes, code-quality]
-    if: needs.detect-changes.outputs.scanner_checkov == 'true'
-    uses: ./.github/workflows/scanner-checkov.yml
-    with:
-      iac_path: 'infrastructure'
-      post_pr_comment: false
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-
-  test-trivy-container-scanner:
-    name: Test Trivy Container Scanner (Branch)
-    needs: [detect-changes, code-quality]
-    if: needs.detect-changes.outputs.scanner_trivy_container == 'true'
-    uses: ./.github/workflows/scanner-trivy-container.yml
-    with:
-      image_ref: 'alpine:latest'
-      enable_code_security: false
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-
-  test-grype-scanner:
-    name: Test Grype Scanner (Branch)
-    needs: [detect-changes, code-quality]
-    if: needs.detect-changes.outputs.scanner_grype == 'true'
-    uses: ./.github/workflows/scanner-grype.yml
-    with:
-      image_ref: 'alpine:latest'
-      enable_code_security: false
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-
-  # Integration test - run the reusable workflow to test orchestration changes
-  # Only runs if the reusable workflow itself was modified
-  # Note: This uses relative path to test branch changes to the orchestration logic
+  # Integration test - run the PR testing version of reusable workflow
+  # This uses relative paths for ALL scanner workflows to test branch changes
   integration-test-full-scan:
-    name: Integration Test - Reusable Workflow (Branch)
+    name: Integration Test - Full Scan (Branch Versions)
     needs: [detect-changes, code-quality, test-scanner-resolution, test-scanners-input-validation]
-    if: needs.detect-changes.outputs.reusable_workflow == 'true'
-    uses: ./.github/workflows/reusable-security-hardening.yml
+    if: needs.detect-changes.outputs.any_scanner == 'true' || needs.detect-changes.outputs.reusable_workflow == 'true'
+    uses: ./.github/workflows/pr-reusable-security-hardening.yml
     with:
-      scanners: 'sast,container,infrastructure,sbom'  # Common realistic use case
+      scanners: 'all'  # Test all scanners with branch versions
       codeql_languages: 'python,javascript'
       enable_code_security: true
-      post_pr_comment: true  # Test PR comment generation
+      post_pr_comment: true
     permissions:
       contents: read
       security-events: write
@@ -616,15 +509,6 @@ jobs:
       code-quality,
       test-scanner-resolution,
       test-scanners-input-validation,
-      test-codeql-scanner,
-      test-opengrep-scanner,
-      test-bandit-scanner,
-      test-gitleaks-scanner,
-      test-syft-scanner,
-      test-trivy-iac-scanner,
-      test-checkov-scanner,
-      test-trivy-container-scanner,
-      test-grype-scanner,
       integration-test-full-scan
     ]
     if: always()
@@ -717,95 +601,15 @@ jobs:
           echo "| ❌ Scanners Input Validation (4 edge cases) | Failed |" >> $GITHUB_STEP_SUMMARY
         fi
 
-        # Individual scanner tests (only if they ran)
-        if [ "${{ needs.detect-changes.outputs.scanner_codeql }}" = "true" ]; then
-          RESULT="${{ needs.test-codeql-scanner.result }}"
-          if [ "$RESULT" = "success" ]; then
-            echo "| ✅ CodeQL Scanner (Branch) | Passed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| ❌ CodeQL Scanner (Branch) | $RESULT |" >> $GITHUB_STEP_SUMMARY
-          fi
-        fi
-
-        if [ "${{ needs.detect-changes.outputs.scanner_opengrep }}" = "true" ]; then
-          RESULT="${{ needs.test-opengrep-scanner.result }}"
-          if [ "$RESULT" = "success" ]; then
-            echo "| ✅ Opengrep Scanner (Branch) | Passed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| ❌ Opengrep Scanner (Branch) | $RESULT |" >> $GITHUB_STEP_SUMMARY
-          fi
-        fi
-
-        if [ "${{ needs.detect-changes.outputs.scanner_bandit }}" = "true" ]; then
-          RESULT="${{ needs.test-bandit-scanner.result }}"
-          if [ "$RESULT" = "success" ]; then
-            echo "| ✅ Bandit Scanner (Branch) | Passed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| ❌ Bandit Scanner (Branch) | $RESULT |" >> $GITHUB_STEP_SUMMARY
-          fi
-        fi
-
-        if [ "${{ needs.detect-changes.outputs.scanner_gitleaks }}" = "true" ]; then
-          RESULT="${{ needs.test-gitleaks-scanner.result }}"
-          if [ "$RESULT" = "success" ]; then
-            echo "| ✅ Gitleaks Scanner (Branch) | Passed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| ❌ Gitleaks Scanner (Branch) | $RESULT |" >> $GITHUB_STEP_SUMMARY
-          fi
-        fi
-
-        if [ "${{ needs.detect-changes.outputs.scanner_syft }}" = "true" ]; then
-          RESULT="${{ needs.test-syft-scanner.result }}"
-          if [ "$RESULT" = "success" ]; then
-            echo "| ✅ Syft Scanner (Branch) | Passed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| ❌ Syft Scanner (Branch) | $RESULT |" >> $GITHUB_STEP_SUMMARY
-          fi
-        fi
-
-        if [ "${{ needs.detect-changes.outputs.scanner_trivy_iac }}" = "true" ]; then
-          RESULT="${{ needs.test-trivy-iac-scanner.result }}"
-          if [ "$RESULT" = "success" ]; then
-            echo "| ✅ Trivy IaC Scanner (Branch) | Passed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| ❌ Trivy IaC Scanner (Branch) | $RESULT |" >> $GITHUB_STEP_SUMMARY
-          fi
-        fi
-
-        if [ "${{ needs.detect-changes.outputs.scanner_checkov }}" = "true" ]; then
-          RESULT="${{ needs.test-checkov-scanner.result }}"
-          if [ "$RESULT" = "success" ]; then
-            echo "| ✅ Checkov Scanner (Branch) | Passed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| ❌ Checkov Scanner (Branch) | $RESULT |" >> $GITHUB_STEP_SUMMARY
-          fi
-        fi
-
-        if [ "${{ needs.detect-changes.outputs.scanner_trivy_container }}" = "true" ]; then
-          RESULT="${{ needs.test-trivy-container-scanner.result }}"
-          if [ "$RESULT" = "success" ]; then
-            echo "| ✅ Trivy Container Scanner (Branch) | Passed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| ❌ Trivy Container Scanner (Branch) | $RESULT |" >> $GITHUB_STEP_SUMMARY
-          fi
-        fi
-
-        if [ "${{ needs.detect-changes.outputs.scanner_grype }}" = "true" ]; then
-          RESULT="${{ needs.test-grype-scanner.result }}"
-          if [ "$RESULT" = "success" ]; then
-            echo "| ✅ Grype Scanner (Branch) | Passed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| ❌ Grype Scanner (Branch) | $RESULT |" >> $GITHUB_STEP_SUMMARY
-          fi
-        fi
-
-        # Integration test (only if reusable workflow was modified)
-        if [ "${{ needs.detect-changes.outputs.reusable_workflow }}" = "true" ]; then
+        # Integration test - tests ALL scanners with branch versions
+        if [ "${{ needs.detect-changes.outputs.any_scanner }}" = "true" ] || [ "${{ needs.detect-changes.outputs.reusable_workflow }}" = "true" ]; then
           RESULT="${{ needs.integration-test-full-scan.result }}"
           if [ "$RESULT" = "success" ]; then
-            echo "| ✅ Integration Test - Reusable Workflow (Branch) | Passed |" >> $GITHUB_STEP_SUMMARY
+            echo "| ✅ Integration Test - All Scanners (Branch Versions) | Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [ "$RESULT" = "skipped" ]; then
+            echo "| ⏭️  Integration Test - All Scanners | Skipped (no changes) |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| ❌ Integration Test - Reusable Workflow (Branch) | $RESULT |" >> $GITHUB_STEP_SUMMARY
+            echo "| ❌ Integration Test - All Scanners (Branch Versions) | $RESULT |" >> $GITHUB_STEP_SUMMARY
           fi
         fi
 
@@ -826,12 +630,12 @@ jobs:
         echo "- **Code Quality & Linting**: Validates code style and quality (always runs)" >> $GITHUB_STEP_SUMMARY
         echo "- **Scanner Resolution Logic**: 6 test scenarios validating scanner selection (always runs)" >> $GITHUB_STEP_SUMMARY
         echo "- **Input Validation**: 4 edge cases - case sensitivity, whitespace, duplicates, unknowns (always runs)" >> $GITHUB_STEP_SUMMARY
-        echo "- **Individual Scanner Tests**: Modified scanners tested with branch versions (conditional)" >> $GITHUB_STEP_SUMMARY
-        echo "- **Reusable Workflow Integration Test**: Tests orchestration logic with branch version (only if reusable workflow modified)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Full Integration Test**: Tests ALL scanners with branch versions when any scanner or reusable workflow is modified" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "> **Note**: Only modified workflows are tested in PRs. Scanner changes are tested with branch versions using relative paths. " >> $GITHUB_STEP_SUMMARY
-        echo "> The reusable workflow test runs only when orchestration logic changes, using the branch version with pinned scanner tags. " >> $GITHUB_STEP_SUMMARY
-        echo "> This ensures components work correctly before merging while avoiding redundant tests of stable releases." >> $GITHUB_STEP_SUMMARY
+        echo "> **Solution**: Uses \`pr-reusable-security-hardening.yml\` which is identical to the production workflow " >> $GITHUB_STEP_SUMMARY
+        echo "> but with relative paths instead of pinned tags. This allows complete testing of all scanner changes " >> $GITHUB_STEP_SUMMARY
+        echo "> while staying within GitHub's 20 reusable workflow limit. External consumers continue using the " >> $GITHUB_STEP_SUMMARY
+        echo "> stable \`reusable-security-hardening.yml\` with pinned versions." >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
         if [ $PASSED -eq $TOTAL ]; then
