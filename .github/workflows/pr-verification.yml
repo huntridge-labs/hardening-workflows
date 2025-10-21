@@ -68,13 +68,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Check workflows are in sync
-        run: |
-          # Remove comments and compare structure
-          diff \
-            <(grep -v "^#" .github/workflows/reusable-security-hardening.yml | sed 's/@2.3.1//' | sed 's|huntridge-labs/hardening-workflows/||') \
-            <(grep -v "^#" .github/workflows/pr-reusable-security-hardening.yml | sed 's|./||') \
-          && echo "✅ Workflows are in sync" \
-          || (echo "::error::pr-reusable-security-hardening.yml is out of sync with reusable-security-hardening.yml" && exit 1)
+        run: .github/scripts/validate-reusable-workflow-sync.sh
 
   # Run code quality checks once for all tests
   code-quality:
