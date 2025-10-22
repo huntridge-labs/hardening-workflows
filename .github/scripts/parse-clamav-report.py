@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """Parse ClamAV scan report and generate JSON summary."""
 
+import argparse
 import json
 import re
 from pathlib import Path
 
-report_file = Path("clamav-reports/clamav-report.txt")
+parser = argparse.ArgumentParser(description='Parse ClamAV scan report and generate JSON summary')
+parser.add_argument('--report-path', default='clamav-reports/clamav-report.log',
+                    help='Path to ClamAV report file (default: clamav-reports/clamav-report.log)')
+args = parser.parse_args()
+
+report_file = Path(args.report_path)
 if report_file.exists():
     content = report_file.read_text(encoding='utf-8')
 
@@ -36,7 +42,9 @@ if report_file.exists():
         "infections": infected_files
     }
 
-    Path("clamav-reports/clamav-report.json").write_text(json.dumps(json_data, indent=2), encoding='utf-8')
+    # Write JSON to same directory as report file
+    json_path = report_file.parent / f"{report_file.stem}.json"
+    json_path.write_text(json.dumps(json_data, indent=2), encoding='utf-8')
     print(f"✅ Scan complete: {scanned} files scanned, {infected} infected")
 else:
-    print("⚠️  No scan report found")
+    print(f"⚠️  No scan report found at: {report_file}")

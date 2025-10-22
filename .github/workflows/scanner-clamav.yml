@@ -158,7 +158,8 @@ jobs:
           $SCAN_PATHS || true
 
         # Generate summary JSON from report
-        python .hardening-workflows/.github/scripts/parse-clamav-report.py
+        python .hardening-workflows/.github/scripts/parse-clamav-report.py \
+          --report-path clamav-reports/clamav-report.log
 
         echo "Generated ClamAV files:"
         ls -la clamav-reports/ || echo "No files generated"
