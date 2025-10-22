@@ -613,7 +613,7 @@ jobs:
         echo ""
 
         # Combine all scanner summaries in a specific order
-        for scanner in codeql opengrep bandit gitleaks container infrastructure sbom trivy-iac checkov trivy-container grype; do
+        for scanner in codeql opengrep bandit gitleaks clamav container infrastructure sbom trivy-iac checkov trivy-container grype; do
           if [ -f "${scanner}.md" ]; then
             echo "✅ Adding ${scanner} summary..."
             cat "${scanner}.md" >> security-hardening-report.md
