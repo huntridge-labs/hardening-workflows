@@ -9,7 +9,7 @@ on:
   workflow_call:
     inputs:
       scanners:
-        description: 'Comma-separated list of scanners to run (codeql, opengrep, bandit, gitleaks, container, infrastructure, trivy-iac, checkov, trivy-container, grype, lint, all, sast, secrets, etc.)'
+        description: 'Comma-separated list of scanners to run (codeql, opengrep, bandit, gitleaks, container, infrastructure, trivy-iac, checkov, trivy-container, grype, lint, clamav, sbom, all, sast, secrets, etc.). Use "all" to run ALL available scanners.'
         required: false
         default: 'all'
         type: string
@@ -148,7 +148,7 @@ jobs:
           case "$token" in
             '' ) ;;
             all|full)
-              for key in "${DEFAULT_SCANNERS[@]}"; do add_scanner "$key"; done
+              for key in "${!RUN[@]}"; do add_scanner "$key"; done
               ;;
             sast|sast-only)
               for key in codeql opengrep bandit gitleaks; do add_scanner "$key"; done
@@ -618,7 +618,7 @@ jobs:
         echo ""
 
         # Combine all scanner summaries in a specific order
-        for scanner in codeql opengrep bandit gitleaks container infrastructure sbom trivy-iac checkov trivy-container grype; do
+        for scanner in codeql opengrep bandit gitleaks clamav container infrastructure sbom trivy-iac checkov trivy-container grype; do
           if [ -f "${scanner}.md" ]; then
             echo "✅ Adding ${scanner} summary..."
             cat "${scanner}.md" >> security-hardening-report.md
