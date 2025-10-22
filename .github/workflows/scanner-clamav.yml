@@ -45,7 +45,8 @@ jobs:
         ref: feat/clamav
         path: .hardening-workflows
         sparse-checkout: |
-          .github/scripts/clamav-scanner.py
+          .github/scripts/extract-archives.py
+          .github/scripts/parse-clamav-report.py
 
     - name: Install ClamAV
       run: |
@@ -92,12 +93,72 @@ jobs:
     - name: Run ClamAV Malware Scan
       run: |
         echo "🔍 Running ClamAV malware analysis..."
-        mkdir -p clamav-reports
+        mkdir -p clamav-reports clamav-extracted
 
-        # Run the ClamAV scanner script from hardening-workflows
-        python .hardening-workflows/.github/scripts/clamav-scanner.py "${{ inputs.scan_path }}" \
-          --json-report clamav-reports/clamav-report.json \
-          --text-report clamav-reports/clamav-report.txt
+        SCAN_PATH="${{ inputs.scan_path }}"
+
+        # Check if scan path is an archive or directory containing archives
+        SCAN_PATHS=""
+
+        if [ -f "$SCAN_PATH" ]; then
+          # Check if it's an archive file by examining actual file contents
+          FILE_TYPE=$(file -b --mime-type "$SCAN_PATH")
+          echo "🔍 Detected file type: $FILE_TYPE"
+
+          case "$FILE_TYPE" in
+            application/x-tar|application/x-gzip|application/gzip|application/x-bzip2|application/x-xz|application/zip|application/x-rar|application/x-compressed-tar)
+              echo "📦 Detected archive file (by content), extracting..."
+              SCAN_PATHS=$(python .hardening-workflows/.github/scripts/extract-archives.py "$SCAN_PATH" \
+                --output-dir clamav-extracted)
+              ;;
+            *)
+              echo "📄 Regular file, scanning directly..."
+              SCAN_PATHS="$SCAN_PATH"
+              ;;
+          esac
+        elif [ -d "$SCAN_PATH" ]; then
+          # Check if directory contains archives by examining file contents
+          # Use file command with mime-type to detect actual archives, not just extensions
+          ARCHIVE_COUNT=$(find "$SCAN_PATH" -type f -exec file -b --mime-type {} \; 2>/dev/null | \
+            grep -E "application/(x-)?(tar|gzip|bzip2|xz|zip|rar|compressed-tar)" | wc -l)
+
+          if [ "$ARCHIVE_COUNT" -gt 0 ]; then
+            echo "📦 Directory contains $ARCHIVE_COUNT archive(s) (by content), extracting..."
+            SCAN_PATHS=$(python .hardening-workflows/.github/scripts/extract-archives.py "$SCAN_PATH" \
+              --output-dir clamav-extracted)
+          else
+            echo "📁 Directory with no archives, scanning directly..."
+            SCAN_PATHS="$SCAN_PATH"
+          fi
+        else
+          echo "❌ Scan path does not exist: $SCAN_PATH"
+          exit 1
+        fi
+
+        # If extraction script returned paths, use them; otherwise fallback to original
+        if [ -z "$SCAN_PATHS" ]; then
+          SCAN_PATHS="$SCAN_PATH"
+        fi
+
+        echo "Paths to scan:"
+        echo "$SCAN_PATHS"
+
+        # Run ClamAV scan on all paths
+        echo "🦠 Scanning with ClamAV..."
+        clamscan --recursive \
+          --infected \
+          --exclude-dir=".git" \
+          --exclude-dir="node_modules" \
+          --exclude-dir=".venv" \
+          --exclude-dir="__pycache__" \
+          --exclude-dir="htmlcov" \
+          --exclude-dir="coverage" \
+          --exclude-dir=".pytest_cache" \
+          --log=clamav-reports/clamav-report.log \
+          $SCAN_PATHS || true
+
+        # Generate summary JSON from report
+        python .hardening-workflows/.github/scripts/parse-clamav-report.py
 
         echo "Generated ClamAV files:"
         ls -la clamav-reports/ || echo "No files generated"
@@ -135,10 +196,10 @@ jobs:
             SCANNED_COUNT=0
             ERROR_COUNT=0
 
-            if [ -f "clamav-reports/clamav-report.txt" ]; then
-              INFECTED_COUNT=$(grep -c "infected\|FOUND" clamav-reports/clamav-report.txt 2>/dev/null || echo "0")
-              SCANNED_COUNT=$(grep "Files scanned:" clamav-reports/clamav-report.txt | sed 's/.*: //' 2>/dev/null || echo "0")
-              ERROR_COUNT=$(grep -c "error\|Error" clamav-reports/clamav-report.txt 2>/dev/null || echo "0")
+            if [ -f "clamav-reports/clamav-report.log" ]; then
+              INFECTED_COUNT=$(grep -c "infected\|FOUND" clamav-reports/clamav-report.log 2>/dev/null || echo "0")
+              SCANNED_COUNT=$(grep "Files scanned:" clamav-reports/clamav-report.log | sed 's/.*: //' 2>/dev/null || echo "0")
+              ERROR_COUNT=$(grep -c "error\|Error" clamav-reports/clamav-report.log 2>/dev/null || echo "0")
             fi
           fi
 
