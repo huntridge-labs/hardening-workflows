@@ -52,9 +52,31 @@ jobs:
         echo "🔧 Installing ClamAV..."
         sudo apt-get update
         sudo apt-get install -y clamav clamav-daemon
-        sudo systemctl stop clamav-daemon  # Stop the daemon to avoid conflicts
-        sudo freshclam  # Update virus definitions
-      continue-on-error: true
+        sudo systemctl stop clamav-daemon || true  # Stop the daemon to avoid conflicts
+
+        echo "📥 Updating ClamAV virus database..."
+        # Update virus definitions with retries
+        max_attempts=3
+        attempt=1
+        while [ $attempt -le $max_attempts ]; do
+          echo "Attempt $attempt of $max_attempts..."
+          if sudo freshclam; then
+            echo "✅ Virus database updated successfully"
+            break
+          else
+            echo "⚠️  freshclam attempt $attempt failed"
+            attempt=$((attempt + 1))
+            [ $attempt -le $max_attempts ] && sleep 10
+          fi
+        done
+
+        # Verify ClamAV is working
+        echo "🔍 Verifying ClamAV installation..."
+        clamscan --version
+        echo "📊 Database status:"
+        sigtool --info /var/lib/clamav/main.cvd || echo "Main database not found"
+        sigtool --info /var/lib/clamav/daily.cvd || echo "Daily database not found"
+      continue-on-error: false
 
     - name: Set up Python
       uses: actions/setup-python@v6
