@@ -58,9 +58,17 @@ Before adding a new scanner, ensure:
 When adding a new scanner named `example`, you'll need to update:
 
 1. **Create scanner workflow**: `.github/workflows/scanner-example.yml`
-2. **Update main workflow**: `.github/workflows/reusable-security-hardening.yml`
+2. **Update BOTH workflow files**:
+   - `.github/workflows/reusable-security-hardening.yml` (production version)
+   - `.github/workflows/pr-reusable-security-hardening.yml` (PR testing version)
 3. **Update documentation**: `README.md`, `QUICK-START.md`
 4. **Add examples**: `examples/scanner-list-examples.yml`
+
+> **Important:** We maintain two versions of the reusable workflow:
+> - **`reusable-security-hardening.yml`** uses pinned tags for external consumers (e.g., `@2.4.0`)
+> - **`pr-reusable-security-hardening.yml`** uses relative paths for PR testing
+>
+> Both workflows must be kept in sync. See [PR Workflow Sync docs](docs/pr-workflow-sync.md) for details.
 
 ---
 
@@ -221,9 +229,15 @@ jobs:
       continue-on-error: true
 ```
 
-### Step 2: Update the Main Workflow
+### Step 2: Update Both Reusable Workflows
 
-Edit `.github/workflows/reusable-security-hardening.yml`:
+Edit **BOTH** workflow files:
+- `.github/workflows/reusable-security-hardening.yml`
+- `.github/workflows/pr-reusable-security-hardening.yml`
+
+The changes below apply to both files. The only difference is the scanner job path:
+- Production uses: `huntridge-labs/hardening-workflows/.github/workflows/scanner-example.yml@2.4.0`
+- PR testing uses: `./.github/workflows/scanner-example.yml`
 
 #### 2.1 Add to Scanner Resolution Logic
 
@@ -276,8 +290,27 @@ jobs:
 
 #### 2.2 Add Scanner Job
 
-Add your scanner job after the scan-coordinator:
+Add your scanner job after the scan-coordinator.
 
+**In `reusable-security-hardening.yml` (production):**
+```yaml
+  example-scanner:
+    name: Example Scanner
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.run_example == 'true'
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-example.yml@2.4.0
+    with:
+      post_pr_comment: ${{ inputs.post_pr_comment }}
+      enable_code_security: ${{ inputs.enable_code_security }}
+      # Pass any scanner-specific inputs
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+```
+
+**In `pr-reusable-security-hardening.yml` (PR testing):**
 ```yaml
   example-scanner:
     name: Example Scanner
@@ -315,24 +348,57 @@ Find the `generate-security-report` job and add your scanner to the needs:
     if: always()
 ```
 
-In the report generation step, add logic to download your scanner's summary:
+In the report generation step, download your scanner's artifacts:
 
 ```yaml
-    - name: Download all scanner summaries
-      uses: actions/download-artifact@v4
+    - name: Download Example artifacts
+      if: needs.scan-coordinator.outputs.run_example == 'true'
+      uses: actions/download-artifact@v5
       with:
-        pattern: scanner-summary-*
-        path: scanner-summaries
-        merge-multiple: true
+        pattern: example-*
       continue-on-error: true
 
-    # Your scanner summary will automatically be included
-    # as scanner-summaries/scanner-summary-example/example.md
+    - name: Download all scanner summaries
+      uses: actions/download-artifact@v5
+      with:
+        pattern: scanner-summary-*
+        merge-multiple: true
+      continue-on-error: true
 ```
 
-### Step 3: Update Documentation
+#### 2.4 Add Scanner to Summary Loop
 
-#### 3.1 Update README.md
+**CRITICAL:** Add your scanner to the summary aggregation loop, otherwise it won't appear in PR comments!
+
+Find the "Combine scanner summaries" step and add your scanner to the list:
+
+```bash
+# Combine all scanner summaries in a specific order
+for scanner in codeql opengrep bandit gitleaks example container infrastructure sbom trivy-iac checkov trivy-container grype; do
+  if [ -f "${scanner}.md" ]; then
+    echo "✅ Adding ${scanner} summary..."
+    cat "${scanner}.md" >> security-hardening-report.md
+  else
+    echo "⏭️  No ${scanner}.md summary found"
+  fi
+done
+```
+
+> **Note:** Add your scanner in a logical position in the list. Group similar scanners together (e.g., SAST scanners, container scanners, etc.).
+
+### Step 3: Sync and Validate Workflows
+
+After making changes to both workflow files, validate they're in sync:
+
+```bash
+./.github/scripts/validate-reusable-workflow-sync.sh
+```
+
+This script ensures that `reusable-security-hardening.yml` and `pr-reusable-security-hardening.yml` are structurally identical (ignoring path differences).
+
+### Step 4: Update Documentation
+
+#### 4.1 Update README.md
 
 Add your scanner to the available scanners list:
 
@@ -354,7 +420,7 @@ with:
   scanners: codeql,example,gitleaks
 ```
 
-#### 3.2 Update QUICK-START.md
+#### 4.2 Update QUICK-START.md
 
 Add quick-start examples:
 
@@ -372,7 +438,7 @@ jobs:
       scanners: example
 ```
 
-#### 3.3 Create Examples
+#### 4.3 Create Examples
 
 Add to `examples/scanner-list-examples.yml`:
 
@@ -542,7 +608,9 @@ jobs:
 - [ ] Scanner runs successfully in isolation
 - [ ] Scanner generates all expected artifacts
 - [ ] Summary section formats correctly
-- [ ] Scanner integrates with main workflow
+- [ ] Scanner integrates with **both** reusable workflows
+- [ ] Scanner added to summary aggregation loop in both workflows
+- [ ] Workflow sync validation passes (`./.github/scripts/validate-reusable-workflow-sync.sh`)
 - [ ] Report generator includes scanner output
 - [ ] No breaking changes to existing scanners
 - [ ] Documentation is complete and accurate
@@ -700,6 +768,8 @@ When parsing scanner output:
 1. Summary artifact is uploaded with pattern `scanner-summary-*`
 2. Artifact name matches the pattern: `scanner-summary-example`
 3. Report generator job includes your scanner in `needs`
+4. **Scanner is added to the summary aggregation loop** in both workflow files
+5. Both workflows are in sync (run validation script)
 
 ### Issue: SARIF upload fails
 
@@ -733,7 +803,9 @@ When parsing scanner output:
 Before submitting your PR:
 
 - [ ] Scanner workflow created and tested
-- [ ] Main workflow updated with scanner integration
+- [ ] **Both** reusable workflows updated with scanner integration
+- [ ] Scanner added to summary aggregation loop in both workflows
+- [ ] Workflow sync validation passes
 - [ ] Documentation added/updated
 - [ ] Examples provided
 - [ ] Tests passing
