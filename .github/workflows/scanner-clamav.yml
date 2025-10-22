@@ -158,7 +158,7 @@ jobs:
           $SCAN_PATHS || true
 
         # Generate summary JSON from report
-        python .hardening-workflows/.github/scripts/parse-clamav-report.py \
+        python3 .hardening-workflows/.github/scripts/parse-clamav-report.py \
           --report-path clamav-reports/clamav-report.log
 
         echo "Generated ClamAV files:"
@@ -198,9 +198,9 @@ jobs:
             ERROR_COUNT=0
 
             if [ -f "clamav-reports/clamav-report.log" ]; then
-              INFECTED_COUNT=$(grep -c "infected\|FOUND" clamav-reports/clamav-report.log 2>/dev/null || echo "0")
-              SCANNED_COUNT=$(grep "Files scanned:" clamav-reports/clamav-report.log | sed 's/.*: //' 2>/dev/null || echo "0")
-              ERROR_COUNT=$(grep -c "error\|Error" clamav-reports/clamav-report.log 2>/dev/null || echo "0")
+              INFECTED_COUNT=$(grep -i "infected files:" clamav-reports/clamav-report.log | sed 's/.*: //' 2>/dev/null || echo "0")
+              SCANNED_COUNT=$(grep -i "scanned files:" clamav-reports/clamav-report.log | sed 's/.*: //' 2>/dev/null || echo "0")
+              ERROR_COUNT=$(grep -c -i "error" clamav-reports/clamav-report.log 2>/dev/null || echo "0")
             fi
           fi
 

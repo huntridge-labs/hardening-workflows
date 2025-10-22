@@ -35,11 +35,23 @@ if report_file.exists():
         if 'FOUND' in line:
             infected_files.append(line.strip())
 
+    results = []
+    for line in infected_files:
+        if ' FOUND ' in line:
+            parts = line.split(' FOUND ', 1)
+            if len(parts) == 2:
+                results.append({
+                    "file": parts[0].strip(),
+                    "infection": parts[1].strip(),
+                    "status": "infected"
+                })
+
     json_data = {
         "total_files": scanned,
         "infected_files": infected,
         "clean_files": scanned - infected,
-        "infections": infected_files
+        "infections": infected_files,
+        "results": results
     }
 
     # Write JSON to same directory as report file
