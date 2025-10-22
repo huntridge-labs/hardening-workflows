@@ -9,8 +9,7 @@ normalize_workflow() {
   local file="$1"
   grep -v "^#" "$file" | \
   grep -v "^name:" | \
-  sed 's/@2\.3\.1//g' | \
-  sed 's/@feat\/clamav//g' | \
+  sed -E 's/@[^[:space:]]+//g' | \
   sed 's|huntridge-labs/hardening-workflows/.github/workflows/||g' | \
   sed 's|\./.github/workflows/||g' | \
   sed 's/name: Reusable Security Hardening Pipeline/name: Security Hardening Pipeline/g' | \
