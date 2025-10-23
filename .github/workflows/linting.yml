@@ -704,6 +704,10 @@ jobs:
       issues_found: ${{ steps.summary.outputs.total_issues }}
 
     steps:
+    - name: Checkout repository
+      if: github.repository == 'huntridge-labs/hardening-workflows'
+      uses: actions/checkout@v5
+
     - name: Checkout hardening-workflows for actions
       # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
       if: github.repository != 'huntridge-labs/hardening-workflows'
