@@ -32,6 +32,43 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v5
 
+    - name: Checkout hardening-workflows for actions
+      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: actions/checkout@v5
+      with:
+        repository: huntridge-labs/hardening-workflows
+        # TODO: Update release-it config to set this ref appropriately
+        ref: feat/clamav
+        path: .hardening-workflows
+        sparse-checkout: |
+          .github/actions/get-job-id/action.yml
+
+    - name: Get job ID (external)
+      id: job_id_ext
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: ./.hardening-workflows/.github/actions/get-job-id
+      with:
+        job-name-pattern: 'YAML Linting'
+        fallback-suffix: 'yaml'
+
+    - name: Get job ID (local)
+      id: job_id_local
+      if: github.repository == 'huntridge-labs/hardening-workflows'
+      uses: ./.github/actions/get-job-id
+      with:
+        job-name-pattern: 'YAML Linting'
+        fallback-suffix: 'yaml'
+
+    - name: Set job ID output
+      id: job_id
+      run: |
+        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
+          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
+        else
+          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
+        fi
+
     - name: Set up Python
       uses: actions/setup-python@v6
       with:
@@ -75,7 +112,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: yaml-lint-results
+        name: yaml-lint-results-${{ steps.job_id.outputs.job-id }}
         path: /tmp/yaml_issues.txt
         retention-days: 7
 
@@ -89,6 +126,43 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v5
+
+    - name: Checkout hardening-workflows for actions
+      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: actions/checkout@v5
+      with:
+        repository: huntridge-labs/hardening-workflows
+        # TODO: Update release-it config to set this ref appropriately
+        ref: feat/clamav
+        path: .hardening-workflows
+        sparse-checkout: |
+          .github/actions/get-job-id/action.yml
+
+    - name: Get job ID (external)
+      id: job_id_ext
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: ./.hardening-workflows/.github/actions/get-job-id
+      with:
+        job-name-pattern: 'JSON Validation'
+        fallback-suffix: 'json'
+
+    - name: Get job ID (local)
+      id: job_id_local
+      if: github.repository == 'huntridge-labs/hardening-workflows'
+      uses: ./.github/actions/get-job-id
+      with:
+        job-name-pattern: 'JSON Validation'
+        fallback-suffix: 'json'
+
+    - name: Set job ID output
+      id: job_id
+      run: |
+        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
+          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
+        else
+          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
+        fi
 
     - name: Set up Node.js
       uses: actions/setup-node@v6
@@ -139,7 +213,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: json-lint-results
+        name: json-lint-results-${{ steps.job_id.outputs.job-id }}
         path: /tmp/json_issues.txt
         retention-days: 7
 
@@ -153,6 +227,43 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v5
+
+    - name: Checkout hardening-workflows for actions
+      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: actions/checkout@v5
+      with:
+        repository: huntridge-labs/hardening-workflows
+        # TODO: Update release-it config to set this ref appropriately
+        ref: feat/clamav
+        path: .hardening-workflows
+        sparse-checkout: |
+          .github/actions/get-job-id/action.yml
+
+    - name: Get job ID (external)
+      id: job_id_ext
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: ./.hardening-workflows/.github/actions/get-job-id
+      with:
+        job-name-pattern: 'Python Code Quality'
+        fallback-suffix: 'python'
+
+    - name: Get job ID (local)
+      id: job_id_local
+      if: github.repository == 'huntridge-labs/hardening-workflows'
+      uses: ./.github/actions/get-job-id
+      with:
+        job-name-pattern: 'Python Code Quality'
+        fallback-suffix: 'python'
+
+    - name: Set job ID output
+      id: job_id
+      run: |
+        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
+          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
+        else
+          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
+        fi
 
     - name: Set up Python
       uses: actions/setup-python@v6
@@ -224,8 +335,11 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: python-lint-results
-        path: /tmp/python_issues.txt
+        name: python-lint-results-${{ steps.job_id.outputs.job-id }}
+        path: |
+          /tmp/flake8_issues.txt
+          /tmp/pylint_issues.txt
+          /tmp/black_issues.txt
         retention-days: 7
 
   javascript-lint:
@@ -238,6 +352,41 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v5
+
+    - name: Checkout hardening-workflows for actions
+      uses: actions/checkout@v5
+      with:
+        repository: huntridge-labs/hardening-workflows
+        # TODO: Update release-it config to set this ref appropriately
+        ref: feat/clamav
+        path: .hardening-workflows
+        sparse-checkout: |
+          .github/actions/get-job-id/action.yml
+
+    - name: Get job ID (external)
+      id: job_id_ext
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: ./.hardening-workflows/.github/actions/get-job-id
+      with:
+        job-name-pattern: 'JavaScript Code Quality'
+        fallback-suffix: 'js'
+
+    - name: Get job ID (local)
+      id: job_id_local
+      if: github.repository == 'huntridge-labs/hardening-workflows'
+      uses: ./.github/actions/get-job-id
+      with:
+        job-name-pattern: 'JavaScript Code Quality'
+        fallback-suffix: 'js'
+
+    - name: Set job ID output
+      id: job_id
+      run: |
+        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
+          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
+        else
+          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
+        fi
 
     - name: Set up Node.js
       uses: actions/setup-node@v6
@@ -307,8 +456,8 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: js-lint-results
-        path: /tmp/js_issues.txt
+        name: js-lint-results-${{ steps.job_id.outputs.job-id }}
+        path: /tmp/eslint_issues.txt
         retention-days: 7
 
   dockerfile-lint:
@@ -321,6 +470,43 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v5
+
+    - name: Checkout hardening-workflows for actions
+      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: actions/checkout@v5
+      with:
+        repository: huntridge-labs/hardening-workflows
+        # TODO: Update release-it config to set this ref appropriately
+        ref: feat/clamav
+        path: .hardening-workflows
+        sparse-checkout: |
+          .github/actions/get-job-id/action.yml
+
+    - name: Get job ID (external)
+      id: job_id_ext
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: ./.hardening-workflows/.github/actions/get-job-id
+      with:
+        job-name-pattern: 'Dockerfile Linting'
+        fallback-suffix: 'dockerfile'
+
+    - name: Get job ID (local)
+      id: job_id_local
+      if: github.repository == 'huntridge-labs/hardening-workflows'
+      uses: ./.github/actions/get-job-id
+      with:
+        job-name-pattern: 'Dockerfile Linting'
+        fallback-suffix: 'dockerfile'
+
+    - name: Set job ID output
+      id: job_id
+      run: |
+        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
+          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
+        else
+          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
+        fi
 
     - name: Install Hadolint
       run: |
@@ -376,8 +562,8 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: dockerfile-lint-results
-        path: /tmp/docker_issues.txt
+        name: dockerfile-lint-results-${{ steps.job_id.outputs.job-id }}
+        path: /tmp/hadolint_issues.txt
         retention-days: 7
 
   terraform-lint:
@@ -390,6 +576,43 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v5
+
+    - name: Checkout hardening-workflows for actions
+      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: actions/checkout@v5
+      with:
+        repository: huntridge-labs/hardening-workflows
+        # TODO: Update release-it config to set this ref appropriately
+        ref: feat/clamav
+        path: .hardening-workflows
+        sparse-checkout: |
+          .github/actions/get-job-id/action.yml
+
+    - name: Get job ID (external)
+      id: job_id_ext
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: ./.hardening-workflows/.github/actions/get-job-id
+      with:
+        job-name-pattern: 'Terraform Linting'
+        fallback-suffix: 'terraform'
+
+    - name: Get job ID (local)
+      id: job_id_local
+      if: github.repository == 'huntridge-labs/hardening-workflows'
+      uses: ./.github/actions/get-job-id
+      with:
+        job-name-pattern: 'Terraform Linting'
+        fallback-suffix: 'terraform'
+
+    - name: Set job ID output
+      id: job_id
+      run: |
+        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
+          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
+        else
+          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
+        fi
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
@@ -465,7 +688,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: terraform-lint-results
+        name: terraform-lint-results-${{ steps.job_id.outputs.job-id }}
         path: /tmp/terraform_issues.txt
         retention-days: 7
 
@@ -479,6 +702,43 @@ jobs:
       issues_found: ${{ steps.summary.outputs.total_issues }}
 
     steps:
+    - name: Checkout hardening-workflows for actions
+      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: actions/checkout@v5
+      with:
+        repository: huntridge-labs/hardening-workflows
+        # TODO: Update release-it config to set this ref appropriately
+        ref: feat/clamav
+        path: .hardening-workflows
+        sparse-checkout: |
+          .github/actions/get-job-id/action.yml
+
+    - name: Get job ID (external)
+      id: job_id_ext
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: ./.hardening-workflows/.github/actions/get-job-id
+      with:
+        job-name-pattern: 'Linting Summary'
+        fallback-suffix: 'linting-summary'
+
+    - name: Get job ID (local)
+      id: job_id_local
+      if: github.repository == 'huntridge-labs/hardening-workflows'
+      uses: ./.github/actions/get-job-id
+      with:
+        job-name-pattern: 'Linting Summary'
+        fallback-suffix: 'linting-summary'
+
+    - name: Set job ID output
+      id: job_id
+      run: |
+        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
+          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
+        else
+          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
+        fi
+
     - name: Generate linting summary
       id: summary
       run: |
@@ -552,6 +812,6 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: combined-lint-report
+        name: combined-lint-report-${{ steps.job_id.outputs.job-id }}
         path: lint_report.md
         retention-days: 30

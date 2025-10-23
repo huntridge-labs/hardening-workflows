@@ -671,75 +671,20 @@ jobs:
         echo "3. Address any critical or high-severity findings" >> security-hardening-report.md
         echo "4. Consider enabling automated dependency updates" >> security-hardening-report.md
 
-    - name: Capture job run id
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Get job ID
       id: job_id
-      uses: actions/github-script@v8
+      uses: ./.github/actions/get-job-id
       with:
-        result-encoding: string
-        script: |
-          const { owner, repo } = context.repo;
-          const runId = context.runId;
-          const attempt = context.runAttempt ?? 1;
-
-          const { data } = await github.rest.actions.listJobsForWorkflowRunAttempt({
-            owner,
-            repo,
-            run_id: runId,
-            attempt_number: attempt,
-            per_page: 100,
-          });
-
-          // Debug: Log all job names
-          core.info(`Found ${data.jobs.length} jobs in workflow run:`);
-          data.jobs.forEach(job => {
-            core.info(`  - Job: "${job.name}" (ID: ${job.id}, Status: ${job.status})`);
-          });
-
-          const candidates = data.jobs.filter(job => {
-            const name = job.name ?? '';
-            return name === 'Security Hardening Summary'
-              || name.endsWith('/ Security Hardening Summary')
-              || name.includes('Security Hardening Summary');
-          });
-
-          core.info(`Found ${candidates.length} candidate jobs matching 'Security Hardening Summary'`);
-
-          const inProgress = candidates.filter(job => {
-            const status = (job.status || '').toLowerCase();
-            return status === 'in_progress' || status === 'queued';
-          });
-
-          const orderedCandidates = [...candidates].sort((a, b) => {
-            const aTime = a.started_at ? new Date(a.started_at).getTime() : 0;
-            const bTime = b.started_at ? new Date(b.started_at).getTime() : 0;
-
-            if (aTime !== bTime) {
-              return bTime - aTime;
-            }
-
-            const aId = typeof a.id === 'number' ? a.id : 0;
-            const bId = typeof b.id === 'number' ? b.id : 0;
-            return bId - aId;
-          });
-
-          const summaryJob = inProgress[0] ?? orderedCandidates[0];
-          const artifactName = summaryJob
-            ? `security-hardening-report-${summaryJob.id}`
-            : `security-hardening-report-${runId}-attempt${attempt}`;
-
-          if (!summaryJob) {
-            core.warning('Security Hardening Summary job not found; falling back to run-based artifact naming.');
-          } else {
-            core.info(`Security Hardening Summary job resolved to ID ${summaryJob.id} (${summaryJob.name}).`);
-          }
-
-          core.exportVariable('SECURITY_HARDENING_REPORT_ARTIFACT', artifactName);
-          return artifactName;
+        job-name-pattern: 'Security Hardening Summary'
+        fallback-suffix: 'security-hardening-report'
 
     - name: Upload comprehensive security report
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ steps.job_id.outputs.result }}
+        name: security-hardening-report-${{ steps.job_id.outputs.job-id }}
         path: security-hardening-report.md
         retention-days: 30
 
