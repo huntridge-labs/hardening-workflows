@@ -104,6 +104,18 @@
             "flags": "g"
           },
           "replace": ".yml@{{version}}"
+        },
+        {
+          "files": [
+            ".github/workflows/scanner-clamav.yml",
+            ".github/workflows/linting.yml",
+            ".github/workflows/reusable-security-hardening.yml"
+          ],
+          "search": {
+            "pattern": "repository: huntridge-labs/hardening-workflows[\\s\\S]*?ref: ([^\\s\\n]+)",
+            "flags": "g"
+          },
+          "replace": "repository: huntridge-labs/hardening-workflows\n        ref: {{version}}"
         }
       ]
     }

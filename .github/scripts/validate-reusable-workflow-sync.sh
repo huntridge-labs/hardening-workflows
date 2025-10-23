@@ -34,7 +34,6 @@ normalize_workflow() {
     sed 's|./.hardening-workflows/.github/actions/|./.github/actions/|g' | \
     sed 's/id: job_id_ext/id: job_id/g' | \
     sed 's/id: job_id_local/id: job_id/g' | \
-    sed 's|scanner-clamav.yml  # TODO: Update release-it config|scanner-clamav.yml|g' | \
     grep -v 'name: Set job ID output' | \
     grep -v 'steps.job_id_local.outputs.job-id' | \
     grep -v 'steps.job_id_ext.outputs.job-id' | \

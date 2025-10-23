@@ -38,7 +38,6 @@ jobs:
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
-        # TODO: Update release-it config to set this ref appropriately
         ref: feat/clamav
         path: .hardening-workflows
         sparse-checkout: |
@@ -133,7 +132,6 @@ jobs:
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
-        # TODO: Update release-it config to set this ref appropriately
         ref: feat/clamav
         path: .hardening-workflows
         sparse-checkout: |
@@ -234,7 +232,6 @@ jobs:
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
-        # TODO: Update release-it config to set this ref appropriately
         ref: feat/clamav
         path: .hardening-workflows
         sparse-checkout: |
@@ -359,7 +356,6 @@ jobs:
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
-        # TODO: Update release-it config to set this ref appropriately
         ref: feat/clamav
         path: .hardening-workflows
         sparse-checkout: |
@@ -479,7 +475,6 @@ jobs:
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
-        # TODO: Update release-it config to set this ref appropriately
         ref: feat/clamav
         path: .hardening-workflows
         sparse-checkout: |
@@ -585,7 +580,6 @@ jobs:
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
-        # TODO: Update release-it config to set this ref appropriately
         ref: feat/clamav
         path: .hardening-workflows
         sparse-checkout: |
@@ -714,7 +708,6 @@ jobs:
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
-        # TODO: Update release-it config to set this ref appropriately
         ref: feat/clamav
         path: .hardening-workflows
         sparse-checkout: |

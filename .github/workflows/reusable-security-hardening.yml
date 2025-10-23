@@ -355,7 +355,7 @@ jobs:
     name: ClamAV Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_clamav == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-clamav.yml@feat/clamav  # TODO: Update release-it config
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-clamav.yml@feat/clamav
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -672,7 +672,7 @@ jobs:
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
-        ref: feat/clamav  # TODO: Update release-it config
+        ref: feat/clamav
         path: .hardening-workflows
         sparse-checkout: |
           .github/actions/get-job-id/action.yml
