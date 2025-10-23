@@ -38,6 +38,8 @@ jobs:
       uses: actions/checkout@v5
 
     - name: Checkout hardening-workflows for scripts
+      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
+      if: github.repository != 'huntridge-labs/hardening-workflows'
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
@@ -47,6 +49,32 @@ jobs:
         sparse-checkout: |
           .github/scripts/extract-archives.py
           .github/scripts/parse-clamav-report.py
+          .github/actions/get-job-id/action.yml
+
+    - name: Get job ID (external)
+      id: job_id_ext
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: ./.hardening-workflows/.github/actions/get-job-id
+      with:
+        job-name-pattern: 'Malware Detection - ClamAV'
+        fallback-suffix: 'clamav'
+
+    - name: Get job ID (local)
+      id: job_id_local
+      if: github.repository == 'huntridge-labs/hardening-workflows'
+      uses: ./.github/actions/get-job-id
+      with:
+        job-name-pattern: 'Malware Detection - ClamAV'
+        fallback-suffix: 'clamav'
+
+    - name: Set job ID output
+      id: job_id
+      run: |
+        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
+          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
+        else
+          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
+        fi
 
     - name: Install ClamAV
       run: |
@@ -168,7 +196,7 @@ jobs:
     - name: Upload ClamAV artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: clamav-reports
+        name: clamav-reports-${{ steps.job_id.outputs.job-id }}
         path: clamav-reports/
         retention-days: 30
       if: always()
@@ -235,7 +263,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: scanner-summary-clamav
+        name: scanner-summary-clamav-${{ steps.job_id.outputs.job-id }}
         path: scanner-summaries/clamav.md
         retention-days: 7
       continue-on-error: true
