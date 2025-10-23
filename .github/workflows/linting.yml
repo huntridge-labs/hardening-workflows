@@ -354,6 +354,8 @@ jobs:
       uses: actions/checkout@v5
 
     - name: Checkout hardening-workflows for actions
+      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
+      if: github.repository != 'huntridge-labs/hardening-workflows'
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
