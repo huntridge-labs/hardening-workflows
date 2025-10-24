@@ -126,6 +126,55 @@ resource "aws_s3_bucket_public_access_block" "secure_bucket_pab" {
   restrict_public_buckets = true
 }
 
+# S3 bucket for access logs
+resource "aws_s3_bucket" "logs_bucket" {
+  bucket = "${var.project_name}-${var.environment}-logs-bucket"
+
+  tags = {
+    Name        = "Access Logs Bucket"
+    Environment = var.environment
+  }
+}
+
+# Enable versioning for logs bucket
+resource "aws_s3_bucket_versioning" "logs_bucket_versioning" {
+  bucket = aws_s3_bucket.logs_bucket.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# Encrypt logs bucket
+resource "aws_s3_bucket_server_side_encryption_configuration" "logs_bucket_encryption" {
+  bucket = aws_s3_bucket.logs_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.s3_bucket_key.arn
+    }
+    bucket_key_enabled = true
+  }
+}
+
+# Block public access for logs bucket
+resource "aws_s3_bucket_public_access_block" "logs_bucket_pab" {
+  bucket = aws_s3_bucket.logs_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Enable logging for secure bucket
+resource "aws_s3_bucket_logging" "secure_bucket_logging" {
+  bucket = aws_s3_bucket.secure_bucket.id
+
+  target_bucket = aws_s3_bucket.logs_bucket.id
+  target_prefix = "s3-access-logs/"
+}
+
 # Secure VPC configuration
 resource "aws_vpc" "secure_vpc" {
   cidr_block           = "10.0.0.0/16"
