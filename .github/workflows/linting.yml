@@ -16,6 +16,10 @@ on:
   #   branches: [ main, develop ]
   workflow_dispatch:  # Keep for manual testing
 
+permissions:
+  contents: read
+  actions: read
+
 env:
   PYTHON_VERSION: '3.12'
   NODE_VERSION: '20'
