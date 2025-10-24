@@ -579,6 +579,26 @@ resource "aws_security_group" "secure_sg" {
   }
 }
 
+# VPC Endpoint for S3 (uses the security group)
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = aws_vpc.secure_vpc.id
+  service_name      = "com.amazonaws.${var.aws_region}.s3"
+  vpc_endpoint_type = "Interface"
+
+  subnet_ids = aws_subnet.private_subnet[*].id
+
+  security_group_ids = [
+    aws_security_group.secure_sg.id
+  ]
+
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-s3-endpoint"
+    Environment = var.environment
+  }
+}
+
 # Data sources
 data "aws_availability_zones" "available" {
   state = "available"
