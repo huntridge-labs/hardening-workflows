@@ -292,6 +292,7 @@ jobs:
     uses: ./.github/workflows/linting.yml
     permissions:
       contents: read
+      actions: read
       pull-requests: write
       checks: write
 
