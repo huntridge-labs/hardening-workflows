@@ -34,6 +34,26 @@ provider "aws" {
   }
 }
 
+# Secondary provider for replication region
+provider "aws" {
+  alias  = "replica"
+  region = var.replica_region
+
+  # Enforce secure communication
+  skip_credentials_validation = false
+  skip_metadata_api_check     = false
+  skip_region_validation      = false
+
+  default_tags {
+    tags = {
+      Environment = var.environment
+      Project     = var.project_name
+      ManagedBy   = "terraform"
+      Owner       = var.owner
+    }
+  }
+}
+
 # Variables
 variable "aws_region" {
   description = "AWS region for resources"
@@ -42,6 +62,16 @@ variable "aws_region" {
   validation {
     condition = can(regex("^[a-z]{2}-[a-z]+-[0-9]{1}$", var.aws_region))
     error_message = "AWS region must be a valid region format."
+  }
+}
+
+variable "replica_region" {
+  description = "AWS region for S3 bucket replication"
+  type        = string
+  default     = "us-east-1"
+  validation {
+    condition = can(regex("^[a-z]{2}-[a-z]+-[0-9]{1}$", var.replica_region))
+    error_message = "Replica region must be a valid region format."
   }
 }
 
@@ -85,6 +115,165 @@ resource "aws_kms_alias" "s3_bucket_key_alias" {
   target_key_id = aws_kms_key.s3_bucket_key.key_id
 }
 
+# KMS key for replica bucket encryption
+resource "aws_kms_key" "s3_replica_bucket_key" {
+  provider                = aws.replica
+  description             = "KMS key for S3 replica bucket encryption"
+  deletion_window_in_days = 10
+  enable_key_rotation     = true
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-s3-replica-key"
+    Environment = var.environment
+  }
+}
+
+resource "aws_kms_alias" "s3_replica_bucket_key_alias" {
+  provider      = aws.replica
+  name          = "alias/${var.project_name}-${var.environment}-s3-replica-key"
+  target_key_id = aws_kms_key.s3_replica_bucket_key.key_id
+}
+
+# IAM role for S3 replication
+resource "aws_iam_role" "s3_replication_role" {
+  name = "${var.project_name}-${var.environment}-s3-replication-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "s3.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-s3-replication-role"
+    Environment = var.environment
+  }
+}
+
+# IAM policy for S3 replication
+resource "aws_iam_role_policy" "s3_replication_policy" {
+  name = "${var.project_name}-${var.environment}-s3-replication-policy"
+  role = aws_iam_role.s3_replication_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "s3:GetReplicationConfiguration",
+          "s3:ListBucket"
+        ]
+        Effect = "Allow"
+        Resource = [
+          aws_s3_bucket.secure_bucket.arn
+        ]
+      },
+      {
+        Action = [
+          "s3:GetObjectVersionForReplication",
+          "s3:GetObjectVersionAcl",
+          "s3:GetObjectVersionTagging"
+        ]
+        Effect = "Allow"
+        Resource = [
+          "${aws_s3_bucket.secure_bucket.arn}/*"
+        ]
+      },
+      {
+        Action = [
+          "s3:ReplicateObject",
+          "s3:ReplicateDelete",
+          "s3:ReplicateTags"
+        ]
+        Effect = "Allow"
+        Resource = [
+          "${aws_s3_bucket.replica_bucket.arn}/*"
+        ]
+      },
+      {
+        Action = [
+          "kms:Decrypt"
+        ]
+        Effect = "Allow"
+        Resource = [
+          aws_kms_key.s3_bucket_key.arn
+        ]
+        Condition = {
+          StringLike = {
+            "kms:ViaService" = "s3.${var.aws_region}.amazonaws.com"
+          }
+        }
+      },
+      {
+        Action = [
+          "kms:Encrypt"
+        ]
+        Effect = "Allow"
+        Resource = [
+          aws_kms_key.s3_replica_bucket_key.arn
+        ]
+        Condition = {
+          StringLike = {
+            "kms:ViaService" = "s3.${var.replica_region}.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
+
+# Replica S3 bucket in different region
+resource "aws_s3_bucket" "replica_bucket" {
+  provider = aws.replica
+  bucket   = "${var.project_name}-${var.environment}-secure-bucket-replica"
+
+  tags = {
+    Name        = "Secure Application Bucket Replica"
+    Environment = var.environment
+  }
+}
+
+# Enable versioning for replica bucket (required for replication)
+resource "aws_s3_bucket_versioning" "replica_bucket_versioning" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_bucket.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# Encrypt replica bucket
+resource "aws_s3_bucket_server_side_encryption_configuration" "replica_bucket_encryption" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.s3_replica_bucket_key.arn
+    }
+    bucket_key_enabled = true
+  }
+}
+
+# Block public access for replica bucket
+resource "aws_s3_bucket_public_access_block" "replica_bucket_pab" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
 # Secure S3 bucket configuration
 resource "aws_s3_bucket" "secure_bucket" {
   bucket = "${var.project_name}-${var.environment}-secure-bucket"
@@ -124,6 +313,34 @@ resource "aws_s3_bucket_public_access_block" "secure_bucket_pab" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+# Enable cross-region replication
+resource "aws_s3_bucket_replication_configuration" "secure_bucket_replication" {
+  depends_on = [aws_s3_bucket_versioning.secure_bucket_versioning]
+
+  role   = aws_iam_role.s3_replication_role.arn
+  bucket = aws_s3_bucket.secure_bucket.id
+
+  rule {
+    id     = "replicate-all"
+    status = "Enabled"
+
+    filter {}
+
+    destination {
+      bucket        = aws_s3_bucket.replica_bucket.arn
+      storage_class = "STANDARD"
+
+      encryption_configuration {
+        replica_kms_key_id = aws_kms_key.s3_replica_bucket_key.arn
+      }
+    }
+
+    delete_marker_replication {
+      status = "Enabled"
+    }
+  }
 }
 
 # S3 bucket for access logs
