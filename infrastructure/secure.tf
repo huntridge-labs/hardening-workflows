@@ -68,6 +68,23 @@ variable "owner" {
   type        = string
 }
 
+# KMS key for S3 bucket encryption
+resource "aws_kms_key" "s3_bucket_key" {
+  description             = "KMS key for S3 bucket encryption"
+  deletion_window_in_days = 10
+  enable_key_rotation     = true
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-s3-key"
+    Environment = var.environment
+  }
+}
+
+resource "aws_kms_alias" "s3_bucket_key_alias" {
+  name          = "alias/${var.project_name}-${var.environment}-s3-key"
+  target_key_id = aws_kms_key.s3_bucket_key.key_id
+}
+
 # Secure S3 bucket configuration
 resource "aws_s3_bucket" "secure_bucket" {
   bucket = "${var.project_name}-${var.environment}-secure-bucket"
@@ -92,7 +109,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "secure_bucket_enc
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.s3_bucket_key.arn
     }
     bucket_key_enabled = true
   }
