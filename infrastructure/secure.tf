@@ -147,13 +147,13 @@ resource "aws_security_group" "secure_sg" {
     description = "HTTPS from VPC"
   }
 
-  # Restricted egress
+  # Restricted egress - only within VPC
   egress {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "HTTPS outbound"
+    cidr_blocks = ["10.0.0.0/16"]
+    description = "HTTPS outbound within VPC only"
   }
 
   tags = {
