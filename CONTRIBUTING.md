@@ -433,7 +433,7 @@ on: [push]
 
 jobs:
   scan:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.2
     with:
       scanners: example
 ```
@@ -445,7 +445,7 @@ Add to `examples/scanner-list-examples.yml`:
 ```yaml
   example-focus:
     name: Example Scanner Focus
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.2
     with:
       scanners: 'example'
       post_pr_comment: true

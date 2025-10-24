@@ -10,7 +10,7 @@ on: [push]
 
 jobs:
   sast:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.2
     with:
       scanners: codeql
     permissions:
@@ -26,7 +26,7 @@ on: [pull_request]
 
 jobs:
   hardening:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.2
     with:
       scanners: all
       post_pr_comment: true
@@ -44,7 +44,7 @@ on: [push]
 
 jobs:
   security:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.2
     with:
       scanners: container,infrastructure,gitleaks
       aws_region: us-west-2
@@ -62,7 +62,7 @@ on:
 
 jobs:
   nightly:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.2
     with:
       scanners: all
       post_pr_comment: false
