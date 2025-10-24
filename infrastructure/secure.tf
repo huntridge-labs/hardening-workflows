@@ -315,6 +315,54 @@ resource "aws_s3_bucket_public_access_block" "secure_bucket_pab" {
   restrict_public_buckets = true
 }
 
+# S3 bucket lifecycle configuration
+resource "aws_s3_bucket_lifecycle_configuration" "secure_bucket_lifecycle" {
+  bucket = aws_s3_bucket.secure_bucket.id
+
+  rule {
+    id     = "transition-to-ia"
+    status = "Enabled"
+
+    transition {
+      days          = 90
+      storage_class = "STANDARD_IA"
+    }
+
+    transition {
+      days          = 180
+      storage_class = "INTELLIGENT_TIERING"
+    }
+  }
+
+  rule {
+    id     = "expire-old-versions"
+    status = "Enabled"
+
+    noncurrent_version_transition {
+      noncurrent_days = 30
+      storage_class   = "STANDARD_IA"
+    }
+
+    noncurrent_version_transition {
+      noncurrent_days = 90
+      storage_class   = "GLACIER"
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 365
+    }
+  }
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+}
+
 # Enable cross-region replication
 resource "aws_s3_bucket_replication_configuration" "secure_bucket_replication" {
   depends_on = [aws_s3_bucket_versioning.secure_bucket_versioning]
