@@ -451,6 +451,20 @@ resource "aws_vpc" "secure_vpc" {
   }
 }
 
+# Restrict default security group to have no rules
+resource "aws_default_security_group" "default" {
+  vpc_id = aws_vpc.secure_vpc.id
+
+  # No ingress rules - explicitly empty
+  # No egress rules - explicitly empty
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-default-sg-restricted"
+    Environment = var.environment
+    Description = "Default security group with all traffic restricted"
+  }
+}
+
 # CloudWatch Log Group for VPC Flow Logs
 resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
   name              = "/aws/vpc/${var.project_name}-${var.environment}-flow-logs"
