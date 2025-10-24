@@ -225,6 +225,7 @@ resource "aws_subnet" "private_subnet" {
 # Security group with minimal permissions
 resource "aws_security_group" "secure_sg" {
   name_prefix = "${var.project_name}-${var.environment}-"
+  description = "Secure security group with restricted HTTPS access within VPC only"
   vpc_id      = aws_vpc.secure_vpc.id
 
   # Only necessary ingress rules
