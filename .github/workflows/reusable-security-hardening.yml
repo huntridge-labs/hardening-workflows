@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       scanners:
-        description: 'Comma-separated list of scanners to run (codeql, opengrep, bandit, gitleaks, container, infrastructure, trivy-iac, checkov, trivy-container, grype, lint, all, sast, secrets, etc.)'
+        description: 'Comma-separated list of scanners to run (codeql, opengrep, bandit, gitleaks, container, infrastructure, trivy-iac, checkov, trivy-container, grype, lint, clamav, sbom, all, sast, secrets, etc.). Use "all" to run ALL available scanners.'
         required: false
         default: 'all'
         type: string
@@ -43,6 +43,11 @@ on:
         required: false
         default: false
         type: boolean
+      clamav_scan_path:
+        description: 'Path for ClamAV to scan (file, directory, or archive). Defaults to repository root.'
+        required: false
+        default: '.'
+        type: string
     secrets:
       AWS_ACCOUNT_ID:
         description: 'AWS Account ID for infrastructure scans'
@@ -81,6 +86,7 @@ jobs:
       run_trivy_container: ${{ steps.resolve.outputs.run_trivy_container }}
       run_grype: ${{ steps.resolve.outputs.run_grype }}
       run_lint: ${{ steps.resolve.outputs.run_lint }}
+      run_clamav: ${{ steps.resolve.outputs.run_clamav }}
       run_any: ${{ steps.resolve.outputs.run_any }}
 
     steps:
@@ -102,6 +108,7 @@ jobs:
           [trivy-container]=false
           [grype]=false
           [lint]=false
+          [clamav]=false
           [sbom]=false
         )
 
@@ -136,7 +143,7 @@ jobs:
           case "$token" in
             '' ) ;;
             all|full)
-              for key in "${DEFAULT_SCANNERS[@]}"; do add_scanner "$key"; done
+              for key in "${!RUN[@]}"; do add_scanner "$key"; done
               ;;
             sast|sast-only)
               for key in codeql opengrep bandit gitleaks; do add_scanner "$key"; done
@@ -179,6 +186,9 @@ jobs:
               ;;
             lint|linting|code-quality)
               add_scanner lint
+              ;;
+            clamav|malware|antivirus)
+              add_scanner clamav
               ;;
             none|off)
               reset_selection
@@ -341,6 +351,22 @@ jobs:
       pull-requests: write
     secrets: inherit
 
+  scanner-clamav:
+    name: ClamAV Scanner
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.run_clamav == 'true'
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-clamav.yml@feat/clamav
+    with:
+      post_pr_comment: ${{ inputs.post_pr_comment }}
+      enable_code_security: ${{ inputs.enable_code_security }}
+      scan_path: ${{ inputs.clamav_scan_path }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+    secrets: inherit
+
   scanner-container:
     name: Container Scanner
     needs: scan-coordinator
@@ -461,6 +487,7 @@ jobs:
       - scanner-opengrep
       - scanner-bandit
       - scanner-gitleaks
+      - scanner-clamav
       - scanner-container
       - scanner-infrastructure
       - scanner-sbom
@@ -497,6 +524,13 @@ jobs:
       uses: actions/download-artifact@v5
       with:
         pattern: gitleaks-*
+      continue-on-error: true
+
+    - name: Download ClamAV artifacts
+      if: needs.scan-coordinator.outputs.run_clamav == 'true'
+      uses: actions/download-artifact@v5
+      with:
+        pattern: clamav-*
       continue-on-error: true
 
     - name: Download Container artifacts
@@ -579,7 +613,7 @@ jobs:
         echo ""
 
         # Combine all scanner summaries in a specific order
-        for scanner in codeql opengrep bandit gitleaks container infrastructure sbom trivy-iac checkov trivy-container grype; do
+        for scanner in codeql opengrep bandit gitleaks clamav container infrastructure sbom trivy-iac checkov trivy-container grype; do
           if [ -f "${scanner}.md" ]; then
             echo "✅ Adding ${scanner} summary..."
             cat "${scanner}.md" >> security-hardening-report.md
@@ -632,75 +666,46 @@ jobs:
         echo "3. Address any critical or high-severity findings" >> security-hardening-report.md
         echo "4. Consider enabling automated dependency updates" >> security-hardening-report.md
 
-    - name: Capture job run id
-      id: job_id
-      uses: actions/github-script@v8
+    - name: Checkout hardening-workflows for actions
+      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: actions/checkout@v5
       with:
-        result-encoding: string
-        script: |
-          const { owner, repo } = context.repo;
-          const runId = context.runId;
-          const attempt = context.runAttempt ?? 1;
+        repository: huntridge-labs/hardening-workflows
+        ref: feat/clamav
+        path: .hardening-workflows
+        sparse-checkout: |
+          .github/actions/get-job-id/action.yml
 
-          const { data } = await github.rest.actions.listJobsForWorkflowRunAttempt({
-            owner,
-            repo,
-            run_id: runId,
-            attempt_number: attempt,
-            per_page: 100,
-          });
+    - name: Get job ID (external)
+      id: job_id_ext
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: ./.hardening-workflows/.github/actions/get-job-id
+      with:
+        job-name-pattern: 'Security Hardening Summary'
+        fallback-suffix: 'security-hardening-report'
 
-          // Debug: Log all job names
-          core.info(`Found ${data.jobs.length} jobs in workflow run:`);
-          data.jobs.forEach(job => {
-            core.info(`  - Job: "${job.name}" (ID: ${job.id}, Status: ${job.status})`);
-          });
+    - name: Get job ID (local)
+      id: job_id_local
+      if: github.repository == 'huntridge-labs/hardening-workflows'
+      uses: ./.github/actions/get-job-id
+      with:
+        job-name-pattern: 'Security Hardening Summary'
+        fallback-suffix: 'security-hardening-report'
 
-          const candidates = data.jobs.filter(job => {
-            const name = job.name ?? '';
-            return name === 'Security Hardening Summary'
-              || name.endsWith('/ Security Hardening Summary')
-              || name.includes('Security Hardening Summary');
-          });
-
-          core.info(`Found ${candidates.length} candidate jobs matching 'Security Hardening Summary'`);
-
-          const inProgress = candidates.filter(job => {
-            const status = (job.status || '').toLowerCase();
-            return status === 'in_progress' || status === 'queued';
-          });
-
-          const orderedCandidates = [...candidates].sort((a, b) => {
-            const aTime = a.started_at ? new Date(a.started_at).getTime() : 0;
-            const bTime = b.started_at ? new Date(b.started_at).getTime() : 0;
-
-            if (aTime !== bTime) {
-              return bTime - aTime;
-            }
-
-            const aId = typeof a.id === 'number' ? a.id : 0;
-            const bId = typeof b.id === 'number' ? b.id : 0;
-            return bId - aId;
-          });
-
-          const summaryJob = inProgress[0] ?? orderedCandidates[0];
-          const artifactName = summaryJob
-            ? `security-hardening-report-${summaryJob.id}`
-            : `security-hardening-report-${runId}-attempt${attempt}`;
-
-          if (!summaryJob) {
-            core.warning('Security Hardening Summary job not found; falling back to run-based artifact naming.');
-          } else {
-            core.info(`Security Hardening Summary job resolved to ID ${summaryJob.id} (${summaryJob.name}).`);
-          }
-
-          core.exportVariable('SECURITY_HARDENING_REPORT_ARTIFACT', artifactName);
-          return artifactName;
+    - name: Set job ID output
+      id: job_id
+      run: |
+        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
+          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
+        else
+          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
+        fi
 
     - name: Upload comprehensive security report
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ steps.job_id.outputs.result }}
+        name: security-hardening-report-${{ steps.job_id.outputs.job-id }}
         path: security-hardening-report.md
         retention-days: 30
 

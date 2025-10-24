@@ -10,6 +10,7 @@ One reusable GitHub Actions workflow, many scanners. Pick the components you nee
 - **SAST:** `codeql`, `opengrep`, `bandit`, `gitleaks`
 - **Container:** `container`, `trivy-container`, `grype`, `sbom`
 - **Infrastructure:** `infrastructure`, `trivy-iac`, `checkov`
+- **Malware:** `clamav`
 - **Linting:** `lint`
 
 ### Quick start
@@ -34,6 +35,29 @@ jobs:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }} # optional
 ```
 
+#### ClamAV malware scanning examples
+
+```yaml
+# Scan entire repository (default)
+with:
+  scanners: clamav
+
+# Scan specific directory
+with:
+  scanners: clamav
+  clamav_scan_path: 'src/'
+
+# Scan a specific archive file
+with:
+  scanners: clamav
+  clamav_scan_path: 'dist/my-app.tar.gz'
+
+# Scan multiple paths (use workflow_dispatch to specify)
+with:
+  scanners: clamav
+  clamav_scan_path: 'build/ dist/'
+```
+
 ### Example selector patterns
 
 - **Full coverage:** `scanners: all`
@@ -41,6 +65,7 @@ jobs:
 - **SAST only:** `scanners: codeql,opengrep,bandit,gitleaks`
 - **Infrastructure only:** `scanners: trivy-iac,checkov`
 - **Container only:** `scanners: trivy-container,grype,sbom`
+- **Malware only:** `scanners: clamav`
 - **Focused mix:** `scanners: container,infrastructure,gitleaks`
 
 ### Inputs at a glance
@@ -48,7 +73,7 @@ jobs:
 - `scanners` *(string)* — comma-separated list or `all`
 - `python_version` *(string, default `3.12`)* — runtime for Python-based tools
 - `post_pr_comment` *(boolean, default `true`)* — leave a summary on PRs
-- `iac_path`, `aws_region`, `enable_code_security`, `codeql_languages` — optional knobs for specific scanners
+- `iac_path`, `aws_region`, `enable_code_security`, `codeql_languages`, `clamav_scan_path` — optional knobs for specific scanners
 
 ### Outputs
 

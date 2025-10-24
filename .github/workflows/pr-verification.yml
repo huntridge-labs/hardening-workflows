@@ -70,33 +70,10 @@ jobs:
       - name: Check workflows are in sync
         run: .github/scripts/validate-reusable-workflow-sync.sh
 
-  # Run code quality checks once for all tests
-  code-quality:
-    name: Code Quality & Linting
-    uses: ./.github/workflows/linting.yml
-    permissions:
-      contents: read
-      pull-requests: write
-      checks: write
-
-  gitleaks-scan:
-    name: Gitleaks Scan
-    needs: code-quality
-    uses: ./.github/workflows/scanner-gitleaks.yml
-    with:
-      post_pr_comment: false
-      enable_code_security: false
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-
   # Test scanner resolution logic directly
   test-scanner-resolution:
     name: Test Scanner Resolution Logic
     runs-on: ubuntu-latest
-    needs: code-quality
     strategy:
       matrix:
         test:
@@ -313,7 +290,6 @@ jobs:
   test-scanners-input-validation:
     name: Test Scanners Input Validation
     runs-on: ubuntu-latest
-    needs: code-quality
     strategy:
       matrix:
         test:
@@ -477,7 +453,7 @@ jobs:
   # This uses relative paths for ALL scanner workflows to test branch changes
   integration-test-full-scan:
     name: Integration Test - Full Scan (Branch Versions)
-    needs: [detect-changes, code-quality, test-scanner-resolution, test-scanners-input-validation]
+    needs: [detect-changes, test-scanner-resolution, test-scanners-input-validation]
     if: needs.detect-changes.outputs.any_scanner == 'true' || needs.detect-changes.outputs.reusable_workflow == 'true'
     uses: ./.github/workflows/pr-reusable-security-hardening.yml
     with:
@@ -500,7 +476,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [
       detect-changes,
-      code-quality,
       test-scanner-resolution,
       test-scanners-input-validation,
       integration-test-full-scan
@@ -567,7 +542,6 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
 
         # Check each test result
-        LINTING="${{ needs.code-quality.result }}"
         SCANNER_RESOLUTION="${{ needs.test-scanner-resolution.result }}"
         INPUT_VALIDATION="${{ needs.test-scanners-input-validation.result }}"
         INTEGRATION_FULL="${{ needs.integration-test-full-scan.result }}"
@@ -577,16 +551,10 @@ jobs:
         echo "| Test | Result |" >> $GITHUB_STEP_SUMMARY
         echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
 
-        if [ "$LINTING" = "success" ]; then
-          echo "| ✅ Code Quality & Linting | Passed |" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "| ❌ Code Quality & Linting | Failed |" >> $GITHUB_STEP_SUMMARY
-        fi
-
         if [ "$SCANNER_RESOLUTION" = "success" ]; then
-          echo "| ✅ Scanner Resolution Logic (6 scenarios) | Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| ✅ Scanner Resolution Logic (8 scenarios) | Passed |" >> $GITHUB_STEP_SUMMARY
         else
-          echo "| ❌ Scanner Resolution Logic (6 scenarios) | Failed |" >> $GITHUB_STEP_SUMMARY
+          echo "| ❌ Scanner Resolution Logic (8 scenarios) | Failed |" >> $GITHUB_STEP_SUMMARY
         fi
 
         if [ "$INPUT_VALIDATION" = "success" ]; then
@@ -609,22 +577,21 @@ jobs:
 
         echo "" >> $GITHUB_STEP_SUMMARY
 
-        # Calculate pass rate (core tests only - scanner tests are conditional)
+        # Calculate pass rate
         TOTAL=3
         PASSED=0
-        [ "$LINTING" = "success" ] && PASSED=$((PASSED + 1))
         [ "$SCANNER_RESOLUTION" = "success" ] && PASSED=$((PASSED + 1))
         [ "$INPUT_VALIDATION" = "success" ] && PASSED=$((PASSED + 1))
+        [ "$INTEGRATION_FULL" = "success" ] && PASSED=$((PASSED + 1))
 
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "## 📝 Summary" >> $GITHUB_STEP_SUMMARY
         echo "**$PASSED of $TOTAL core test suites passed**" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Test Coverage:" >> $GITHUB_STEP_SUMMARY
-        echo "- **Code Quality & Linting**: Validates code style and quality (always runs)" >> $GITHUB_STEP_SUMMARY
-        echo "- **Scanner Resolution Logic**: 6 test scenarios validating scanner selection (always runs)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Scanner Resolution Logic**: 8 test scenarios validating scanner selection (always runs)" >> $GITHUB_STEP_SUMMARY
         echo "- **Input Validation**: 4 edge cases - case sensitivity, whitespace, duplicates, unknowns (always runs)" >> $GITHUB_STEP_SUMMARY
-        echo "- **Full Integration Test**: Tests ALL scanners with branch versions when any scanner or reusable workflow is modified" >> $GITHUB_STEP_SUMMARY
+        echo "- **Full Integration Test**: Tests ALL scanners (including linting, gitleaks, clamav) with branch versions when any scanner or reusable workflow is modified" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "> **Solution**: Uses \`pr-reusable-security-hardening.yml\` which is identical to the production workflow " >> $GITHUB_STEP_SUMMARY
         echo "> but with relative paths instead of pinned tags. This allows complete testing of all scanner changes " >> $GITHUB_STEP_SUMMARY
@@ -649,8 +616,7 @@ jobs:
       with:
         script: |
           const results = {
-            'Code Quality & Linting': '${{ needs.code-quality.result }}',
-            'Scanner Resolution Logic (6 scenarios)': '${{ needs.test-scanner-resolution.result }}',
+            'Scanner Resolution Logic (8 scenarios)': '${{ needs.test-scanner-resolution.result }}',
             'Scanners Input Validation (4 edge cases)': '${{ needs.test-scanners-input-validation.result }}',
             'Integration Test - Full Scan': '${{ needs.integration-test-full-scan.result }}'
           };
@@ -660,8 +626,8 @@ jobs:
 
           let table = '| Test Suite | Result |\n|------------|--------|\n';
           for (const [test, result] of Object.entries(results)) {
-            const icon = result === 'success' ? '✅' : '❌';
-            const status = result === 'success' ? 'Passed' : 'Failed';
+            const icon = result === 'success' ? '✅' : result === 'skipped' ? '⏭️' : '❌';
+            const status = result === 'success' ? 'Passed' : result === 'skipped' ? 'Skipped' : 'Failed';
             table += `| ${icon} ${test} | ${status} |\n`;
             if (result === 'success') passed++;
           }
@@ -670,7 +636,7 @@ jobs:
             ? `✅ All ${total} test suites passed!`
             : `⚠️ ${passed}/${total} test suites passed. ${total - passed} suite(s) failed.`;
 
-          const body = `## 🧪 Reusable Workflow Verification Results\n\n${summary}\n\n${table}\n\n### Test Coverage\n- **Code Quality & Linting** - Validates code style and quality\n- **Scanner Resolution Logic** - 6 test scenarios validating scanner selection\n- **Input Validation** - 4 edge cases (case sensitivity, whitespace, duplicates, unknowns)\n- **Full Integration Test** - End-to-end test with SAST, Container, and Infrastructure scanners + PR comment generation\n\n---\n*Verification run for commit ${context.sha.substring(0, 7)}*`;
+          const body = `## 🧪 Reusable Workflow Verification Results\n\n${summary}\n\n${table}\n\n### Test Coverage\n- **Scanner Resolution Logic** - 8 test scenarios validating scanner selection\n- **Input Validation** - 4 edge cases (case sensitivity, whitespace, duplicates, unknowns)\n- **Full Integration Test** - End-to-end test with ALL scanners (SAST, linting, secrets, malware, container, infrastructure, SBOM) + PR comment generation\n\n---\n*Verification run for commit ${context.sha.substring(0, 7)}*`;
 
           // Find existing comment
           const comments = await github.rest.issues.listComments({

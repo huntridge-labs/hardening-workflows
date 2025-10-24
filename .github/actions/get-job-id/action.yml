@@ -1,0 +1,87 @@
+name: 'Get Job ID'
+description: 'Get the current GitHub Actions job ID for unique artifact naming with robust matching'
+inputs:
+  job-name-pattern:
+    description: 'Pattern to match in the job name (e.g., "YAML Linting")'
+    required: true
+  fallback-suffix:
+    description: 'Suffix to use in fallback naming if job ID cannot be determined'
+    required: true
+outputs:
+  job-id:
+    description: 'The job ID or fallback identifier'
+    value: ${{ steps.get_id.outputs.job-id }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Get job ID with robust matching
+      id: get_id
+      uses: actions/github-script@v8
+      with:
+        result-encoding: string
+        script: |
+          const { owner, repo } = context.repo;
+          const runId = context.runId;
+          const attempt = context.runAttempt ?? 1;
+          const pattern = '${{ inputs.job-name-pattern }}';
+          const fallbackSuffix = '${{ inputs.fallback-suffix }}';
+
+          const { data } = await github.rest.actions.listJobsForWorkflowRunAttempt({
+            owner,
+            repo,
+            run_id: runId,
+            attempt_number: attempt,
+            per_page: 100,
+          });
+
+          // Debug: Log all job names
+          core.info(`Found ${data.jobs.length} jobs in workflow run:`);
+          data.jobs.forEach(job => {
+            core.info(`  - Job: "${job.name}" (ID: ${job.id}, Status: ${job.status})`);
+          });
+
+          // Find candidates using multiple matching strategies
+          const candidates = data.jobs.filter(job => {
+            const name = job.name ?? '';
+            return name === pattern
+              || name.endsWith('/ ' + pattern)
+              || name.includes(pattern);
+          });
+
+          core.info(`Found ${candidates.length} candidate jobs matching '${pattern}'`);
+
+          // Prefer in_progress or queued jobs
+          const inProgress = candidates.filter(job => {
+            const status = (job.status || '').toLowerCase();
+            return status === 'in_progress' || status === 'queued';
+          });
+
+          // Sort candidates by timestamp (most recent first), then by ID
+          const orderedCandidates = [...candidates].sort((a, b) => {
+            const aTime = a.started_at ? new Date(a.started_at).getTime() : 0;
+            const bTime = b.started_at ? new Date(b.started_at).getTime() : 0;
+
+            if (aTime !== bTime) {
+              return bTime - aTime;
+            }
+
+            const aId = typeof a.id === 'number' ? a.id : 0;
+            const bId = typeof b.id === 'number' ? b.id : 0;
+            return bId - aId;
+          });
+
+          // Use in_progress/queued job first, fallback to most recent candidate
+          const targetJob = inProgress[0] ?? orderedCandidates[0];
+
+          let jobId;
+          if (!targetJob) {
+            core.warning(`Job matching '${pattern}' not found; falling back to run-based naming.`);
+            jobId = `${runId}-${fallbackSuffix}`;
+          } else {
+            core.info(`Job resolved to ID ${targetJob.id} (${targetJob.name}).`);
+            jobId = targetJob.id.toString();
+          }
+
+          core.setOutput('job-id', jobId);
+          return jobId;
