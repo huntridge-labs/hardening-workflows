@@ -43,7 +43,7 @@ jobs:
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
-        ref: 2.5.0
+        ref: 2.5.1
         path: .hardening-workflows
         sparse-checkout: |
           .github/scripts/extract-archives.py
