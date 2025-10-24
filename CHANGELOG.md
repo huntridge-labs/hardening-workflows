@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.5.2](https://github.com/huntridge-labs/hardening-workflows/compare/2.5.1...2.5.2) (2025-10-24)
+
+### Bug Fixes
+
+* **reusable-security-hardening:** add 'actions: read' permissions to ([d030310](https://github.com/huntridge-labs/hardening-workflows/commit/d030310b6b2423b31ca4ce17305b7c0d0e1ffff3))
+
+## [2.5.1](https://github.com/huntridge-labs/hardening-workflows/compare/2.5.0...2.5.1) (2025-10-24)
+
+### Bug Fixes
+
+* **linting.yml:** add permissions to read contents and actions in linting workflow ([4397e26](https://github.com/huntridge-labs/hardening-workflows/commit/4397e26e99f32985de45bd193a77f507916494fa))
+
 ## [2.5.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.4.0...2.5.0) (2025-10-24)
 
 ### Features
