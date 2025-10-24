@@ -137,6 +137,77 @@ resource "aws_vpc" "secure_vpc" {
   }
 }
 
+# CloudWatch Log Group for VPC Flow Logs
+resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
+  name              = "/aws/vpc/${var.project_name}-${var.environment}-flow-logs"
+  retention_in_days = 30
+  kms_key_id        = aws_kms_key.s3_bucket_key.arn
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-vpc-flow-logs"
+    Environment = var.environment
+  }
+}
+
+# IAM role for VPC Flow Logs
+resource "aws_iam_role" "vpc_flow_logs_role" {
+  name = "${var.project_name}-${var.environment}-vpc-flow-logs-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "vpc-flow-logs.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-vpc-flow-logs-role"
+    Environment = var.environment
+  }
+}
+
+# IAM policy for VPC Flow Logs
+resource "aws_iam_role_policy" "vpc_flow_logs_policy" {
+  name = "${var.project_name}-${var.environment}-vpc-flow-logs-policy"
+  role = aws_iam_role.vpc_flow_logs_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams"
+        ]
+        Effect = "Allow"
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Enable VPC Flow Logs
+resource "aws_flow_log" "vpc_flow_logs" {
+  iam_role_arn    = aws_iam_role.vpc_flow_logs_role.arn
+  log_destination = aws_cloudwatch_log_group.vpc_flow_logs.arn
+  traffic_type    = "ALL"
+  vpc_id          = aws_vpc.secure_vpc.id
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-vpc-flow-logs"
+    Environment = var.environment
+  }
+}
+
 # Private subnets only
 resource "aws_subnet" "private_subnet" {
   count = 2
