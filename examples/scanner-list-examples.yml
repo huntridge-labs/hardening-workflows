@@ -27,7 +27,7 @@ jobs:
   # Example 1: Fast feedback with CodeQL only
   fast-feedback:
     name: Fast Feedback (CodeQL Only)
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.4.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.0
     with:
       scanners: 'codeql'
       codeql_languages: 'python,javascript'
@@ -45,7 +45,7 @@ jobs:
   # Example 2: Python-focused security
   python-security:
     name: Python Security Focus
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.4.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.0
     with:
       scanners: 'codeql,bandit,gitleaks'
       codeql_languages: 'python'
@@ -64,7 +64,7 @@ jobs:
   # Example 3: Infrastructure as Code focus
   infrastructure-focus:
     name: Infrastructure Security
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.4.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.0
     with:
       scanners: 'infrastructure'
       iac_path: 'infrastructure'
@@ -83,7 +83,7 @@ jobs:
   # Example 4: Container security only
   container-only:
     name: Container Security Only
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.4.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.0
     with:
       scanners: 'container'
       post_pr_comment: true
@@ -99,7 +99,7 @@ jobs:
   # Example 5: Secrets scanning only
   secrets-only:
     name: Secrets Detection Only
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.4.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.0
     with:
       scanners: 'secrets'
       post_pr_comment: true
@@ -116,7 +116,7 @@ jobs:
   custom-selection:
     name: Custom Scanner Selection
     if: github.event_name == 'workflow_dispatch'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.4.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.0
     with:
       scanners: ${{ github.event.inputs.scanners }}
       codeql_languages: 'python,javascript'

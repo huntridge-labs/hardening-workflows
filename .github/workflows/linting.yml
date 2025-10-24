@@ -38,7 +38,7 @@ jobs:
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
-        ref: feat/clamav
+        ref: 2.5.0
         path: .hardening-workflows
         sparse-checkout: |
           .github/actions/get-job-id/action.yml
@@ -132,7 +132,7 @@ jobs:
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
-        ref: feat/clamav
+        ref: 2.5.0
         path: .hardening-workflows
         sparse-checkout: |
           .github/actions/get-job-id/action.yml
@@ -232,7 +232,7 @@ jobs:
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
-        ref: feat/clamav
+        ref: 2.5.0
         path: .hardening-workflows
         sparse-checkout: |
           .github/actions/get-job-id/action.yml
@@ -356,7 +356,7 @@ jobs:
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
-        ref: feat/clamav
+        ref: 2.5.0
         path: .hardening-workflows
         sparse-checkout: |
           .github/actions/get-job-id/action.yml
@@ -475,7 +475,7 @@ jobs:
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
-        ref: feat/clamav
+        ref: 2.5.0
         path: .hardening-workflows
         sparse-checkout: |
           .github/actions/get-job-id/action.yml
@@ -580,7 +580,7 @@ jobs:
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
-        ref: feat/clamav
+        ref: 2.5.0
         path: .hardening-workflows
         sparse-checkout: |
           .github/actions/get-job-id/action.yml
@@ -708,7 +708,7 @@ jobs:
       uses: actions/checkout@v5
       with:
         repository: huntridge-labs/hardening-workflows
-        ref: feat/clamav
+        ref: 2.5.0
         path: .hardening-workflows
         sparse-checkout: |
           .github/actions/get-job-id/action.yml

@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.5.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.4.0...2.5.0) (2025-10-24)
+
+### Features
+
+* add ClamAV malware into PR verification workflow ([56ef41b](https://github.com/huntridge-labs/hardening-workflows/commit/56ef41b76988800fb96092795507661228744b41))
+* **clamav:** add ClamAV malware scanner with archive extraction ([4384ed1](https://github.com/huntridge-labs/hardening-workflows/commit/4384ed1d664873bef03c4a55930bbd0aa9904f55))
+* **workflows:** add composite action for unique artifact naming ([ed34421](https://github.com/huntridge-labs/hardening-workflows/commit/ed34421f19a53b3d598e68b6f8b5c32e08890a22))
+
+### Bug Fixes
+
+* **release-it:** reusable workflow versions not updating ([cbad3e3](https://github.com/huntridge-labs/hardening-workflows/commit/cbad3e35b84ee44e3be90266f5318ce1875fcf20))
+* **reusable-security-hardening.yml:** scanners: all not running all 13 scanners ([92b1273](https://github.com/huntridge-labs/hardening-workflows/commit/92b1273170b780790134aec4b50447bdcfaaf63a))
+
+### Documentation
+
+* update CONTRIBUTING.md to clarify workflow integration for new scanners ([76ab04f](https://github.com/huntridge-labs/hardening-workflows/commit/76ab04fc1311783f6eb871b3a2c56d4cf578bb75))
+
+### Code Refactoring
+
+* **pr-verification:** remove redundant code quality checks ([b02b281](https://github.com/huntridge-labs/hardening-workflows/commit/b02b28195b622f5c541f4d58351cce0d1a453c4f))
+
+### Performance Improvements
+
+* **clamav:** replace rglob with iterdir for faster directory scanning ([955b1a7](https://github.com/huntridge-labs/hardening-workflows/commit/955b1a7a023b992d0a3d6d202ee064c442734e62))
+
+### Tests
+
+* add comprehensive test suites for extract-archives.py and parse-clamav-report.py ([449beb1](https://github.com/huntridge-labs/hardening-workflows/commit/449beb170f8dfbc50cd6b564d9985cf21867a995))
+
+### Continuous Integration
+
+* **release-it:** update reusable-security-hardening.yml pattern to match any ref ([b8c153a](https://github.com/huntridge-labs/hardening-workflows/commit/b8c153a1ee07f902c15c0c3470400bc978b7e0a8))
+
 ## [2.4.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.3.1...2.4.0) (2025-10-21)
 
 ### Features
