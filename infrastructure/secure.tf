@@ -391,6 +391,56 @@ resource "aws_s3_bucket_replication_configuration" "secure_bucket_replication" {
   }
 }
 
+# SNS topic for S3 event notifications
+resource "aws_sns_topic" "s3_events" {
+  name              = "${var.project_name}-${var.environment}-s3-events"
+  kms_master_key_id = aws_kms_key.s3_bucket_key.id
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-s3-events"
+    Environment = var.environment
+  }
+}
+
+# SNS topic policy to allow S3 to publish
+resource "aws_sns_topic_policy" "s3_events_policy" {
+  arn = aws_sns_topic.s3_events.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "s3.amazonaws.com"
+        }
+        Action   = "SNS:Publish"
+        Resource = aws_sns_topic.s3_events.arn
+        Condition = {
+          ArnLike = {
+            "aws:SourceArn" = aws_s3_bucket.secure_bucket.arn
+          }
+        }
+      }
+    ]
+  })
+}
+
+# S3 bucket event notifications
+resource "aws_s3_bucket_notification" "secure_bucket_notifications" {
+  bucket = aws_s3_bucket.secure_bucket.id
+
+  topic {
+    topic_arn = aws_sns_topic.s3_events.arn
+    events = [
+      "s3:ObjectCreated:*",
+      "s3:ObjectRemoved:*"
+    ]
+  }
+
+  depends_on = [aws_sns_topic_policy.s3_events_policy]
+}
+
 # S3 bucket for access logs
 resource "aws_s3_bucket" "logs_bucket" {
   bucket = "${var.project_name}-${var.environment}-logs-bucket"
