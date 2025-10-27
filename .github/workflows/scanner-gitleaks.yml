@@ -56,7 +56,7 @@ jobs:
       continue-on-error: true
 
     - name: Upload Gitleaks artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: gitleaks-reports
         path: gitleaks-reports/
@@ -114,7 +114,7 @@ jobs:
 
     - name: Upload GitLeaks summary section
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: scanner-summary-gitleaks
         path: scanner-summaries/gitleaks.md
