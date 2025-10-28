@@ -113,7 +113,7 @@ jobs:
 
     - name: Upload YAML lint results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: yaml-lint-results-${{ steps.job_id.outputs.job-id }}
         path: /tmp/yaml_issues.txt
@@ -213,7 +213,7 @@ jobs:
 
     - name: Upload JSON lint results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: json-lint-results-${{ steps.job_id.outputs.job-id }}
         path: /tmp/json_issues.txt
@@ -334,7 +334,7 @@ jobs:
 
     - name: Upload Python lint results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: python-lint-results-${{ steps.job_id.outputs.job-id }}
         path: |
@@ -456,7 +456,7 @@ jobs:
 
     - name: Upload JavaScript lint results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: js-lint-results-${{ steps.job_id.outputs.job-id }}
         path: /tmp/eslint_issues.txt
@@ -561,7 +561,7 @@ jobs:
 
     - name: Upload Dockerfile lint results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: dockerfile-lint-results-${{ steps.job_id.outputs.job-id }}
         path: /tmp/hadolint_issues.txt
@@ -686,7 +686,7 @@ jobs:
 
     - name: Upload Terraform lint results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: terraform-lint-results-${{ steps.job_id.outputs.job-id }}
         path: /tmp/terraform_issues.txt
@@ -778,7 +778,7 @@ jobs:
 
     - name: Download all lint results
       if: always()
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       continue-on-error: true
 
     - name: Create combined lint report
@@ -813,7 +813,7 @@ jobs:
 
     - name: Upload combined lint report
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: combined-lint-report-${{ steps.job_id.outputs.job-id }}
         path: lint_report.md

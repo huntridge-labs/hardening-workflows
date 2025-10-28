@@ -501,97 +501,97 @@ jobs:
     steps:
     - name: Download CodeQL artifacts
       if: needs.scan-coordinator.outputs.run_codeql == 'true'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         pattern: codeql-*
       continue-on-error: true
 
     - name: Download OpenGrep artifacts
       if: needs.scan-coordinator.outputs.run_opengrep == 'true'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         pattern: opengrep-*
       continue-on-error: true
 
     - name: Download Bandit artifacts
       if: needs.scan-coordinator.outputs.run_bandit == 'true'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         pattern: bandit-*
       continue-on-error: true
 
     - name: Download GitLeaks artifacts
       if: needs.scan-coordinator.outputs.run_gitleaks == 'true'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         pattern: gitleaks-*
       continue-on-error: true
 
     - name: Download ClamAV artifacts
       if: needs.scan-coordinator.outputs.run_clamav == 'true'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         pattern: clamav-*
       continue-on-error: true
 
     - name: Download Container artifacts
       if: needs.scan-coordinator.outputs.run_container == 'true'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         pattern: container-*
       continue-on-error: true
 
     - name: Download Infrastructure artifacts
       if: needs.scan-coordinator.outputs.run_infrastructure == 'true'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         pattern: infrastructure-*
       continue-on-error: true
 
     - name: Download Trivy IaC artifacts
       if: needs.scan-coordinator.outputs.run_trivy_iac == 'true'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         pattern: trivy-iac-*
       continue-on-error: true
 
     - name: Download Checkov artifacts
       if: needs.scan-coordinator.outputs.run_checkov == 'true'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         pattern: checkov-*
       continue-on-error: true
 
     - name: Download Trivy Container artifacts
       if: needs.scan-coordinator.outputs.run_trivy_container == 'true'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         pattern: trivy-container-*
       continue-on-error: true
 
     - name: Download Grype artifacts
       if: needs.scan-coordinator.outputs.run_grype == 'true'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         pattern: grype-*
       continue-on-error: true
 
     - name: Download Linting artifacts
       if: needs.scan-coordinator.outputs.run_lint == 'true'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         pattern: '*lint*'
       continue-on-error: true
 
     - name: Download SBOM artifacts
       if: needs.scan-coordinator.outputs.run_sbom == 'true'
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         pattern: sbom-*
       continue-on-error: true
 
     - name: Download all scanner summaries
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         pattern: scanner-summary-*
         merge-multiple: true
@@ -704,7 +704,7 @@ jobs:
         fi
 
     - name: Upload comprehensive security report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: security-hardening-report-${{ steps.job_id.outputs.job-id }}
         path: security-hardening-report.md

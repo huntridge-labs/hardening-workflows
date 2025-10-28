@@ -28,7 +28,7 @@ jobs:
       reusable_workflow: ${{ steps.filter.outputs.reusable_workflow }}
       any_scanner: ${{ steps.filter.outputs.any_scanner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dorny/paths-filter@v3
         id: filter
@@ -65,7 +65,7 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.reusable_workflow == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Check workflows are in sync
         run: .github/scripts/validate-reusable-workflow-sync.sh
