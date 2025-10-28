@@ -396,9 +396,31 @@ After making changes to both workflow files, validate they're in sync:
 
 This script ensures that `reusable-security-hardening.yml` and `pr-reusable-security-hardening.yml` are structurally identical (ignoring path differences).
 
-### Step 4: Update Documentation
+### Step 4: Update Changelog Categorization
 
-#### 4.1 Update README.md
+When adding a new scanner, update `scripts/release-it-process-changelog.js` to ensure Dependabot version bumps for your scanner are categorized under "Security Tools" in the changelog:
+
+```javascript
+// Security scanner patterns to detect in commit messages
+const securityScannerPatterns = [
+  'bridgecrewio/checkov-action',
+  // ... existing scanners
+  'your-org/example-scanner-action',  // Add full action path
+  'example-scanner-action',           // Add short name
+  'example-scanner'                   // Add common name
+];
+```
+
+**Examples:**
+- If using GitHub Action: Add the full path (e.g., `github/codeql-action`)
+- If using pip package: Add the package name (e.g., `bandit`)
+- Add common aliases that might appear in commit messages
+
+This ensures that when Dependabot updates your scanner, the changelog will show it under "Security Tools" instead of generic "Dependencies".
+
+### Step 5: Update Documentation
+
+#### 5.1 Update README.md
 
 Add your scanner to the available scanners list:
 
@@ -420,7 +442,7 @@ with:
   scanners: codeql,example,gitleaks
 ```
 
-#### 4.2 Update QUICK-START.md
+#### 5.2 Update QUICK-START.md
 
 Add quick-start examples:
 
@@ -438,7 +460,7 @@ jobs:
       scanners: example
 ```
 
-#### 4.3 Create Examples
+#### 5.3 Create Examples
 
 Add to `examples/scanner-list-examples.yml`:
 
@@ -451,7 +473,7 @@ Add to `examples/scanner-list-examples.yml`:
       post_pr_comment: true
 ```
 
-### Step 4: Add Input Validation (Optional)
+### Step 6: Add Input Validation (Optional)
 
 If your scanner requires specific inputs, add validation to the scan-coordinator:
 
