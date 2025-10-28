@@ -1,13 +1,11 @@
 #!/usr/bin/env node
 /**
- * Post-process changelog to categorize chore(deps) commits
+ * Post-process changelog to categorize dependency updates
  *
  * This script:
  * 1. Reads the generated CHANGELOG.md
- * 2. Identifies chore(deps) commits that update security scanners
- * 3. Moves them to a "Security Tools" section
- * 4. Moves other chore(deps) to "Dependencies" section
- * 5. Keeps other chore commits in "Maintenance"
+ * 2. Filters out non-deps commits from Maintenance section
+ * 3. Categorizes deps commits into Security Tools vs Dependencies
  */
 
 const fs = require('fs');
@@ -45,8 +43,8 @@ function isSecurityScanner(commitText) {
   );
 }
 
-function processChangelog() {
-  const changelogPath = path.join(process.cwd(), 'CHANGELOG.md');
+function processChangelog(changelogFile = 'CHANGELOG.md') {
+  const changelogPath = path.join(process.cwd(), changelogFile);
 
   if (!fs.existsSync(changelogPath)) {
     console.log('CHANGELOG.md not found, skipping processing');
@@ -55,37 +53,39 @@ function processChangelog() {
 
   let content = fs.readFileSync(changelogPath, 'utf8');
 
-  // Find the Maintenance section and extract chore commits
-  // Match "### Maintenance" followed by commits starting with "*"
-  const maintenancePattern = /### Maintenance\n\n((?:\* .*\n?)+)/g;
-  const matches = [...content.matchAll(maintenancePattern)];
+  // Find Maintenance sections and process them
+  // Match "### Maintenance" followed by content until next "###" or end
+  const maintenancePattern = /### Maintenance\n\n([\s\S]*?)(?=\n###|\n##|$)/g;
 
-  if (matches.length === 0) {
-    console.log('No Maintenance section found');
-    return;
-  }
-
-  // Process each Maintenance section (there may be multiple versions)
-  matches.forEach(match => {
-    const maintenanceSection = match[1];
-    const commits = maintenanceSection.match(/^\* .+$/gm) || [];
+  content = content.replace(maintenancePattern, (match, maintenanceContent) => {
+    // Extract all commit lines (lines starting with *)
+    const commits = maintenanceContent.match(/^\* .+$/gm) || [];
 
     const securityToolCommits = [];
     const dependencyCommits = [];
-    const maintenanceCommits = [];
 
+    // Filter and categorize commits
     commits.forEach(commit => {
-      // Check if it's a deps commit by looking for (deps) or bump patterns
-      const isDepsCommit = /\(deps\)|bump .* from .* to/i.test(commit);
+      // Match pattern: * **<scope>:** or * **<scope>**:
+      // Handle both correct format (deps**:) and malformed (deps)(deps:)
+      const scopeMatch = commit.match(/^\* \*\*([^:]+):/);
 
-      if (isDepsCommit) {
-        if (isSecurityScanner(commit)) {
-          securityToolCommits.push(commit);
-        } else {
-          dependencyCommits.push(commit);
-        }
+      if (!scopeMatch) {
+        return; // No scope found, skip this commit
+      }
+
+      const scope = scopeMatch[1];
+
+      // Only process commits where scope contains 'deps'
+      if (!scope.includes('deps')) {
+        return; // Not a deps commit, skip it
+      }
+
+      // Categorize deps commits
+      if (isSecurityScanner(commit)) {
+        securityToolCommits.push(commit);
       } else {
-        maintenanceCommits.push(commit);
+        dependencyCommits.push(commit);
       }
     });
 
@@ -102,13 +102,12 @@ function processChangelog() {
       replacement += dependencyCommits.join('\n') + '\n\n';
     }
 
-    if (maintenanceCommits.length > 0) {
-      replacement += '### Maintenance\n\n';
-      replacement += maintenanceCommits.join('\n') + '\n\n';
+    // If no commits left after filtering, remove the section entirely
+    if (replacement === '') {
+      return '';
     }
 
-    // Replace the original Maintenance section
-    content = content.replace(match[0], replacement.trim() + '\n\n');
+    return replacement.trim() + '\n\n';
   });
 
   // Write back
@@ -118,7 +117,9 @@ function processChangelog() {
 
 // Run if called directly
 if (require.main === module) {
-  processChangelog();
+  // Get changelog file from command line argument or use default
+  const changelogFile = process.argv[2] || 'CHANGELOG.md';
+  processChangelog(changelogFile);
 }
 
 module.exports = { processChangelog };
