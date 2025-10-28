@@ -63,7 +63,7 @@ jobs:
     name: Validate Workflow Sync
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.reusable_workflow == 'true'
+    if: needs.detect-changes.outputs.reusable_workflow == 'true' || needs.detect-changes.outputs.any_scanner == 'true'
     steps:
       - uses: actions/checkout@v5
 
