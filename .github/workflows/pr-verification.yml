@@ -577,16 +577,36 @@ jobs:
 
         echo "" >> $GITHUB_STEP_SUMMARY
 
-        # Calculate pass rate
-        TOTAL=3
-        PASSED=0
-        [ "$SCANNER_RESOLUTION" = "success" ] && PASSED=$((PASSED + 1))
-        [ "$INPUT_VALIDATION" = "success" ] && PASSED=$((PASSED + 1))
-        [ "$INTEGRATION_FULL" = "success" ] && PASSED=$((PASSED + 1))
+        # Calculate pass rate - handle skipped jobs differently
+        # Core tests that always run
+        CORE_TESTS=2
+        CORE_PASSED=0
+        [ "$SCANNER_RESOLUTION" = "success" ] && CORE_PASSED=$((CORE_PASSED + 1))
+        [ "$INPUT_VALIDATION" = "success" ] && CORE_PASSED=$((CORE_PASSED + 1))
+
+        # Integration test only counts if it ran (not skipped)
+        INTEGRATION_RAN=false
+        INTEGRATION_PASSED=false
+        if [ "$INTEGRATION_FULL" = "success" ]; then
+          INTEGRATION_RAN=true
+          INTEGRATION_PASSED=true
+        elif [ "$INTEGRATION_FULL" = "failure" ] || [ "$INTEGRATION_FULL" = "cancelled" ]; then
+          INTEGRATION_RAN=true
+          INTEGRATION_PASSED=false
+        fi
 
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "## 📝 Summary" >> $GITHUB_STEP_SUMMARY
-        echo "**$PASSED of $TOTAL core test suites passed**" >> $GITHUB_STEP_SUMMARY
+
+        if [ "$INTEGRATION_RAN" = true ]; then
+          TOTAL=$((CORE_TESTS + 1))
+          PASSED=$CORE_PASSED
+          [ "$INTEGRATION_PASSED" = true ] && PASSED=$((PASSED + 1))
+          echo "**$PASSED of $TOTAL test suites passed**" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "**$CORE_PASSED of $CORE_TESTS core test suites passed** (Integration test skipped - no scanner changes)" >> $GITHUB_STEP_SUMMARY
+        fi
+
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Test Coverage:" >> $GITHUB_STEP_SUMMARY
         echo "- **Scanner Resolution Logic**: 8 test scenarios validating scanner selection (always runs)" >> $GITHUB_STEP_SUMMARY
@@ -599,14 +619,38 @@ jobs:
         echo "> stable \`reusable-security-hardening.yml\` with pinned versions." >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
-        if [ $PASSED -eq $TOTAL ]; then
-          echo "✅ All verification tests passed! The reusable workflow is working correctly." >> $GITHUB_STEP_SUMMARY
-          echo "::notice title=PR Verification::All $TOTAL test suites passed"
+        # Determine overall success
+        WORKFLOW_FAILED=false
+
+        # Core tests must pass
+        if [ "$CORE_PASSED" -ne "$CORE_TESTS" ]; then
+          WORKFLOW_FAILED=true
+        fi
+
+        # If integration test ran, it must also pass
+        if [ "$INTEGRATION_RAN" = true ] && [ "$INTEGRATION_PASSED" = false ]; then
+          WORKFLOW_FAILED=true
+        fi
+
+        if [ "$WORKFLOW_FAILED" = false ]; then
+          if [ "$INTEGRATION_RAN" = true ]; then
+            echo "✅ All verification tests passed! The reusable workflow is working correctly." >> $GITHUB_STEP_SUMMARY
+            echo "::notice title=PR Verification::All test suites passed"
+          else
+            echo "✅ All core verification tests passed! No scanner changes detected in this PR." >> $GITHUB_STEP_SUMMARY
+            echo "::notice title=PR Verification::Core tests passed, integration test skipped (no scanner changes)"
+          fi
           exit 0
         else
-          FAILED=$((TOTAL - PASSED))
-          echo "❌ $FAILED test suite(s) failed. Please review the workflow logs." >> $GITHUB_STEP_SUMMARY
-          echo "::error title=PR Verification::$FAILED of $TOTAL test suites failed"
+          if [ "$INTEGRATION_RAN" = true ]; then
+            FAILED=$((TOTAL - PASSED))
+            echo "❌ $FAILED test suite(s) failed. Please review the workflow logs." >> $GITHUB_STEP_SUMMARY
+            echo "::error title=PR Verification::$FAILED of $TOTAL test suites failed"
+          else
+            FAILED=$((CORE_TESTS - CORE_PASSED))
+            echo "❌ $FAILED core test suite(s) failed. Please review the workflow logs." >> $GITHUB_STEP_SUMMARY
+            echo "::error title=PR Verification::$FAILED of $CORE_TESTS core test suites failed"
+          fi
           exit 1
         fi
 
@@ -622,6 +666,8 @@ jobs:
           };
 
           let passed = 0;
+          let failed = 0;
+          let skipped = 0;
           let total = Object.keys(results).length;
 
           let table = '| Test Suite | Result |\n|------------|--------|\n';
@@ -630,13 +676,20 @@ jobs:
             const status = result === 'success' ? 'Passed' : result === 'skipped' ? 'Skipped' : 'Failed';
             table += `| ${icon} ${test} | ${status} |\n`;
             if (result === 'success') passed++;
+            else if (result === 'skipped') skipped++;
+            else failed++;
           }
 
-          const summary = passed === total
-            ? `✅ All ${total} test suites passed!`
-            : `⚠️ ${passed}/${total} test suites passed. ${total - passed} suite(s) failed.`;
+          let summary;
+          if (failed > 0) {
+            summary = `⚠️ ${passed}/${total} test suites passed. ${failed} failed, ${skipped} skipped.`;
+          } else if (skipped > 0) {
+            summary = `✅ All ${passed} active test suites passed! (${skipped} skipped - no scanner changes detected)`;
+          } else {
+            summary = `✅ All ${total} test suites passed!`;
+          }
 
-          const body = `## 🧪 Reusable Workflow Verification Results\n\n${summary}\n\n${table}\n\n### Test Coverage\n- **Scanner Resolution Logic** - 8 test scenarios validating scanner selection\n- **Input Validation** - 4 edge cases (case sensitivity, whitespace, duplicates, unknowns)\n- **Full Integration Test** - End-to-end test with ALL scanners (SAST, linting, secrets, malware, container, infrastructure, SBOM) + PR comment generation\n\n---\n*Verification run for commit ${context.sha.substring(0, 7)}*`;
+          const body = `## 🧪 Reusable Workflow Verification Results\n\n${summary}\n\n${table}\n\n### Test Coverage\n- **Scanner Resolution Logic** - 8 test scenarios validating scanner selection (always runs)\n- **Input Validation** - 4 edge cases (case sensitivity, whitespace, duplicates, unknowns) (always runs)\n- **Full Integration Test** - End-to-end test with ALL scanners (SAST, linting, secrets, malware, container, infrastructure, SBOM) + PR comment generation (runs when scanner workflows change)\n\n---\n*Verification run for commit ${context.sha.substring(0, 7)}*`;
 
           // Find existing comment
           const comments = await github.rest.issues.listComments({
