@@ -24,16 +24,18 @@ const securityScannerPatterns = [
   'anchore/sbom-action',
   'sbom-action',
   'syft',
-  'clamav',
-  'snyk',
+  'anchore/scan-action',
   'grype',
-  'osv-scanner',
-  'semgrep',
-  'bandit',
-  'safety',
+  'clamav',
+  'gitleaks/gitleaks-action',
+  'gitleaks-action',
   'gitleaks',
-  'trufflehog',
-  'detect-secrets'
+  'bandit',
+  'opengrep',
+  'semgrep',
+  'github/codeql-action',
+  'codeql-action',
+  'codeql'
 ];
 
 function isSecurityScanner(commitText) {
