@@ -24,7 +24,11 @@
     "before:init": [
       "npm test"
     ],
-    "after:bump": "echo 'Version bumped to ${version}'",
+    "after:bump": [
+      "echo 'Version bumped to ${version}'",
+      "node scripts/release-it-process-changelog.js",
+      "git add CHANGELOG.md"
+    ],
     "after:git:release": "echo 'Git tag ${tagName} created'",
     "after:github:release": "echo 'GitHub release ${version} published'",
     "after:release": "echo 'Release ${version} completed successfully!'"
@@ -41,6 +45,11 @@
           {
             "type": "fix",
             "section": "Bug Fixes"
+          },
+          {
+            "type": "chore",
+            "section": "Maintenance",
+            "hidden": false
           },
           {
             "type": "docs",

@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.5.4](https://github.com/huntridge-labs/hardening-workflows/compare/2.5.3...2.5.4) (2025-10-29)
+
+### Maintenance
+
+* ensure processed CHANGELOG is added to release commit ([1e6d3b0](https://github.com/huntridge-labs/hardening-workflows/commit/1e6d3b0c912e39a9b7c631ce1585e3a7ca0f1ca4))
+* **release:** ensure processed CHANGELOG is added to release commit ([5e4f4f0](https://github.com/huntridge-labs/hardening-workflows/commit/5e4f4f00fcfa7ecfec579c4a0331386ab82ce31e))
+
+## [2.5.3](https://github.com/huntridge-labs/hardening-workflows/compare/2.5.2...2.5.3) (2025-10-29)
+
+### Bug Fixes
+
+* **pr-reusable-security-hardening:** add 'actions: read' permission to linting job ([8da25b6](https://github.com/huntridge-labs/hardening-workflows/commit/8da25b670db424adecd5e6ab926e6b728e393d0a))
+* update condition for validating workflow sync to include any scanner changes ([da852cc](https://github.com/huntridge-labs/hardening-workflows/commit/da852cc0226d4eeee19b1d4c3fb36fdab64447f2))
+
+### Security Tools
+
+* **deps)(deps:** bump anchore/sbom-action from 0.20.8 to 0.20.9 ([8cdb71d](https://github.com/huntridge-labs/hardening-workflows/commit/8cdb71d75d1abb33c7f6cb7472e11b1588a3caf6))
+* **deps)(deps:** bump bridgecrewio/checkov-action ([c6f125b](https://github.com/huntridge-labs/hardening-workflows/commit/c6f125b42aa5283c13575a8bf538c31d0c00aa54))
+
+### Dependencies
+
+* **deps)(deps:** bump the github-actions-major group with 3 updates ([168567e](https://github.com/huntridge-labs/hardening-workflows/commit/168567efe52b237b6ddc7d95a7662bff097d68ab))
+* **deps:** bump @octokit/plugin-paginate-rest from 13.2.0 to 13.2.1 ([c03a077](https://github.com/huntridge-labs/hardening-workflows/commit/c03a0770770032a7327c4afe85cad9ff60aa4163))
+
+
+### Documentation
+
+* **CONTRIBUTING:** add instructions for updating release-it-process-changelog ([ae51bff](https://github.com/huntridge-labs/hardening-workflows/commit/ae51bfff09aa30444fe801de7416759042d4452a))
+
+### Continuous Integration
+
+* **changelog:** categorize security tool updates in release changelog ([07eeeee](https://github.com/huntridge-labs/hardening-workflows/commit/07eeeeea3829a6403c6ee3f420b5779f8351fe87))
+* **dependabot:** fix double scoped commit ([c3217a0](https://github.com/huntridge-labs/hardening-workflows/commit/c3217a058c543c836f17794d24c345b514135e68))
+* **pr-verification.yml:** handle skipped tests in PR verification workflow ([6494b7a](https://github.com/huntridge-labs/hardening-workflows/commit/6494b7a9cf49b0503aeb13efa0142d02e366d8c7))
+
 ## [2.5.2](https://github.com/huntridge-labs/hardening-workflows/compare/2.5.1...2.5.2) (2025-10-24)
 
 ### Bug Fixes
