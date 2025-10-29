@@ -55,7 +55,8 @@ function processChangelog(changelogFile = 'CHANGELOG.md') {
 
   // Find Maintenance sections and process them
   // Match "### Maintenance" followed by content until next "###" or end
-  const maintenancePattern = /### Maintenance\n\n([\s\S]*?)(?=\n###|\n##|$)/g;
+  // Handle both single and double newlines after the heading
+  const maintenancePattern = /### Maintenance\n+([^]*?)(?=\n###|\n##|$)/g;
 
   content = content.replace(maintenancePattern, (match, maintenanceContent) => {
     // Extract all commit lines (lines starting with *)
@@ -112,7 +113,7 @@ function processChangelog(changelogFile = 'CHANGELOG.md') {
 
   // Write back
   fs.writeFileSync(changelogPath, content);
-  console.log('✓ Processed CHANGELOG.md - categorized dependency updates');
+  console.log(`✓ Processed ${changelogFile} - categorized dependency updates`);
 }
 
 // Run if called directly
