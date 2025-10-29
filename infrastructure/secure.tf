@@ -104,6 +104,58 @@ resource "aws_kms_key" "s3_bucket_key" {
   deletion_window_in_days = 10
   enable_key_rotation     = true
 
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "Enable IAM User Permissions"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "Allow S3 Service"
+        Effect = "Allow"
+        Principal = {
+          Service = "s3.amazonaws.com"
+        }
+        Action = [
+          "kms:GenerateDataKey*",
+          "kms:Decrypt"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      },
+      {
+        Sid    = "Allow CloudWatch Logs Service"
+        Effect = "Allow"
+        Principal = {
+          Service = "logs.${var.aws_region}.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+        Condition = {
+          ArnEquals = {
+            "kms:EncryptionContext:aws:logs:arn" = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/vpc/${var.project_name}-${var.environment}-flow-logs"
+          }
+        }
+      }
+    ]
+  })
+
   tags = {
     Name        = "${var.project_name}-${var.environment}-s3-key"
     Environment = var.environment
@@ -121,6 +173,39 @@ resource "aws_kms_key" "s3_replica_bucket_key" {
   description             = "KMS key for S3 replica bucket encryption"
   deletion_window_in_days = 10
   enable_key_rotation     = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "Enable IAM User Permissions"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "Allow S3 Service"
+        Effect = "Allow"
+        Principal = {
+          Service = "s3.amazonaws.com"
+        }
+        Action = [
+          "kms:GenerateDataKey*",
+          "kms:Decrypt",
+          "kms:Encrypt"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      }
+    ]
+  })
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-s3-replica-key"
@@ -272,6 +357,55 @@ resource "aws_s3_bucket_public_access_block" "replica_bucket_pab" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+# Lifecycle configuration for replica bucket
+resource "aws_s3_bucket_lifecycle_configuration" "replica_bucket_lifecycle" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_bucket.id
+
+  rule {
+    id     = "transition-replica-to-ia"
+    status = "Enabled"
+
+    transition {
+      days          = 90
+      storage_class = "STANDARD_IA"
+    }
+
+    transition {
+      days          = 180
+      storage_class = "INTELLIGENT_TIERING"
+    }
+  }
+
+  rule {
+    id     = "expire-old-replica-versions"
+    status = "Enabled"
+
+    noncurrent_version_transition {
+      noncurrent_days = 30
+      storage_class   = "STANDARD_IA"
+    }
+
+    noncurrent_version_transition {
+      noncurrent_days = 90
+      storage_class   = "GLACIER"
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 365
+    }
+  }
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads-replica"
+    status = "Enabled"
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
 }
 
 # Secure S3 bucket configuration
@@ -482,6 +616,35 @@ resource "aws_s3_bucket_public_access_block" "logs_bucket_pab" {
   restrict_public_buckets = true
 }
 
+# Lifecycle configuration for logs bucket
+resource "aws_s3_bucket_lifecycle_configuration" "logs_bucket_lifecycle" {
+  bucket = aws_s3_bucket.logs_bucket.id
+
+  rule {
+    id     = "transition-logs-to-ia"
+    status = "Enabled"
+
+    transition {
+      days          = 90
+      storage_class = "STANDARD_IA"
+    }
+
+    transition {
+      days          = 365
+      storage_class = "GLACIER"
+    }
+  }
+
+  rule {
+    id     = "expire-old-log-versions"
+    status = "Enabled"
+
+    noncurrent_version_expiration {
+      noncurrent_days = 365
+    }
+  }
+}
+
 # Enable logging for secure bucket
 resource "aws_s3_bucket_logging" "secure_bucket_logging" {
   bucket = aws_s3_bucket.secure_bucket.id
@@ -518,7 +681,7 @@ resource "aws_default_security_group" "default" {
 # CloudWatch Log Group for VPC Flow Logs
 resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
   name              = "/aws/vpc/${var.project_name}-${var.environment}-flow-logs"
-  retention_in_days = 30
+  retention_in_days = 365
   kms_key_id        = aws_kms_key.s3_bucket_key.arn
 
   tags = {
@@ -559,6 +722,7 @@ resource "aws_iam_role_policy" "vpc_flow_logs_policy" {
     Version = "2012-10-17"
     Statement = [
       {
+        Effect = "Allow"
         Action = [
           "logs:CreateLogGroup",
           "logs:CreateLogStream",
@@ -566,8 +730,10 @@ resource "aws_iam_role_policy" "vpc_flow_logs_policy" {
           "logs:DescribeLogGroups",
           "logs:DescribeLogStreams"
         ]
-        Effect = "Allow"
-        Resource = "*"
+        Resource = [
+          aws_cloudwatch_log_group.vpc_flow_logs.arn,
+          "${aws_cloudwatch_log_group.vpc_flow_logs.arn}:*"
+        ]
       }
     ]
   })
@@ -653,6 +819,8 @@ resource "aws_vpc_endpoint" "s3" {
 data "aws_availability_zones" "available" {
   state = "available"
 }
+
+data "aws_caller_identity" "current" {}
 
 # Outputs
 output "vpc_id" {
