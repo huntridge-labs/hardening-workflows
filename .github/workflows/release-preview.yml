@@ -117,7 +117,7 @@ jobs:
             echo "- 📝 Update CHANGELOG.md with new entries" >> preview.md
             echo "- 🏷️ Create git tag \`$NEW_VERSION\`" >> preview.md
             echo "- 📤 Push changes and tag to repository" >> preview.md
-            echo "- � Create GitHub release" >> preview.md
+            echo "- 📦 Create GitHub release" >> preview.md
 
           else
             # No version bump
