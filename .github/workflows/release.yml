@@ -101,6 +101,36 @@ jobs:
         run: npm test
 
       - name: Release Preview
-        run: npm run release:dry
+        run: |
+          # Run release-it dry run to see what would be released
+          echo "Running release-it dry run..."
+          echo "Note: A post-processed changelog with categorization will be shown after the dry run output."
+          echo ""
+          npm run release:dry 2>&1 | tee release_dry_output.txt
+
+          # Extract and process the changelog section to show categorized version
+          if grep -q "Changelog:" release_dry_output.txt; then
+            echo ""
+            echo "============================================"
+            echo "📋 PROCESSED CHANGELOG (with categorization)"
+            echo "============================================"
+            echo "The actual CHANGELOG.md will be modified using scripts/release-it-process-changelog.js as shown below:"
+            echo ""
+
+            # Extract raw changelog
+            sed -n '/^Changelog:/,/^Updating version/p' release_dry_output.txt | sed '1d;$d' | sed 's/^//' > changelog_preview.md
+
+            # Create temp file for processing
+            echo "# Temp Changelog" > temp_preview.md
+            echo "" >> temp_preview.md
+            cat changelog_preview.md >> temp_preview.md
+
+            # Process with our script
+            node scripts/release-it-process-changelog.js temp_preview.md
+
+            # Show processed changelog
+            tail -n +3 temp_preview.md
+            echo "============================================"
+          fi
         env:
           HUSKY: 0

@@ -81,7 +81,19 @@ jobs:
             echo "" >> preview.md
 
             # Extract changelog section from release output (between "Changelog:" and first "Updating version")
-            sed -n '/^Changelog:/,/^Updating version/p' release_output.txt | sed '1d;$d' | sed 's/^//' >> preview.md
+            sed -n '/^Changelog:/,/^Updating version/p' release_output.txt | sed '1d;$d' | sed 's/^//' > changelog_raw.md
+
+            # Process the changelog to filter/categorize deps commits
+            # Create a temporary changelog file with just the extracted section
+            echo "# Temp Changelog" > temp_changelog.md
+            echo "" >> temp_changelog.md
+            cat changelog_raw.md >> temp_changelog.md
+
+            # Run the post-processing script on the temp changelog
+            node scripts/release-it-process-changelog.js temp_changelog.md
+
+            # Extract the processed changelog (skip the temp header)
+            tail -n +3 temp_changelog.md >> preview.md
             echo "" >> preview.md
 
             # Extract file changes that would be made
@@ -105,7 +117,7 @@ jobs:
             echo "- 📝 Update CHANGELOG.md with new entries" >> preview.md
             echo "- 🏷️ Create git tag \`$NEW_VERSION\`" >> preview.md
             echo "- 📤 Push changes and tag to repository" >> preview.md
-            echo "- � Create GitHub release" >> preview.md
+            echo "- 📦 Create GitHub release" >> preview.md
 
           else
             # No version bump

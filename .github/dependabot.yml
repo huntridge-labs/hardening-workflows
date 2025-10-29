@@ -42,7 +42,6 @@ updates:
     # Commit message configuration
     commit-message:
       prefix: "chore(deps)"
-      include: "scope"
 
     # PR configuration
     open-pull-requests-limit: 10
