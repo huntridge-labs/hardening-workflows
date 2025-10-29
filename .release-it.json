@@ -26,8 +26,7 @@
     ],
     "after:bump": [
       "echo 'Version bumped to ${version}'",
-      "node scripts/release-it-process-changelog.js",
-      "git add CHANGELOG.md"
+      "node scripts/release-it-process-changelog.js"
     ],
     "after:git:release": "echo 'Git tag ${tagName} created'",
     "after:github:release": "echo 'GitHub release ${version} published'",
