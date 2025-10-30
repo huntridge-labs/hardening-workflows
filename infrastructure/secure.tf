@@ -257,7 +257,8 @@ resource "aws_iam_role_policy" "s3_replication_policy" {
         ]
         Effect = "Allow"
         Resource = [
-          aws_s3_bucket.secure_bucket.arn
+          aws_s3_bucket.secure_bucket.arn,
+          aws_s3_bucket.logs_bucket.arn
         ]
       },
       {
@@ -268,7 +269,8 @@ resource "aws_iam_role_policy" "s3_replication_policy" {
         ]
         Effect = "Allow"
         Resource = [
-          "${aws_s3_bucket.secure_bucket.arn}/*"
+          "${aws_s3_bucket.secure_bucket.arn}/*",
+          "${aws_s3_bucket.logs_bucket.arn}/*"
         ]
       },
       {
@@ -279,7 +281,8 @@ resource "aws_iam_role_policy" "s3_replication_policy" {
         ]
         Effect = "Allow"
         Resource = [
-          "${aws_s3_bucket.replica_bucket.arn}/*"
+          "${aws_s3_bucket.replica_bucket.arn}/*",
+          "${aws_s3_bucket.replica_logs_bucket.arn}/*"
         ]
       },
       {
@@ -408,6 +411,99 @@ resource "aws_s3_bucket_lifecycle_configuration" "replica_bucket_lifecycle" {
   }
 }
 
+# Enable logging for replica bucket
+resource "aws_s3_bucket_logging" "replica_bucket_logging" {
+  provider = aws.replica
+  bucket = aws_s3_bucket.replica_bucket.id
+
+  target_bucket = aws_s3_bucket.logs_bucket.id
+  target_prefix = "s3-replica-access-logs/"
+}
+
+# Replica logs bucket in different region
+resource "aws_s3_bucket" "replica_logs_bucket" {
+  provider = aws.replica
+  bucket   = "${var.project_name}-${var.environment}-logs-bucket-replica"
+
+  tags = {
+    Name        = "Access Logs Bucket Replica"
+    Environment = var.environment
+  }
+}
+
+# Enable versioning for replica logs bucket (required for replication)
+resource "aws_s3_bucket_versioning" "replica_logs_bucket_versioning" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_logs_bucket.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# Encrypt replica logs bucket
+resource "aws_s3_bucket_server_side_encryption_configuration" "replica_logs_bucket_encryption" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_logs_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.s3_replica_bucket_key.arn
+    }
+    bucket_key_enabled = true
+  }
+}
+
+# Block public access for replica logs bucket
+resource "aws_s3_bucket_public_access_block" "replica_logs_bucket_pab" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_logs_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Lifecycle configuration for replica logs bucket
+resource "aws_s3_bucket_lifecycle_configuration" "replica_logs_bucket_lifecycle" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_logs_bucket.id
+
+  rule {
+    id     = "transition-replica-logs-to-ia"
+    status = "Enabled"
+
+    transition {
+      days          = 90
+      storage_class = "STANDARD_IA"
+    }
+
+    transition {
+      days          = 365
+      storage_class = "GLACIER"
+    }
+  }
+
+  rule {
+    id     = "expire-old-replica-log-versions"
+    status = "Enabled"
+
+    noncurrent_version_expiration {
+      noncurrent_days = 365
+    }
+  }
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads-replica-logs"
+    status = "Enabled"
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+}
+
 # Secure S3 bucket configuration
 resource "aws_s3_bucket" "secure_bucket" {
   bucket = "${var.project_name}-${var.environment}-secure-bucket"
@@ -525,6 +621,34 @@ resource "aws_s3_bucket_replication_configuration" "secure_bucket_replication" {
   }
 }
 
+# Enable cross-region replication for logs bucket
+resource "aws_s3_bucket_replication_configuration" "logs_bucket_replication" {
+  depends_on = [aws_s3_bucket_versioning.logs_bucket_versioning]
+
+  role   = aws_iam_role.s3_replication_role.arn
+  bucket = aws_s3_bucket.logs_bucket.id
+
+  rule {
+    id     = "replicate-logs"
+    status = "Enabled"
+
+    filter {}
+
+    destination {
+      bucket        = aws_s3_bucket.replica_logs_bucket.arn
+      storage_class = "STANDARD"
+
+      encryption_configuration {
+        replica_kms_key_id = aws_kms_key.s3_replica_bucket_key.arn
+      }
+    }
+
+    delete_marker_replication {
+      status = "Enabled"
+    }
+  }
+}
+
 # SNS topic for S3 event notifications
 resource "aws_sns_topic" "s3_events" {
   name              = "${var.project_name}-${var.environment}-s3-events"
@@ -573,6 +697,59 @@ resource "aws_s3_bucket_notification" "secure_bucket_notifications" {
   }
 
   depends_on = [aws_sns_topic_policy.s3_events_policy]
+}
+
+# SNS topic for replica S3 event notifications
+resource "aws_sns_topic" "s3_replica_events" {
+  provider          = aws.replica
+  name              = "${var.project_name}-${var.environment}-s3-replica-events"
+  kms_master_key_id = aws_kms_key.s3_replica_bucket_key.id
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-s3-replica-events"
+    Environment = var.environment
+  }
+}
+
+# SNS topic policy to allow replica S3 to publish
+resource "aws_sns_topic_policy" "s3_replica_events_policy" {
+  provider = aws.replica
+  arn      = aws_sns_topic.s3_replica_events.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "s3.amazonaws.com"
+        }
+        Action   = "SNS:Publish"
+        Resource = aws_sns_topic.s3_replica_events.arn
+        Condition = {
+          ArnLike = {
+            "aws:SourceArn" = aws_s3_bucket.replica_bucket.arn
+          }
+        }
+      }
+    ]
+  })
+}
+
+# S3 bucket event notifications for replica bucket
+resource "aws_s3_bucket_notification" "replica_bucket_notifications" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_bucket.id
+
+  topic {
+    topic_arn = aws_sns_topic.s3_replica_events.arn
+    events = [
+      "s3:ObjectCreated:*",
+      "s3:ObjectRemoved:*"
+    ]
+  }
+
+  depends_on = [aws_sns_topic_policy.s3_replica_events_policy]
 }
 
 # S3 bucket for access logs
@@ -641,6 +818,15 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs_bucket_lifecycle" {
 
     noncurrent_version_expiration {
       noncurrent_days = 365
+    }
+  }
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads-logs"
+    status = "Enabled"
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
     }
   }
 }
