@@ -195,7 +195,6 @@ jobs:
         echo "" >> scanner-summaries/checkov.md
       continue-on-error: true
 
-
     - name: Upload scanner summary section
       if: always()
       uses: actions/upload-artifact@v5
