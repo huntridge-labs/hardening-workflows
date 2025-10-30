@@ -504,6 +504,15 @@ resource "aws_s3_bucket_lifecycle_configuration" "replica_logs_bucket_lifecycle"
   }
 }
 
+# Enable logging for replica logs bucket
+resource "aws_s3_bucket_logging" "replica_logs_bucket_logging" {
+  provider = aws.replica
+  bucket = aws_s3_bucket.replica_logs_bucket.id
+
+  target_bucket = aws_s3_bucket.logs_bucket.id
+  target_prefix = "s3-replica-logs-access-logs/"
+}
+
 # Secure S3 bucket configuration
 resource "aws_s3_bucket" "secure_bucket" {
   bucket = "${var.project_name}-${var.environment}-secure-bucket"
@@ -750,6 +759,59 @@ resource "aws_s3_bucket_notification" "replica_bucket_notifications" {
   }
 
   depends_on = [aws_sns_topic_policy.s3_replica_events_policy]
+}
+
+# SNS topic for replica logs S3 event notifications
+resource "aws_sns_topic" "s3_replica_logs_events" {
+  provider          = aws.replica
+  name              = "${var.project_name}-${var.environment}-s3-replica-logs-events"
+  kms_master_key_id = aws_kms_key.s3_replica_bucket_key.id
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-s3-replica-logs-events"
+    Environment = var.environment
+  }
+}
+
+# SNS topic policy to allow replica logs S3 to publish
+resource "aws_sns_topic_policy" "s3_replica_logs_events_policy" {
+  provider = aws.replica
+  arn      = aws_sns_topic.s3_replica_logs_events.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "s3.amazonaws.com"
+        }
+        Action   = "SNS:Publish"
+        Resource = aws_sns_topic.s3_replica_logs_events.arn
+        Condition = {
+          ArnLike = {
+            "aws:SourceArn" = aws_s3_bucket.replica_logs_bucket.arn
+          }
+        }
+      }
+    ]
+  })
+}
+
+# S3 bucket event notifications for replica logs bucket
+resource "aws_s3_bucket_notification" "replica_logs_bucket_notifications" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_logs_bucket.id
+
+  topic {
+    topic_arn = aws_sns_topic.s3_replica_logs_events.arn
+    events = [
+      "s3:ObjectCreated:*",
+      "s3:ObjectRemoved:*"
+    ]
+  }
+
+  depends_on = [aws_sns_topic_policy.s3_replica_logs_events_policy]
 }
 
 # S3 bucket for access logs
