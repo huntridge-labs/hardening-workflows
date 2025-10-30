@@ -1,0 +1,54 @@
+## Description
+Briefly describe the changes in this pull request.
+
+## Changes Made
+- [ ] Added new scanner/workflow
+- [ ] Modified existing scanner/workflow
+- [ ] Updated documentation
+- [ ] Fixed bug
+- [ ] Other (please specify)
+
+### Details
+Provide more details about the changes, including:
+- Which workflows/scanners are affected?
+- What new features or fixes are included?
+- Any breaking changes?
+
+## Testing
+- [ ] Unit tests added/updated
+- [ ] Integration tests added/updated
+- [ ] Manual testing performed
+- [ ] Tested with different scanner combinations
+
+### Test Results
+Paste any relevant test output or describe testing performed.
+
+## Security Considerations
+- [ ] No security impact
+- [ ] Security enhancement
+- [ ] Potential security implications (explain below)
+
+### Security Details
+If applicable, describe any security-related changes, new vulnerabilities addressed, or potential risks.
+
+## Checklist
+- [ ] Code follows project style guidelines
+- [ ] Documentation updated (if applicable)
+- [ ] Changelog updated (if applicable)
+- [ ] All tests pass
+- [ ] Reviewed by at least one maintainer
+- [ ] **Reviewed CONTRIBUTING.md guidelines**
+
+### For New Scanners (if applicable)
+- [ ] Scanner workflow created and tested
+- [ ] Both reusable workflows updated with scanner integration
+- [ ] Scanner added to summary aggregation loop in both workflows
+- [ ] Workflow sync validation passes
+- [ ] Examples provided
+- [ ] No breaking changes to existing scanners
+
+## Related Issues
+Closes # (issue number)
+
+## Screenshots/Logs (if applicable)
+Add any relevant screenshots, logs, or other evidence of the changes.
