@@ -7,12 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
-## [2.5.4](https://github.com/huntridge-labs/hardening-workflows/compare/2.5.3...2.5.4) (2025-10-29)
+## [2.5.5](https://github.com/huntridge-labs/hardening-workflows/compare/2.5.4...2.5.5) (2025-11-04)
 
 ### Maintenance
 
-* ensure processed CHANGELOG is added to release commit ([1e6d3b0](https://github.com/huntridge-labs/hardening-workflows/commit/1e6d3b0c912e39a9b7c631ce1585e3a7ca0f1ca4))
-* **release:** ensure processed CHANGELOG is added to release commit ([5e4f4f0](https://github.com/huntridge-labs/hardening-workflows/commit/5e4f4f00fcfa7ecfec579c4a0331386ab82ce31e))
+* **deps:** bump @octokit/plugin-paginate-rest in the npm-major group ([3463a53](https://github.com/huntridge-labs/hardening-workflows/commit/3463a53f6a8d684eebc1b691880a33701944c14d))
+* **deps:** bump bridgecrewio/checkov-action ([d8dc4a6](https://github.com/huntridge-labs/hardening-workflows/commit/d8dc4a630eacfef7548fbc85cf4ee151d4e106b6))
+
+### Documentation
+
+* add templates for bug reports, feature requests, and PRs ([270ae1d](https://github.com/huntridge-labs/hardening-workflows/commit/270ae1d87846aa00514f68fd58b82debdc315aa1))
+
+## [2.5.4](https://github.com/huntridge-labs/hardening-workflows/compare/2.5.3...2.5.4) (2025-10-29)
+
 
 ## [2.5.3](https://github.com/huntridge-labs/hardening-workflows/compare/2.5.2...2.5.3) (2025-10-29)
 
