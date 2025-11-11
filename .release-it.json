@@ -108,6 +108,17 @@
         },
         {
           "files": [
+            "QUICK-START.md",
+            "README.md"
+          ],
+          "search": {
+            "pattern": "hardening-workflows/\\.github/workflows/([\\w-]+)\\.yml@[^\\s]+",
+            "flags": "g"
+          },
+          "replace": "hardening-workflows/.github/workflows/$1.yml@{{version}}"
+        },
+        {
+          "files": [
             ".github/workflows/reusable-security-hardening.yml"
           ],
           "search": {
