@@ -52,20 +52,27 @@ function processChangelog(changelogFile = 'CHANGELOG.md') {
   }
 
   let content = fs.readFileSync(changelogPath, 'utf8');
+  const originalContent = content;
 
   // Find Maintenance sections and process them
   // Match "### Maintenance" followed by content until next "###" or end
   // Handle both single and double newlines after the heading
   const maintenancePattern = /### Maintenance\n+([^]*?)(?=\n###|\n##|$)/g;
 
+  let replacementCount = 0;
   content = content.replace(maintenancePattern, (match, maintenanceContent) => {
+    replacementCount++;
+    console.log(`Processing Maintenance section #${replacementCount}`);
     // Extract all commit lines (lines starting with *)
     const commits = maintenanceContent.match(/^\* .+$/gm) || [];
+    console.log(`Found ${commits.length} commits in section`);
 
     const securityToolCommits = [];
     const dependencyCommits = [];
 
     // Filter and categorize commits
+    const otherMaintenanceCommits = [];
+
     commits.forEach(commit => {
       // Match pattern: * **<scope>:** or * **<scope>**:
       // Handle both correct format (deps**:) and malformed (deps)(deps:)
@@ -79,7 +86,8 @@ function processChangelog(changelogFile = 'CHANGELOG.md') {
 
       // Only process commits where scope contains 'deps'
       if (!scope.includes('deps')) {
-        return; // Not a deps commit, skip it
+        otherMaintenanceCommits.push(commit);
+        return; // Not a deps commit, keep in Maintenance
       }
 
       // Categorize deps commits
@@ -89,6 +97,8 @@ function processChangelog(changelogFile = 'CHANGELOG.md') {
         dependencyCommits.push(commit);
       }
     });
+
+    console.log(`  Security Tools: ${securityToolCommits.length}, Dependencies: ${dependencyCommits.length}, Other Maintenance: ${otherMaintenanceCommits.length}`);
 
     // Build replacement sections
     let replacement = '';
@@ -103,6 +113,11 @@ function processChangelog(changelogFile = 'CHANGELOG.md') {
       replacement += dependencyCommits.join('\n') + '\n\n';
     }
 
+    if (otherMaintenanceCommits.length > 0) {
+      replacement += '### Maintenance\n\n';
+      replacement += otherMaintenanceCommits.join('\n') + '\n\n';
+    }
+
     // If no commits left after filtering, remove the section entirely
     if (replacement === '') {
       return '';
@@ -111,9 +126,13 @@ function processChangelog(changelogFile = 'CHANGELOG.md') {
     return replacement.trim() + '\n\n';
   });
 
-  // Write back
-  fs.writeFileSync(changelogPath, content);
-  console.log(`✓ Processed ${changelogFile} - categorized dependency updates`);
+  // Write back only if content changed
+  if (content !== originalContent) {
+    fs.writeFileSync(changelogPath, content);
+    console.log(`✓ Processed ${changelogFile} - categorized dependency updates (${replacementCount} sections processed)`);
+  } else {
+    console.log(`ℹ No Maintenance sections found or no changes needed in ${changelogFile}`);
+  }
 }
 
 // Run if called directly
