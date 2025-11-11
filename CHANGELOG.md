@@ -7,12 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
-## [2.5.5](https://github.com/huntridge-labs/hardening-workflows/compare/2.5.4...2.5.5) (2025-11-04)
+## [2.5.6](https://github.com/huntridge-labs/hardening-workflows/compare/2.5.5...2.5.6) (2025-11-11)
 
 ### Maintenance
 
-* **deps:** bump @octokit/plugin-paginate-rest in the npm-major group ([3463a53](https://github.com/huntridge-labs/hardening-workflows/commit/3463a53f6a8d684eebc1b691880a33701944c14d))
+* **.release-it.json:** restructure to use preset.name as before ([980ba98](https://github.com/huntridge-labs/hardening-workflows/commit/980ba98f7fab33d58260b2fb4fa22537451576f4))
+* **.release-it.json:** update to improve changelog handling ([3933e45](https://github.com/huntridge-labs/hardening-workflows/commit/3933e45fea61333682a6c8cd775233f385047384))
+* **deps:** bump bridgecrewio/checkov-action ([a3b586e](https://github.com/huntridge-labs/hardening-workflows/commit/a3b586e9c078f826dd26265fe190282dd042793d))
+* **deps:** bump release-it from 19.0.5 to 19.0.6 ([c1cc96c](https://github.com/huntridge-labs/hardening-workflows/commit/c1cc96cb24f75e920a61c00ef16499a4f70198cc))
+* **package-lock.json:** regenerate for npm consistency ([ff8c21c](https://github.com/huntridge-labs/hardening-workflows/commit/ff8c21ce4ffd399f529ded0a9c7638916f55eb44))
+* **package-lock.json:** remove unused conventional-commits-parser dependency ([2189d8e](https://github.com/huntridge-labs/hardening-workflows/commit/2189d8e9130a2371cf55f016b563f8ec93095e18))
+
+### Documentation
+
+* add Code of Conduct to promote a respectful community ([5469bef](https://github.com/huntridge-labs/hardening-workflows/commit/5469bef1b457ae1280671f91f264c82fa3f0e1a3))
+
+## [2.5.5](https://github.com/huntridge-labs/hardening-workflows/compare/2.5.4...2.5.5) (2025-11-04)
+
+### Security Tools
+
 * **deps:** bump bridgecrewio/checkov-action ([d8dc4a6](https://github.com/huntridge-labs/hardening-workflows/commit/d8dc4a630eacfef7548fbc85cf4ee151d4e106b6))
+
+### Dependencies
+
+* **deps:** bump @octokit/plugin-paginate-rest in the npm-major group ([3463a53](https://github.com/huntridge-labs/hardening-workflows/commit/3463a53f6a8d684eebc1b691880a33701944c14d))
+
 
 ### Documentation
 
