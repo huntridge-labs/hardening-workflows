@@ -23,20 +23,13 @@ updates:
         update-types:
           - "major"
 
-      # Minor version updates (e.g., v1.2 -> v1.3)
-      # New features, should be relatively safe but still reviewed
-      github-actions-minor:
+      # Minor and patch version updates (e.g., v1.2 -> v1.3, v1.2.3 -> v1.2.4)
+      # New features and bug fixes, generally safe to update together
+      github-actions-minor-patch:
         patterns:
           - "*"
         update-types:
           - "minor"
-
-      # Patch version updates (e.g., v1.2.3 -> v1.2.4)
-      # Bug fixes and security patches, safest to update
-      github-actions-patch:
-        patterns:
-          - "*"
-        update-types:
           - "patch"
 
     # Commit message configuration
@@ -55,6 +48,47 @@ updates:
     # Allow Dependabot to rebase PRs
     rebase-strategy: "auto"
 
+  # Docker Dockerfile.secure - Update base images in secure Dockerfile only
+  - package-ecosystem: "docker"
+    directory: "/docker"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+
+    # Only monitor Dockerfile.secure, ignore vulnerable test file
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+
+    # Dependabot doesn't support file-level filtering, but we can use labels to identify
+    # Manual review required: Only apply updates to Dockerfile.secure
+    groups:
+      docker-major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+      docker-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+    commit-message:
+      prefix: "chore(deps)"
+
+    labels:
+      - "dependencies"
+      - "docker"
+      - "automated"
+      - "dockerfile-secure-only"
+
+    open-pull-requests-limit: 10
+    rebase-strategy: "auto"
+
   # NPM dependencies - grouped by semantic version level
   - package-ecosystem: "npm"
     directory: "/"
@@ -70,15 +104,11 @@ updates:
           - "*"
         update-types:
           - "major"
-      npm-minor:
+      npm-minor-patch:
         patterns:
           - "*"
         update-types:
           - "minor"
-      npm-patch:
-        patterns:
-          - "*"
-        update-types:
           - "patch"
 
     commit-message:
@@ -87,43 +117,6 @@ updates:
     labels:
       - "dependencies"
       - "npm"
-      - "automated"
-
-    open-pull-requests-limit: 10
-    rebase-strategy: "auto"
-
-  # Docker dependencies - grouped by semantic version level
-  - package-ecosystem: "docker"
-    directory: "/docker"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "America/New_York"
-
-    groups:
-      docker-major:
-        patterns:
-          - "*"
-        update-types:
-          - "major"
-      docker-minor:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-      docker-patch:
-        patterns:
-          - "*"
-        update-types:
-          - "patch"
-
-    commit-message:
-      prefix: "chore(deps)"
-
-    labels:
-      - "dependencies"
-      - "docker"
       - "automated"
 
     open-pull-requests-limit: 10
