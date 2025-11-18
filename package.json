@@ -6,7 +6,7 @@
     "@commitlint/cli": "^20.1.0",
     "@commitlint/config-conventional": "^20.0.0",
     "@j-ulrich/release-it-regex-bumper": "^5.3.0",
-    "@release-it/conventional-changelog": "^10.0.2",
+    "@release-it/conventional-changelog": "^10.0.1",
     "commitizen": "^4.3.1",
     "cz-conventional-changelog": "^3.3.0",
     "husky": "^9.1.7",
