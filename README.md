@@ -22,7 +22,7 @@ on: [push, pull_request]
 
 jobs:
   hardening:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.6
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.7
     with:
       scanners: all
       python_version: '3.12'
@@ -91,7 +91,7 @@ Run consistent code quality checks with `.github/workflows/linting.yml`:
 ```yaml
 jobs:
   lint:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@2.5.7
     permissions:
       contents: read
       pull-requests: write
@@ -105,12 +105,12 @@ Runs Ruff, ESLint, Prettier, markdownlint, and yamllint.
 ```yaml
 jobs:
   linting:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@2.5.7
 
   security:
     needs: linting
     if: always()
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.6
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.7
     with:
       scanners: all
 ```
@@ -130,13 +130,13 @@ For more granular control, you can call individual scanner workflows directly:
 ```yaml
 jobs:
   trivy-iac:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@2.5.7
     with:
       iac_path: 'infrastructure'
       enable_code_security: true
 
   checkov:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@2.5.7
     with:
       iac_path: 'infrastructure'
       framework: 'terraform'
@@ -147,18 +147,18 @@ jobs:
 ```yaml
 jobs:
   trivy-container:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@2.5.7
     with:
       image_ref: 'myapp:latest'
       enable_code_security: true
 
   grype:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@2.5.7
     with:
       image_ref: 'myapp:latest'
 
   sbom:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@2.5.7
     with:
       scan-path: 'some/dirOrFile/path'
       scan-image: 'myapp:latest'
@@ -169,19 +169,19 @@ jobs:
 ```yaml
 jobs:
   codeql:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@2.5.7
     with:
       codeql_languages: 'python,javascript'
       enable_code_security: true
 
   opengrep:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@2.5.7
 
   bandit:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@2.5.7
 
   gitleaks:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@2.5.7
 ```
 
 All individual scanners support `workflow_dispatch` for manual runs and `workflow_call` for reusable workflow integration.
