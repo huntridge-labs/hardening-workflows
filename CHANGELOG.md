@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.5.8](https://github.com/huntridge-labs/hardening-workflows/compare/2.5.6...2.5.8) (2025-11-18)
+
+### Maintenance
+
+* **.release-it.json:** regex for all refs in QUICK-START.md and README.md ([260df17](https://github.com/huntridge-labs/hardening-workflows/commit/260df173fe933c3ac68d37ce2f297371ae7159a0))
+* **deps:** bump @release-it/conventional-changelog ([0bd7763](https://github.com/huntridge-labs/hardening-workflows/commit/0bd77633003653133dbf0d49e848458363fb99d4))
+* **deps:** bump anchore/sbom-action from 0.20.9 to 0.20.10 ([fccfc4e](https://github.com/huntridge-labs/hardening-workflows/commit/fccfc4efe2d1b464d3e3ef7947c583ce9a66aff6))
+* **deps:** bump bridgecrewio/checkov-action ([1afe4f4](https://github.com/huntridge-labs/hardening-workflows/commit/1afe4f473295f507d666137fbc55d4c8820e7f53))
+* **deps:** bump js-yaml from 4.1.0 to 4.1.1 ([30761d1](https://github.com/huntridge-labs/hardening-workflows/commit/30761d1aa308d3e2db8d25001652d381639531f2))
+* **release-it-process-changelog.js:** add debug logging ([f8ba371](https://github.com/huntridge-labs/hardening-workflows/commit/f8ba3717593edefc81d825df515a80388572b731))
+* **release:** v2.5.7 ([b2856bb](https://github.com/huntridge-labs/hardening-workflows/commit/b2856bb5a9c57b3325b52ec8b59b8b4cb9067068))
+
+### Continuous Integration
+
+* **dependabot:** consolidate minor and patch updates for GitHub Actions and Docker ([aea0ac1](https://github.com/huntridge-labs/hardening-workflows/commit/aea0ac1a8e34d110b10dc099ddf0983854d5ddb9))
+
 ## [2.5.7](///compare/2.5.6...2.5.7) (2025-11-18)
 
 ## [2.5.6](https://github.com/huntridge-labs/hardening-workflows/compare/2.5.5...2.5.6) (2025-11-11)

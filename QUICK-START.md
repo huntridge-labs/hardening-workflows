@@ -10,7 +10,7 @@ on: [push]
 
 jobs:
   sast:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.7
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.8
     with:
       scanners: codeql
     permissions:
@@ -26,7 +26,7 @@ on: [pull_request]
 
 jobs:
   hardening:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.7
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.8
     with:
       scanners: all
       post_pr_comment: true
@@ -44,7 +44,7 @@ on: [push]
 
 jobs:
   security:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.7
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.8
     with:
       scanners: container,infrastructure,gitleaks
       aws_region: us-west-2
@@ -62,7 +62,7 @@ on:
 
 jobs:
   nightly:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.7
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.5.8
     with:
       scanners: all
       post_pr_comment: false
@@ -80,13 +80,13 @@ on: [pull_request]
 
 jobs:
   trivy-iac:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@2.5.7
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@2.5.8
     with:
       iac_path: 'infrastructure'
       enable_code_security: true
 
   checkov:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@2.5.7
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@2.5.8
     with:
       iac_path: 'infrastructure'
 ```
@@ -101,7 +101,7 @@ on:
 
 jobs:
   scan-image:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@2.5.7
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@2.5.8
     with:
       image_ref: 'myapp:${{ github.sha }}'
       enable_code_security: true
