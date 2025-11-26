@@ -54,6 +54,7 @@ jobs:
               - '.github/workflows/pr-reusable-security-hardening.yml'
             any_scanner:
               - '.github/workflows/scanner-*.yml'
+              - '.github/workflows/container-scan.yml'
 
   # Validate PR and production reusable workflows stay in sync
   validate-workflow-sync:
