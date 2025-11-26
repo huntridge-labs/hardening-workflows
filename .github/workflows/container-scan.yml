@@ -202,7 +202,6 @@ jobs:
       with:
         image-ref: ${{ steps.build.outputs.full_image }}
         format: 'table'
-        output: 'trivy-${{ matrix.container.name }}-results.txt'
 
     - name: Upload Trivy scan results to GitHub Security tab
       if: inputs.enable_code_security == true && steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act'
