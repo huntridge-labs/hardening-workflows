@@ -556,21 +556,21 @@ jobs:
           MEDIUM_COUNT=0
           LOW_COUNT=0
 
-          for sarif_file in $(find . -name "trivy-*-results.sarif" -type f 2>/dev/null); do
-            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
-              vulns=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+          for json_file in $(find . -name "trivy-*-results.json" -type f 2>/dev/null); do
+            if [ -f "$json_file" ] && [ -s "$json_file" ] && command -v jq >/dev/null 2>&1; then
+              vulns=$(jq -r '.Results[]?.Vulnerabilities[]? | .Severity' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
               VULN_COUNT=$((VULN_COUNT + vulns))
 
-              critical=$(jq -r '.runs[]?.results[]? | select(.level == "error") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              critical=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | .Severity' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
               CRITICAL_COUNT=$((CRITICAL_COUNT + critical))
 
-              high=$(jq -r '.runs[]?.results[]? | select(.level == "warning") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              high=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | .Severity' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
               HIGH_COUNT=$((HIGH_COUNT + high))
 
-              medium=$(jq -r '.runs[]?.results[]? | select(.level == "note") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              medium=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM") | .Severity' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
               MEDIUM_COUNT=$((MEDIUM_COUNT + medium))
 
-              low=$(jq -r '.runs[]?.results[]? | select(.level == "info") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
+              low=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW") | .Severity' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
               LOW_COUNT=$((LOW_COUNT + low))
             fi
           done
