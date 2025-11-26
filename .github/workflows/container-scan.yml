@@ -457,7 +457,7 @@ jobs:
             for summary in container-scan-results-*/container-summary-*.md; do
               if [ -f "$summary" ]; then
                 container_name=$(basename "$summary" .md | sed 's/container-summary-//')
-                echo "### 🐳 $container_name" >> container-security-report.md
+                echo "### $container_name" >> container-security-report.md
 
                 # Add vulnerability breakdown for this container
                 trivy_json="container-scan-results-${container_name}/trivy-${container_name}-results.json"
@@ -634,7 +634,7 @@ jobs:
 
             if [ "$status" = "failed" ]; then
               echo "<details>" >> scanner-summaries/container.md
-              echo "<summary>🐳 <strong>$name</strong> - ❌ Build Failed</summary>" >> scanner-summaries/container.md
+              echo "<summary><strong>$name</strong> - ❌ Build Failed</summary>" >> scanner-summaries/container.md
               echo "" >> scanner-summaries/container.md
               echo "**Status:** Build failed - this may be expected for intentionally vulnerable test containers." >> scanner-summaries/container.md
               echo "" >> scanner-summaries/container.md
@@ -657,7 +657,7 @@ jobs:
               fi
 
               echo "<details>" >> scanner-summaries/container.md
-              echo "<summary>🐳 <strong>$name</strong> - $risk_emoji $total vulnerabilities</summary>" >> scanner-summaries/container.md
+              echo "<summary><strong>$name</strong> - $risk_emoji $total vulnerabilities</summary>" >> scanner-summaries/container.md
               echo "" >> scanner-summaries/container.md
               echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | Total |" >> scanner-summaries/container.md
               echo "|-------------|---------|-----------|---------|-------|" >> scanner-summaries/container.md
@@ -762,7 +762,7 @@ jobs:
               const truncatedReport = report.length > 65000 ?
                 report.substring(0, 65000) + '\n\n... (report truncated, see artifacts for full report)' :
                 report;
-              commentBody = `## 🐳 Container Security Analysis Results\n\n${truncatedReport}`;
+              commentBody = `## Container Security Analysis Results\n\n${truncatedReport}`;
             }
 
             // Check for existing container security comments to update instead of creating new ones
@@ -773,8 +773,8 @@ jobs:
             });
 
             const existingComment = comments.data.find(comment =>
-              (comment.body.includes('🐳 Container Security Analysis') ||
-               comment.body.includes('🐳 Container Security')) &&
+              (comment.body.includes('Container Security Analysis') ||
+               comment.body.includes('Container Security')) &&
               comment.user.type === 'Bot'
             );
 

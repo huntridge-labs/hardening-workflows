@@ -242,7 +242,7 @@ function generateEnhancedContainerComment(containerData, runId, repoOwner, repoN
       if (container.buildStatus === 'failed') {
         return `
 <details>
-<summary>🐳 <strong>${container.name}</strong> - ❌ Build Failed</summary>
+<summary><strong>${container.name}</strong> - ❌ Build Failed</summary>
 
 **Status:** Build failed - this may be expected for intentionally vulnerable test containers.
 
@@ -259,7 +259,7 @@ function generateEnhancedContainerComment(containerData, runId, repoOwner, repoN
 
       return `
 <details>
-<summary>🐳 <strong>${container.name}</strong> - ${containerRiskEmoji} ${containerVulns} vulnerabilities</summary>
+<summary><strong>${container.name}</strong> - ${containerRiskEmoji} ${containerVulns} vulnerabilities</summary>
 
 ### Vulnerability Breakdown
 | 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | Total |
