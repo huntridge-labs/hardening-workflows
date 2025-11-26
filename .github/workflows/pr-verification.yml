@@ -23,8 +23,7 @@ jobs:
       scanner_syft: ${{ steps.filter.outputs.scanner_syft }}
       scanner_trivy_iac: ${{ steps.filter.outputs.scanner_trivy_iac }}
       scanner_checkov: ${{ steps.filter.outputs.scanner_checkov }}
-      scanner_trivy_container: ${{ steps.filter.outputs.scanner_trivy_container }}
-      scanner_grype: ${{ steps.filter.outputs.scanner_grype }}
+      scanner_container: ${{ steps.filter.outputs.scanner_trivy_container }}
       reusable_workflow: ${{ steps.filter.outputs.reusable_workflow }}
       any_scanner: ${{ steps.filter.outputs.any_scanner }}
     steps:
@@ -48,10 +47,8 @@ jobs:
               - '.github/workflows/scanner-trivy-iac.yml'
             scanner_checkov:
               - '.github/workflows/scanner-checkov.yml'
-            scanner_trivy_container:
-              - '.github/workflows/scanner-trivy-container.yml'
-            scanner_grype:
-              - '.github/workflows/scanner-grype.yml'
+            scanner_container:
+              - '.github/workflows/container-scan.yml'
             reusable_workflow:
               - '.github/workflows/reusable-security-hardening.yml'
               - '.github/workflows/pr-reusable-security-hardening.yml'
@@ -523,12 +520,8 @@ jobs:
           echo "- ✏️ **Checkov** scanner modified (tested with branch version)" >> $GITHUB_STEP_SUMMARY
           CHANGED_COUNT=$((CHANGED_COUNT + 1))
         fi
-        if [ "${{ needs.detect-changes.outputs.scanner_trivy_container }}" = "true" ]; then
-          echo "- ✏️ **Trivy Container** scanner modified (tested with branch version)" >> $GITHUB_STEP_SUMMARY
-          CHANGED_COUNT=$((CHANGED_COUNT + 1))
-        fi
-        if [ "${{ needs.detect-changes.outputs.scanner_grype }}" = "true" ]; then
-          echo "- ✏️ **Grype** scanner modified (tested with branch version)" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ needs.detect-changes.outputs.scanner_container }}" = "true" ]; then
+          echo "- ✏️ **Container** scanner modified (tested with branch version)" >> $GITHUB_STEP_SUMMARY
           CHANGED_COUNT=$((CHANGED_COUNT + 1))
         fi
         if [ "${{ needs.detect-changes.outputs.reusable_workflow }}" = "true" ]; then
