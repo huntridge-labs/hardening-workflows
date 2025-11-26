@@ -548,44 +548,148 @@ jobs:
           echo "**Status:** ✅ Completed" >> scanner-summaries/container.md
           echo "" >> scanner-summaries/container.md
 
-          # Count vulnerabilities from SARIF files
-          VULN_COUNT=0
-          CRITICAL_COUNT=0
-          HIGH_COUNT=0
-          MEDIUM_COUNT=0
-          LOW_COUNT=0
-
-          for json_file in $(find . -name "trivy-*-results.json" -type f 2>/dev/null); do
-            if [ -f "$json_file" ] && [ -s "$json_file" ] && command -v jq >/dev/null 2>&1; then
-              vulns=$(jq -r '.Results[]?.Vulnerabilities[]? | .Severity' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
-              VULN_COUNT=$((VULN_COUNT + vulns))
-
-              critical=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | .Severity' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
-              CRITICAL_COUNT=$((CRITICAL_COUNT + critical))
-
-              high=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | .Severity' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
-              HIGH_COUNT=$((HIGH_COUNT + high))
-
-              medium=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM") | .Severity' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
-              MEDIUM_COUNT=$((MEDIUM_COUNT + medium))
-
-              low=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW") | .Severity' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
-              LOW_COUNT=$((LOW_COUNT + low))
+          # Function to parse Trivy JSON results
+          parse_trivy() {
+            local file="$1"
+            if [ -f "$file" ] && [ -s "$file" ]; then
+              local crit=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' "$file" 2>/dev/null || echo 0)
+              local high=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' "$file" 2>/dev/null || echo 0)
+              local med=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length' "$file" 2>/dev/null || echo 0)
+              local low=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW")] | length' "$file" 2>/dev/null || echo 0)
+              echo "$crit $high $med $low"
+            else
+              echo "0 0 0 0"
             fi
-          done
+          }
 
-          echo "**Vulnerabilities Found:** $VULN_COUNT" >> scanner-summaries/container.md
+          # Initialize totals
+          TOTAL_CRITICAL=0
+          TOTAL_HIGH=0
+          TOTAL_MEDIUM=0
+          TOTAL_LOW=0
+          SCANNED_CONTAINERS=0
+          FAILED_BUILDS=0
+
+          # Collect container data
+          declare -a CONTAINER_DATA
+
+          # Parse results for each container
+          if ls container-scan-results-* 1> /dev/null 2>&1; then
+            for container_dir in container-scan-results-*; do
+              if [ -d "$container_dir" ]; then
+                container_name=$(echo "$container_dir" | sed 's/container-scan-results-//')
+                trivy_json="$container_dir/trivy-${container_name}-results.json"
+
+                # Check if container built successfully by looking for results
+                if [ -f "$trivy_json" ]; then
+                  counts=$(parse_trivy "$trivy_json")
+                  read crit high med low <<< "$counts"
+                  container_total=$((crit + high + med + low))
+
+                  # Store container data for later use
+                  CONTAINER_DATA+=("$container_name|$crit|$high|$med|$low|$container_total|success")
+
+                  # Add to totals
+                  TOTAL_CRITICAL=$((TOTAL_CRITICAL + crit))
+                  TOTAL_HIGH=$((TOTAL_HIGH + high))
+                  TOTAL_MEDIUM=$((TOTAL_MEDIUM + med))
+                  TOTAL_LOW=$((TOTAL_LOW + low))
+                  SCANNED_CONTAINERS=$((SCANNED_CONTAINERS + 1))
+                else
+                  CONTAINER_DATA+=("$container_name|0|0|0|0|0|failed")
+                  FAILED_BUILDS=$((FAILED_BUILDS + 1))
+                fi
+              fi
+            done
+          fi
+
+          TOTAL_VULN=$((TOTAL_CRITICAL + TOTAL_HIGH + TOTAL_MEDIUM + TOTAL_LOW))
+
+          # Overall Summary
+          echo "### 📊 Overall Summary" >> scanner-summaries/container.md
+          echo "" >> scanner-summaries/container.md
+          echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📦 Total |" >> scanner-summaries/container.md
+          echo "|-------------|---------|-----------|---------|----------|" >> scanner-summaries/container.md
+          echo "| **$TOTAL_CRITICAL** | **$TOTAL_HIGH** | **$TOTAL_MEDIUM** | **$TOTAL_LOW** | **$TOTAL_VULN** |" >> scanner-summaries/container.md
+          echo "" >> scanner-summaries/container.md
+          echo "**Scanned:** $SCANNED_CONTAINERS containers | **Build Failures:** $FAILED_BUILDS" >> scanner-summaries/container.md
           echo "" >> scanner-summaries/container.md
 
-          if [ $VULN_COUNT -gt 0 ]; then
-            echo "| Severity | Count |" >> scanner-summaries/container.md
-            echo "|----------|-------|" >> scanner-summaries/container.md
-            [ $CRITICAL_COUNT -gt 0 ] && echo "| 🔴 Critical | $CRITICAL_COUNT |" >> scanner-summaries/container.md
-            [ $HIGH_COUNT -gt 0 ] && echo "| 🟠 High | $HIGH_COUNT |" >> scanner-summaries/container.md
-            [ $MEDIUM_COUNT -gt 0 ] && echo "| 🟡 Medium | $MEDIUM_COUNT |" >> scanner-summaries/container.md
-            [ $LOW_COUNT -gt 0 ] && echo "| 🔵 Low | $LOW_COUNT |" >> scanner-summaries/container.md
+          # Priority messages
+          if [ $TOTAL_CRITICAL -gt 0 ]; then
+            echo "🚨 **URGENT**: $TOTAL_CRITICAL critical vulnerabilities need immediate attention" >> scanner-summaries/container.md
             echo "" >> scanner-summaries/container.md
           fi
+          if [ $TOTAL_HIGH -gt 0 ]; then
+            echo "⚠️ **HIGH**: $TOTAL_HIGH high-severity vulnerabilities to address within 24h" >> scanner-summaries/container.md
+            echo "" >> scanner-summaries/container.md
+          fi
+
+          # Individual container breakdowns
+          echo "### 📦 Individual Containers" >> scanner-summaries/container.md
+          echo "" >> scanner-summaries/container.md
+
+          for container_data in "${CONTAINER_DATA[@]}"; do
+            IFS='|' read -r name crit high med low total status <<< "$container_data"
+
+            if [ "$status" = "failed" ]; then
+              echo "<details>" >> scanner-summaries/container.md
+              echo "<summary>🐳 <strong>$name</strong> - ❌ Build Failed</summary>" >> scanner-summaries/container.md
+              echo "" >> scanner-summaries/container.md
+              echo "**Status:** Build failed - this may be expected for intentionally vulnerable test containers." >> scanner-summaries/container.md
+              echo "" >> scanner-summaries/container.md
+              echo "**Actions:**" >> scanner-summaries/container.md
+              echo "- Review build logs in the [workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> scanner-summaries/container.md
+              echo "- Check Dockerfile syntax and dependencies" >> scanner-summaries/container.md
+              echo "" >> scanner-summaries/container.md
+              echo "</details>" >> scanner-summaries/container.md
+              echo "" >> scanner-summaries/container.md
+            else
+              # Determine risk emoji
+              if [ $crit -gt 0 ]; then
+                risk_emoji="🚨"
+              elif [ $high -gt 0 ]; then
+                risk_emoji="⚠️"
+              elif [ $total -gt 0 ]; then
+                risk_emoji="🟡"
+              else
+                risk_emoji="✅"
+              fi
+
+              echo "<details>" >> scanner-summaries/container.md
+              echo "<summary>🐳 <strong>$name</strong> - $risk_emoji $total vulnerabilities</summary>" >> scanner-summaries/container.md
+              echo "" >> scanner-summaries/container.md
+              echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | Total |" >> scanner-summaries/container.md
+              echo "|-------------|---------|-----------|---------|-------|" >> scanner-summaries/container.md
+              echo "| $crit | $high | $med | $low | $total |" >> scanner-summaries/container.md
+              echo "" >> scanner-summaries/container.md
+
+              if [ $crit -gt 0 ]; then
+                echo "**🚨 Critical Issues**" >> scanner-summaries/container.md
+                echo "- $crit critical vulnerabilities require immediate attention" >> scanner-summaries/container.md
+                echo "- Should be addressed before deployment" >> scanner-summaries/container.md
+                echo "" >> scanner-summaries/container.md
+              fi
+
+              if [ $high -gt 0 ]; then
+                echo "**⚠️ High Priority**" >> scanner-summaries/container.md
+                echo "- $high high-severity vulnerabilities found" >> scanner-summaries/container.md
+                echo "- Address within 24 hours" >> scanner-summaries/container.md
+                echo "" >> scanner-summaries/container.md
+              fi
+
+              if [ $total -eq 0 ]; then
+                echo "**✅ No Vulnerabilities**" >> scanner-summaries/container.md
+                echo "Great! This container has no detected vulnerabilities." >> scanner-summaries/container.md
+                echo "" >> scanner-summaries/container.md
+              fi
+
+              echo "**📥 Reports:** [Trivy](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts) | [Grype](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts) | [SBOM](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/container.md
+              echo "" >> scanner-summaries/container.md
+              echo "</details>" >> scanner-summaries/container.md
+              echo "" >> scanner-summaries/container.md
+            fi
+          done
 
           echo "**📁 Artifacts:** [Container Scan Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/container.md
         else

@@ -84,6 +84,39 @@ function parseContainerReport(reportContent) {
     data.buildFailures = parseInt(scanMatch[2]) || 0;
   }
 
+  // Extract individual container results from the vulnerability table
+  const tableMatch = reportContent.match(/\| Container \| Critical \| High \| Medium \| Low \| Total \| Build Status \|(.*?)(?=\| \*\*TOTAL\*\*)/s);
+  if (tableMatch) {
+    const rows = tableMatch[1].split('\n').filter(row => row.includes('|') && !row.includes('---'));
+
+    rows.forEach(row => {
+      const parts = row.split('|').map(p => p.trim()).filter(p => p);
+      if (parts.length >= 7) {
+        const containerName = parts[0];
+        const buildStatus = parts[6];
+
+        // Check if this is a successful build with vulnerability data
+        if (buildStatus.includes('Success') && parts[1] !== '-') {
+          const container = {
+            name: containerName,
+            critical: parseInt(parts[1]) || 0,
+            high: parseInt(parts[2]) || 0,
+            medium: parseInt(parts[3]) || 0,
+            low: parseInt(parts[4]) || 0,
+            total: parseInt(parts[5]) || 0,
+            buildStatus: 'success'
+          };
+          data.containers.push(container);
+        } else if (buildStatus.includes('Failed')) {
+          data.containers.push({
+            name: containerName,
+            buildStatus: 'failed'
+          });
+        }
+      }
+    });
+  }
+
   return data;
 }
 
@@ -197,40 +230,97 @@ Great work! All SAST tools passed without detecting security vulnerabilities.
  * Generate enhanced Container comment
  */
 function generateEnhancedContainerComment(containerData, runId, repoOwner, repoName) {
-  const { totalCritical, totalHigh, totalMedium, totalLow, scannedContainers, buildFailures } = containerData;
+  const { containers, totalCritical, totalHigh, totalMedium, totalLow, scannedContainers, buildFailures } = containerData;
   const totalVulns = totalCritical + totalHigh + totalMedium + totalLow;
   const riskLevel = getRiskLevel(totalCritical, totalHigh);
   const riskEmoji = totalCritical > 0 ? '🚨' : totalHigh > 0 ? '⚠️' : '✅';
 
+  // Build individual container sections
+  let containerSections = '';
+  if (containers && containers.length > 0) {
+    containerSections = containers.map(container => {
+      if (container.buildStatus === 'failed') {
+        return `
+<details>
+<summary>🐳 <strong>${container.name}</strong> - ❌ Build Failed</summary>
+
+**Status:** Build failed - this may be expected for intentionally vulnerable test containers.
+
+**Actions:**
+- Review build logs in the [workflow run](https://github.com/${repoOwner}/${repoName}/actions/runs/${runId})
+- Check Dockerfile syntax and dependencies
+
+</details>`;
+      }
+
+      const containerVulns = container.total || 0;
+      const containerRiskEmoji = container.critical > 0 ? '🚨' : container.high > 0 ? '⚠️' : containerVulns > 0 ? '🟡' : '✅';
+      const containerRiskLevel = getRiskLevel(container.critical, container.high);
+
+      return `
+<details>
+<summary>🐳 <strong>${container.name}</strong> - ${containerRiskEmoji} ${containerVulns} vulnerabilities</summary>
+
+### Vulnerability Breakdown
+| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | Total |
+|-------------|---------|-----------|---------|-------|
+| ${container.critical} | ${container.high} | ${container.medium} | ${container.low} | ${container.total} |
+
+**Risk Level:** ${containerRiskLevel} ${containerRiskEmoji}
+
+${container.critical > 0 ? `
+#### 🚨 Critical Issues
+- **${container.critical} critical vulnerabilities** require immediate attention
+- These should be addressed before deployment
+` : ''}
+
+${container.high > 0 ? `
+#### ⚠️ High Priority
+- **${container.high} high-severity vulnerabilities** found
+- Address within 24 hours
+` : ''}
+
+${containerVulns === 0 ? `
+#### ✅ No Vulnerabilities
+Great! This container has no detected vulnerabilities.
+` : ''}
+
+**📥 Download Reports:**
+- [Trivy SARIF Results](https://github.com/${repoOwner}/${repoName}/actions/runs/${runId}#artifacts)
+- [Grype Scan Results](https://github.com/${repoOwner}/${repoName}/actions/runs/${runId}#artifacts)
+- [SBOM (CycloneDX)](https://github.com/${repoOwner}/${repoName}/actions/runs/${runId}#artifacts)
+
+</details>`;
+    }).join('\n');
+  }
+
   return `## 🐳 Container Security Analysis ${riskEmoji}
 
-### 📊 Quick Summary
+### 📊 Overall Summary
 ${getRiskBadge(riskLevel)} **Risk Level: ${riskLevel}**
 
 | 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📦 Total |
 |-------------|---------|-----------|---------|----------|
 | **${totalCritical}** | **${totalHigh}** | **${totalMedium}** | **${totalLow}** | **${totalVulns}** |
 
+**Scanned:** ${scannedContainers} containers | **Build Failures:** ${buildFailures}
+
 ${generateActionItems(totalCritical, totalHigh, totalMedium)}
 
-### 📥 Download Reports
+### 📦 Container Results
+${containerSections || 'No container scan results available.'}
+
+### 📥 All Reports
 - 📋 **[Download All Container Reports](https://github.com/${repoOwner}/${repoName}/actions/runs/${runId}#artifacts)**
-- 🔍 **[View Detailed SARIF Results](https://github.com/${repoOwner}/${repoName}/security/code-scanning)**
-
-<details>
-<summary>📋 <strong>Container Details</strong> (${scannedContainers} scanned, ${buildFailures} failures)</summary>
-
-View detailed container scanning results in the [workflow artifacts](https://github.com/${repoOwner}/${repoName}/actions/runs/${runId}#artifacts).
-
-</details>
+- 🔍 **[View in GitHub Security](https://github.com/${repoOwner}/${repoName}/security/code-scanning)**
 
 <details>
 <summary>🛠️ <strong>Remediation Guide</strong></summary>
 
 #### Immediate Actions (Critical/High)
 ${totalCritical > 0 ? `
-- 🚨 **${totalCritical} critical vulnerabilities** require immediate patching
-- 📋 [Download detailed vulnerability report](https://github.com/${repoOwner}/${repoName}/actions/runs/${runId}#artifacts)
+- 🚨 **${totalCritical} critical vulnerabilities** across all containers require immediate patching
+- 📋 Review individual container reports above for specific issues
 - 🔄 Update base images and dependencies
 ` : ''}
 ${totalHigh > 0 ? `
@@ -242,6 +332,8 @@ ${totalHigh > 0 ? `
 - 🏗️ Implement multi-stage builds
 - 👤 Run containers as non-root users
 - 🔒 Enable GitHub Advanced Security for integrated reporting
+- 📦 Regularly update dependencies and base images
+- 🔍 Review SBOMs to understand container composition
 
 </details>
 
@@ -321,6 +413,26 @@ if (require.main === module) {
 
   // Sample Container data
   const containerData = {
+    containers: [
+      {
+        name: 'docker-vulnerable',
+        critical: 74,
+        high: 1220,
+        medium: 2853,
+        low: 1146,
+        total: 5293,
+        buildStatus: 'success'
+      },
+      {
+        name: 'docker-secure',
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        total: 0,
+        buildStatus: 'success'
+      }
+    ],
     totalCritical: 74,
     totalHigh: 1220,
     totalMedium: 2853,
