@@ -206,27 +206,27 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Image:** \`${{ steps.build.outputs.full_image }}\`" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        
+
         if [ -f "trivy-${{ matrix.container.name }}-results.json" ]; then
           CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' trivy-${{ matrix.container.name }}-results.json 2>/dev/null || echo "0")
           HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' trivy-${{ matrix.container.name }}-results.json 2>/dev/null || echo "0")
           MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length' trivy-${{ matrix.container.name }}-results.json 2>/dev/null || echo "0")
           LOW=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW")] | length' trivy-${{ matrix.container.name }}-results.json 2>/dev/null || echo "0")
           TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
-          
+
           echo "### Vulnerability Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📊 Total |" >> $GITHUB_STEP_SUMMARY
           echo "|-------------|---------|-----------|---------|----------|" >> $GITHUB_STEP_SUMMARY
           echo "| **$CRITICAL** | **$HIGH** | **$MEDIUM** | **$LOW** | **$TOTAL** |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           # Generate detailed vulnerability table by severity
           if [ $TOTAL -gt 0 ]; then
             echo "<details open>" >> $GITHUB_STEP_SUMMARY
             echo "<summary>🔍 Vulnerability Details</summary>" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            
+
             # Show Critical vulnerabilities first
             if [ $CRITICAL -gt 0 ]; then
               echo "#### 🚨 Critical Vulnerabilities ($CRITICAL)" >> $GITHUB_STEP_SUMMARY
@@ -236,7 +236,7 @@ jobs:
               jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | "| \(.VulnerabilityID // "N/A") | 🚨 CRITICAL | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${{ matrix.container.name }}-results.json" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
             fi
-            
+
             # Show High vulnerabilities
             if [ $HIGH -gt 0 ]; then
               echo "#### ⚠️ High Vulnerabilities ($HIGH)" >> $GITHUB_STEP_SUMMARY
@@ -246,7 +246,7 @@ jobs:
               jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | "| \(.VulnerabilityID // "N/A") | ⚠️ HIGH | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${{ matrix.container.name }}-results.json" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
             fi
-            
+
             # Show Medium vulnerabilities in collapsed section
             if [ $MEDIUM -gt 0 ]; then
               echo "<details>" >> $GITHUB_STEP_SUMMARY
@@ -259,7 +259,7 @@ jobs:
               echo "</details>" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
             fi
-            
+
             # Show Low vulnerabilities in collapsed section
             if [ $LOW -gt 0 ]; then
               echo "<details>" >> $GITHUB_STEP_SUMMARY
@@ -272,7 +272,7 @@ jobs:
               echo "</details>" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
             fi
-            
+
             echo "</details>" >> $GITHUB_STEP_SUMMARY
           else
             echo "✅ **No vulnerabilities detected!**" >> $GITHUB_STEP_SUMMARY
@@ -458,6 +458,12 @@ jobs:
             for container_dir in container-scan-results-*; do
               if [ -d "$container_dir" ]; then
                 container_name=$(echo "$container_dir" | sed 's/container-scan-results-//')
+
+                # Skip SBOM artifact directories - they're not container scan results
+                if [[ "$container_name" == sbom-* ]] || [[ "$container_name" == sbom-table-* ]]; then
+                  continue
+                fi
+
                 trivy_json="$container_dir/trivy-${container_name}-results.json"
 
                 # Check if container built successfully by looking for results
@@ -537,6 +543,12 @@ jobs:
             for summary in container-scan-results-*/container-summary-*.md; do
               if [ -f "$summary" ]; then
                 container_name=$(basename "$summary" .md | sed 's/container-summary-//')
+
+                # Skip SBOM artifact summaries if they somehow exist
+                if [[ "$container_name" == sbom-* ]] || [[ "$container_name" == sbom-table-* ]]; then
+                  continue
+                fi
+
                 echo "### $container_name" >> container-security-report.md
 
                 # Add vulnerability breakdown for this container
@@ -636,7 +648,7 @@ jobs:
         # Generate content function that writes to both destinations
         generate_summary() {
           local dest="$1"  # Either file path or "both"
-          
+
           # Check if we have container scan results
           if compgen -G "container-scan-results-*" > /dev/null 2>&1 || compgen -G "trivy-*-results.sarif" > /dev/null 2>&1; then
             # Initialize totals
@@ -655,6 +667,12 @@ jobs:
               for container_dir in container-scan-results-*; do
                 if [ -d "$container_dir" ]; then
                   container_name=$(echo "$container_dir" | sed 's/container-scan-results-//')
+
+                  # Skip SBOM artifact directories - they're not container scan results
+                  if [[ "$container_name" == sbom-* ]] || [[ "$container_name" == sbom-table-* ]]; then
+                    continue
+                  fi
+
                   trivy_json="$container_dir/trivy-${container_name}-results.json"
 
                   # Check if container built successfully by looking for results
@@ -779,7 +797,7 @@ jobs:
                       echo "<details open>" >> "$output"
                       echo "<summary>🔍 Vulnerability Details</summary>" >> "$output"
                       echo "" >> "$output"
-                      
+
                       # Show Critical vulnerabilities
                       if [ $crit -gt 0 ]; then
                         echo "#### 🚨 Critical Vulnerabilities ($crit)" >> "$output"
@@ -789,7 +807,7 @@ jobs:
                         jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | "| \(.VulnerabilityID // "N/A") | 🚨 CRITICAL | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "$trivy_json" >> "$output" 2>/dev/null || echo "| Error parsing | - | - | - | - |" >> "$output"
                         echo "" >> "$output"
                       fi
-                      
+
                       # Show High vulnerabilities
                       if [ $high -gt 0 ]; then
                         echo "#### ⚠️ High Vulnerabilities ($high)" >> "$output"
@@ -799,7 +817,7 @@ jobs:
                         jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | "| \(.VulnerabilityID // "N/A") | ⚠️ HIGH | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "$trivy_json" >> "$output" 2>/dev/null || echo "| Error parsing | - | - | - | - |" >> "$output"
                         echo "" >> "$output"
                       fi
-                      
+
                       # Show Medium vulnerabilities in collapsed section
                       if [ $med -gt 0 ]; then
                         echo "<details>" >> "$output"
@@ -812,7 +830,7 @@ jobs:
                         echo "</details>" >> "$output"
                         echo "" >> "$output"
                       fi
-                      
+
                       # Show Low vulnerabilities in collapsed section
                       if [ $low -gt 0 ]; then
                         echo "<details>" >> "$output"
@@ -825,7 +843,7 @@ jobs:
                         echo "</details>" >> "$output"
                         echo "" >> "$output"
                       fi
-                      
+
                       echo "</details>" >> "$output"
                       echo "" >> "$output"
                     fi
@@ -837,7 +855,7 @@ jobs:
               done
 
               echo "**📁 Artifacts:** [Container Scan Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> "$output"
-              
+
               # Close details wrapper only for PR artifact
               if [[ "$output" == *"container.md" ]]; then
                 echo "" >> "$output"
@@ -854,7 +872,7 @@ jobs:
             echo "" >> scanner-summaries/container.md
             echo "</details>" >> scanner-summaries/container.md
             echo "" >> scanner-summaries/container.md
-            
+
             echo "## 🔍 Container Security Scan Summary" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Status:** ⏭️ No containers found to scan" >> $GITHUB_STEP_SUMMARY
