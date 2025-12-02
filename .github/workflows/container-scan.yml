@@ -173,10 +173,6 @@ jobs:
         name: container-scan-results-sbom-table-${{ matrix.container.name }}
         path: container-scan-results-sbom-${{ matrix.container.name }}.txt
 
-    - name: SBOM summary
-      if: steps.build.outputs.build_success == 'true'
-      run: echo "✅ SBOM generated for ${{ steps.build.outputs.full_image }} → container-scan-results-sbom-${{ matrix.container.name }}.json" >> $GITHUB_STEP_SUMMARY
-
     - name: Run Trivy vulnerability scanner (SARIF)
       if: steps.build.outputs.build_success == 'true'
       uses: aquasecurity/trivy-action@0.33.1
@@ -202,7 +198,91 @@ jobs:
       with:
         image-ref: ${{ steps.build.outputs.full_image }}
         format: 'table'
-        output: 'trivy-${{ matrix.container.name }}-results.txt'
+
+    - name: Add vulnerability summary to job summary
+      if: steps.build.outputs.build_success == 'true'
+      run: |
+        echo "## 🐳 Container Security Scan - ${{ matrix.container.name }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Image:** \`${{ steps.build.outputs.full_image }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ -f "trivy-${{ matrix.container.name }}-results.json" ]; then
+          CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' trivy-${{ matrix.container.name }}-results.json 2>/dev/null || echo "0")
+          HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' trivy-${{ matrix.container.name }}-results.json 2>/dev/null || echo "0")
+          MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length' trivy-${{ matrix.container.name }}-results.json 2>/dev/null || echo "0")
+          LOW=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW")] | length' trivy-${{ matrix.container.name }}-results.json 2>/dev/null || echo "0")
+          UNIQUE=$(jq '[.Results[]?.Vulnerabilities[]?.VulnerabilityID] | map(select(. != null)) | unique | length' trivy-${{ matrix.container.name }}-results.json 2>/dev/null || echo "0")
+          TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
+
+          echo "### Vulnerability Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📊 Total | 🔢 Unique |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------|---------|-----------|---------|----------|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **$CRITICAL** | **$HIGH** | **$MEDIUM** | **$LOW** | **$TOTAL** | **$UNIQUE** |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Generate detailed vulnerability table by severity
+          if [ $TOTAL -gt 0 ]; then
+            echo "<details open>" >> $GITHUB_STEP_SUMMARY
+            echo "<summary>🔍 Vulnerability Details</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Show Critical vulnerabilities first
+            if [ $CRITICAL -gt 0 ]; then
+              echo "#### 🚨 Critical Vulnerabilities ($CRITICAL)" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "| CVE | Severity | Package | Installed Version | Fixed Version |" >> $GITHUB_STEP_SUMMARY
+              echo "|-----|----------|---------|-------------------|---------------|" >> $GITHUB_STEP_SUMMARY
+              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | "| \(.VulnerabilityID // "N/A") | 🚨 CRITICAL | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${{ matrix.container.name }}-results.json" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            # Show High vulnerabilities
+            if [ $HIGH -gt 0 ]; then
+              echo "#### ⚠️ High Vulnerabilities ($HIGH)" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "| CVE | Severity | Package | Installed Version | Fixed Version |" >> $GITHUB_STEP_SUMMARY
+              echo "|-----|----------|---------|-------------------|---------------|" >> $GITHUB_STEP_SUMMARY
+              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | "| \(.VulnerabilityID // "N/A") | ⚠️ HIGH | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${{ matrix.container.name }}-results.json" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            # Show Medium vulnerabilities in collapsed section
+            if [ $MEDIUM -gt 0 ]; then
+              echo "<details>" >> $GITHUB_STEP_SUMMARY
+              echo "<summary>🟡 Medium Vulnerabilities ($MEDIUM)</summary>" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "| CVE | Severity | Package | Installed Version | Fixed Version |" >> $GITHUB_STEP_SUMMARY
+              echo "|-----|----------|---------|-------------------|---------------|" >> $GITHUB_STEP_SUMMARY
+              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM") | "| \(.VulnerabilityID // "N/A") | 🟡 MEDIUM | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${{ matrix.container.name }}-results.json" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "</details>" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            # Show Low vulnerabilities in collapsed section
+            if [ $LOW -gt 0 ]; then
+              echo "<details>" >> $GITHUB_STEP_SUMMARY
+              echo "<summary>🔵 Low Vulnerabilities ($LOW)</summary>" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "| CVE | Severity | Package | Installed Version | Fixed Version |" >> $GITHUB_STEP_SUMMARY
+              echo "|-----|----------|---------|-------------------|---------------|" >> $GITHUB_STEP_SUMMARY
+              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW") | "| \(.VulnerabilityID // "N/A") | 🔵 LOW | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${{ matrix.container.name }}-results.json" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "</details>" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **No vulnerabilities detected!**" >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "⚠️ No vulnerability data available" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+      continue-on-error: true
 
     - name: Upload Trivy scan results to GitHub Security tab
       if: inputs.enable_code_security == true && steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act'
@@ -379,6 +459,12 @@ jobs:
             for container_dir in container-scan-results-*; do
               if [ -d "$container_dir" ]; then
                 container_name=$(echo "$container_dir" | sed 's/container-scan-results-//')
+
+                # Skip SBOM artifact directories - they're not container scan results
+                if [[ "$container_name" == sbom-* ]] || [[ "$container_name" == sbom-table-* ]]; then
+                  continue
+                fi
+
                 trivy_json="$container_dir/trivy-${container_name}-results.json"
 
                 # Check if container built successfully by looking for results
@@ -458,7 +544,13 @@ jobs:
             for summary in container-scan-results-*/container-summary-*.md; do
               if [ -f "$summary" ]; then
                 container_name=$(basename "$summary" .md | sed 's/container-summary-//')
-                echo "### 🐳 $container_name" >> container-security-report.md
+
+                # Skip SBOM artifact summaries if they somehow exist
+                if [[ "$container_name" == sbom-* ]] || [[ "$container_name" == sbom-table-* ]]; then
+                  continue
+                fi
+
+                echo "### $container_name" >> container-security-report.md
 
                 # Add vulnerability breakdown for this container
                 trivy_json="container-scan-results-${container_name}/trivy-${container_name}-results.json"
@@ -535,67 +627,280 @@ jobs:
         path: container-security-report.md
         retention-days: 30
 
-    - name: Generate Container summary section
+    - name: Generate container summary and add to job summary
       if: always()
       run: |
         mkdir -p scanner-summaries
 
-        echo "<details>" > scanner-summaries/container.md
-        echo "<summary>🔍 Container Security</summary>" >> scanner-summaries/container.md
-        echo "" >> scanner-summaries/container.md
-
-        # Check if we have container scan results
-        if compgen -G "container-scan-results-*" > /dev/null 2>&1 || compgen -G "trivy-*-results.sarif" > /dev/null 2>&1; then
-          echo "**Status:** ✅ Completed" >> scanner-summaries/container.md
-          echo "" >> scanner-summaries/container.md
-
-          # Count vulnerabilities from SARIF files
-          VULN_COUNT=0
-          CRITICAL_COUNT=0
-          HIGH_COUNT=0
-          MEDIUM_COUNT=0
-          LOW_COUNT=0
-
-          for sarif_file in $(find . -name "trivy-*-results.sarif" -type f 2>/dev/null); do
-            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
-              vulns=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
-              VULN_COUNT=$((VULN_COUNT + vulns))
-
-              critical=$(jq -r '.runs[]?.results[]? | select(.level == "error") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
-              CRITICAL_COUNT=$((CRITICAL_COUNT + critical))
-
-              high=$(jq -r '.runs[]?.results[]? | select(.level == "warning") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
-              HIGH_COUNT=$((HIGH_COUNT + high))
-
-              medium=$(jq -r '.runs[]?.results[]? | select(.level == "note") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
-              MEDIUM_COUNT=$((MEDIUM_COUNT + medium))
-
-              low=$(jq -r '.runs[]?.results[]? | select(.level == "info") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
-              LOW_COUNT=$((LOW_COUNT + low))
-            fi
-          done
-
-          echo "**Vulnerabilities Found:** $VULN_COUNT" >> scanner-summaries/container.md
-          echo "" >> scanner-summaries/container.md
-
-          if [ $VULN_COUNT -gt 0 ]; then
-            echo "| Severity | Count |" >> scanner-summaries/container.md
-            echo "|----------|-------|" >> scanner-summaries/container.md
-            [ $CRITICAL_COUNT -gt 0 ] && echo "| 🔴 Critical | $CRITICAL_COUNT |" >> scanner-summaries/container.md
-            [ $HIGH_COUNT -gt 0 ] && echo "| 🟠 High | $HIGH_COUNT |" >> scanner-summaries/container.md
-            [ $MEDIUM_COUNT -gt 0 ] && echo "| 🟡 Medium | $MEDIUM_COUNT |" >> scanner-summaries/container.md
-            [ $LOW_COUNT -gt 0 ] && echo "| 🔵 Low | $LOW_COUNT |" >> scanner-summaries/container.md
-            echo "" >> scanner-summaries/container.md
+        # Function to parse Trivy JSON results (returns: crit high med low unique)
+        parse_trivy() {
+          local file="$1"
+          if [ -f "$file" ] && [ -s "$file" ]; then
+            local crit=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' "$file" 2>/dev/null || echo 0)
+            local high=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' "$file" 2>/dev/null || echo 0)
+            local med=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length' "$file" 2>/dev/null || echo 0)
+            local low=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW")] | length' "$file" 2>/dev/null || echo 0)
+            local unique=$(jq '[.Results[]?.Vulnerabilities[]?.VulnerabilityID] | map(select(. != null)) | unique | length' "$file" 2>/dev/null || echo 0)
+            echo "$crit $high $med $low $unique"
+          else
+            echo "0 0 0 0 0"
           fi
+        }
 
-          echo "**📁 Artifacts:** [Container Scan Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/container.md
-        else
-          echo "**Status:** ⏭️ Skipped" >> scanner-summaries/container.md
-        fi
+        # Generate content function that writes to both destinations
+        generate_summary() {
+          local dest="$1"  # Either file path or "both"
 
-        echo "" >> scanner-summaries/container.md
-        echo "</details>" >> scanner-summaries/container.md
-        echo "" >> scanner-summaries/container.md
+          # Check if we have container scan results
+          if compgen -G "container-scan-results-*" > /dev/null 2>&1 || compgen -G "trivy-*-results.sarif" > /dev/null 2>&1; then
+            # Initialize totals
+            TOTAL_CRITICAL=0
+            TOTAL_HIGH=0
+            TOTAL_MEDIUM=0
+            TOTAL_LOW=0
+            TOTAL_UNIQUE=0
+            SCANNED_CONTAINERS=0
+            FAILED_BUILDS=0
+
+            # Collect container data
+            declare -a CONTAINER_DATA
+            # Collect all unique CVE IDs across all containers
+            declare -a ALL_CVE_IDS
+
+            # Parse results for each container
+            if ls container-scan-results-* 1> /dev/null 2>&1; then
+              for container_dir in container-scan-results-*; do
+                if [ -d "$container_dir" ]; then
+                  container_name=$(echo "$container_dir" | sed 's/container-scan-results-//')
+
+                  # Skip SBOM artifact directories - they're not container scan results
+                  if [[ "$container_name" == sbom-* ]] || [[ "$container_name" == sbom-table-* ]]; then
+                    continue
+                  fi
+
+                  trivy_json="$container_dir/trivy-${container_name}-results.json"
+
+                  # Check if container built successfully by looking for results
+                  if [ -f "$trivy_json" ]; then
+                    counts=$(parse_trivy "$trivy_json")
+                    read crit high med low unique <<< "$counts"
+                    container_total=$((crit + high + med + low))
+
+                    # Store container data for later use (includes unique count)
+                    CONTAINER_DATA+=("$container_name|$crit|$high|$med|$low|$container_total|$unique|success")
+
+                    # Collect CVE IDs for cross-container unique calculation
+                    while IFS= read -r cve_id; do
+                      if [ -n "$cve_id" ] && [ "$cve_id" != "null" ]; then
+                        ALL_CVE_IDS+=("$cve_id")
+                      fi
+                    done < <(jq -r '.Results[]?.Vulnerabilities[]?.VulnerabilityID // empty' "$trivy_json" 2>/dev/null)
+
+                    # Add to totals
+                    TOTAL_CRITICAL=$((TOTAL_CRITICAL + crit))
+                    TOTAL_HIGH=$((TOTAL_HIGH + high))
+                    TOTAL_MEDIUM=$((TOTAL_MEDIUM + med))
+                    TOTAL_LOW=$((TOTAL_LOW + low))
+                    SCANNED_CONTAINERS=$((SCANNED_CONTAINERS + 1))
+                  else
+                    CONTAINER_DATA+=("$container_name|0|0|0|0|0|0|failed")
+                    FAILED_BUILDS=$((FAILED_BUILDS + 1))
+                  fi
+                fi
+              done
+            fi
+
+            TOTAL_VULN=$((TOTAL_CRITICAL + TOTAL_HIGH + TOTAL_MEDIUM + TOTAL_LOW))
+
+            # Calculate unique CVEs across all containers
+            if [ ${#ALL_CVE_IDS[@]} -gt 0 ]; then
+              TOTAL_UNIQUE=$(printf '%s\n' "${ALL_CVE_IDS[@]}" | sort -u | wc -l | tr -d ' ')
+            else
+              TOTAL_UNIQUE=0
+            fi
+
+            # Write to both PR artifact and job summary
+            for output in "scanner-summaries/container.md" "$GITHUB_STEP_SUMMARY"; do
+              # PR comment artifact needs details wrapper, job summary doesn't
+              if [[ "$output" == *"container.md" ]]; then
+                echo "<details>" >> "$output"
+                echo "<summary>🔍 Container Security</summary>" >> "$output"
+                echo "" >> "$output"
+                echo "**Status:** ✅ Completed" >> "$output"
+              else
+                echo "## 🔍 Container Security Scan Summary" >> "$output"
+              fi
+              echo "" >> "$output"
+
+              # Overall Summary
+              echo "### 📊 Overall Summary" >> "$output"
+              echo "" >> "$output"
+              echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📦 Total | 🔢 Unique |" >> "$output"
+              echo "|-------------|---------|-----------|---------|----------|----------|" >> "$output"
+              echo "| **$TOTAL_CRITICAL** | **$TOTAL_HIGH** | **$TOTAL_MEDIUM** | **$TOTAL_LOW** | **$TOTAL_VULN** | **$TOTAL_UNIQUE** |" >> "$output"
+              echo "" >> "$output"
+              echo "**Scanned:** $SCANNED_CONTAINERS containers | **Build Failures:** $FAILED_BUILDS" >> "$output"
+              echo "" >> "$output"
+
+              # Priority messages
+              if [ $TOTAL_CRITICAL -gt 0 ]; then
+                echo "🚨 **URGENT**: $TOTAL_CRITICAL critical vulnerabilities need immediate attention" >> "$output"
+                echo "" >> "$output"
+              fi
+              if [ $TOTAL_HIGH -gt 0 ]; then
+                echo "⚠️ **HIGH**: $TOTAL_HIGH high-severity vulnerabilities to address within 24h" >> "$output"
+                echo "" >> "$output"
+              fi
+
+              # Individual container breakdowns
+              echo "### 📦 Individual Containers" >> "$output"
+              echo "" >> "$output"
+
+              for container_data in "${CONTAINER_DATA[@]}"; do
+                IFS='|' read -r name crit high med low total unique status <<< "$container_data"
+
+                if [ "$status" = "failed" ]; then
+                  echo "<details>" >> "$output"
+                  echo "<summary><strong>$name</strong> - ❌ Build Failed</summary>" >> "$output"
+                  echo "" >> "$output"
+                  echo "**Status:** Build failed - this may be expected for intentionally vulnerable test containers." >> "$output"
+                  echo "" >> "$output"
+                  echo "**Actions:**" >> "$output"
+                  echo "- Review build logs in the [workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> "$output"
+                  echo "- Check Dockerfile syntax and dependencies" >> "$output"
+                  echo "" >> "$output"
+                  echo "</details>" >> "$output"
+                  echo "" >> "$output"
+                else
+                  # Determine risk emoji
+                  if [ $crit -gt 0 ]; then
+                    risk_emoji="🚨"
+                  elif [ $high -gt 0 ]; then
+                    risk_emoji="⚠️"
+                  elif [ $total -gt 0 ]; then
+                    risk_emoji="🟡"
+                  else
+                    risk_emoji="✅"
+                  fi
+
+                  echo "<details>" >> "$output"
+                  echo "<summary><strong>$name</strong> - $risk_emoji $total vulnerabilities</summary>" >> "$output"
+                  echo "" >> "$output"
+                  echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | Total |" >> "$output"
+                  echo "|-------------|---------|-----------|---------|-------|" >> "$output"
+                  echo "| $crit | $high | $med | $low | $total |" >> "$output"
+                  echo "" >> "$output"
+
+                  if [ $crit -gt 0 ]; then
+                    echo "**🚨 Critical Issues**" >> "$output"
+                    echo "- $crit critical vulnerabilities require immediate attention" >> "$output"
+                    echo "- Should be addressed before deployment" >> "$output"
+                    echo "" >> "$output"
+                  fi
+
+                  if [ $high -gt 0 ]; then
+                    echo "**⚠️ High Priority**" >> "$output"
+                    echo "- $high high-severity vulnerabilities found" >> "$output"
+                    echo "- Address within 24 hours" >> "$output"
+                    echo "" >> "$output"
+                  fi
+
+                  if [ $total -eq 0 ]; then
+                    echo "**✅ No Vulnerabilities**" >> "$output"
+                    echo "Great! This container has no detected vulnerabilities." >> "$output"
+                    echo "" >> "$output"
+                  else
+                    # Add detailed vulnerability table
+                    trivy_json="container-scan-results-${name}/trivy-${name}-results.json"
+                    if [ -f "$trivy_json" ]; then
+                      echo "<details open>" >> "$output"
+                      echo "<summary>🔍 Vulnerability Details</summary>" >> "$output"
+                      echo "" >> "$output"
+
+                      # Show Critical vulnerabilities
+                      if [ $crit -gt 0 ]; then
+                        echo "#### 🚨 Critical Vulnerabilities ($crit)" >> "$output"
+                        echo "" >> "$output"
+                        echo "| CVE | Severity | Package | Installed Version | Fixed Version |" >> "$output"
+                        echo "|-----|----------|---------|-------------------|---------------|" >> "$output"
+                        jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | "| \(.VulnerabilityID // "N/A") | 🚨 CRITICAL | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "$trivy_json" >> "$output" 2>/dev/null || echo "| Error parsing | - | - | - | - |" >> "$output"
+                        echo "" >> "$output"
+                      fi
+
+                      # Show High vulnerabilities
+                      if [ $high -gt 0 ]; then
+                        echo "#### ⚠️ High Vulnerabilities ($high)" >> "$output"
+                        echo "" >> "$output"
+                        echo "| CVE | Severity | Package | Installed Version | Fixed Version |" >> "$output"
+                        echo "|-----|----------|---------|-------------------|---------------|" >> "$output"
+                        jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | "| \(.VulnerabilityID // "N/A") | ⚠️ HIGH | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "$trivy_json" >> "$output" 2>/dev/null || echo "| Error parsing | - | - | - | - |" >> "$output"
+                        echo "" >> "$output"
+                      fi
+
+                      # Show Medium vulnerabilities in collapsed section
+                      if [ $med -gt 0 ]; then
+                        echo "<details>" >> "$output"
+                        echo "<summary>🟡 Medium Vulnerabilities ($med)</summary>" >> "$output"
+                        echo "" >> "$output"
+                        echo "| CVE | Severity | Package | Installed Version | Fixed Version |" >> "$output"
+                        echo "|-----|----------|---------|-------------------|---------------|" >> "$output"
+                        jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM") | "| \(.VulnerabilityID // "N/A") | 🟡 MEDIUM | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "$trivy_json" >> "$output" 2>/dev/null || echo "| Error parsing | - | - | - | - |" >> "$output"
+                        echo "" >> "$output"
+                        echo "</details>" >> "$output"
+                        echo "" >> "$output"
+                      fi
+
+                      # Show Low vulnerabilities in collapsed section
+                      if [ $low -gt 0 ]; then
+                        echo "<details>" >> "$output"
+                        echo "<summary>🔵 Low Vulnerabilities ($low)</summary>" >> "$output"
+                        echo "" >> "$output"
+                        echo "| CVE | Severity | Package | Installed Version | Fixed Version |" >> "$output"
+                        echo "|-----|----------|---------|-------------------|---------------|" >> "$output"
+                        jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW") | "| \(.VulnerabilityID // "N/A") | 🔵 LOW | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "$trivy_json" >> "$output" 2>/dev/null || echo "| Error parsing | - | - | - | - |" >> "$output"
+                        echo "" >> "$output"
+                        echo "</details>" >> "$output"
+                        echo "" >> "$output"
+                      fi
+
+                      echo "</details>" >> "$output"
+                      echo "" >> "$output"
+                    fi
+                  fi
+
+                  echo "</details>" >> "$output"
+                  echo "" >> "$output"
+                fi
+              done
+
+              echo "**📁 Artifacts:** [Container Scan Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> "$output"
+
+              # Close details wrapper only for PR artifact
+              if [[ "$output" == *"container.md" ]]; then
+                echo "" >> "$output"
+                echo "</details>" >> "$output"
+              fi
+              echo "" >> "$output"
+            done
+          else
+            # No containers found
+            echo "<details>" >> scanner-summaries/container.md
+            echo "<summary>🔍 Container Security</summary>" >> scanner-summaries/container.md
+            echo "" >> scanner-summaries/container.md
+            echo "**Status:** ⏭️ Skipped" >> scanner-summaries/container.md
+            echo "" >> scanner-summaries/container.md
+            echo "</details>" >> scanner-summaries/container.md
+            echo "" >> scanner-summaries/container.md
+
+            echo "## 🔍 Container Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Status:** ⏭️ No containers found to scan" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+        }
+
+        # Generate the summary (writes to both locations)
+        generate_summary
       continue-on-error: true
 
     - name: Upload Container summary section
@@ -606,117 +911,3 @@ jobs:
         path: scanner-summaries/container.md
         retention-days: 7
       continue-on-error: true
-
-    - name: Comment PR with enhanced container security results
-      if: false  # Disabled - consolidated into main security hardening comment
-      uses: actions/github-script@v8
-      continue-on-error: true
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const fs = require('fs');
-          const path = require('path');
-
-          // Import the enhanced comment generator
-          const enhancerPath = path.join(process.cwd(), '.github', 'scripts', 'enhance-pr-comments.js');
-          let enhancer;
-
-          try {
-            enhancer = require(enhancerPath);
-          } catch (error) {
-            console.log('⚠️ Enhanced comment generator not found, falling back to basic comments');
-            enhancer = null;
-          }
-
-          // Check if we have the necessary permissions and context
-          console.log('Repository:', context.repo.owner + '/' + context.repo.repo);
-          console.log('Event name:', context.eventName);
-          console.log('Actor:', context.actor);
-          console.log('PR number:', context.issue?.number);
-          console.log('Is from fork:', context.payload.pull_request?.head?.repo?.fork || false);
-
-          // Check if running from a fork
-          const isFromFork = context.payload.pull_request?.head?.repo?.fork || false;
-          if (isFromFork) {
-            console.log('⚠️  Running from a fork - PR commenting may be restricted');
-          }
-
-          try {
-            const report = fs.readFileSync('container-security-report.md', 'utf8');
-            let commentBody;
-
-            if (enhancer) {
-              // Use enhanced comment generator
-              console.log('📝 Generating enhanced PR comment...');
-              const containerData = enhancer.parseContainerReport(report);
-              const runId = context.runId;
-              const repoOwner = context.repo.owner;
-              const repoName = context.repo.repo;
-
-              commentBody = enhancer.generateEnhancedContainerComment(containerData, runId, repoOwner, repoName);
-            } else {
-              // Fallback to basic comment
-              const truncatedReport = report.length > 65000 ?
-                report.substring(0, 65000) + '\n\n... (report truncated, see artifacts for full report)' :
-                report;
-              commentBody = `## 🐳 Container Security Analysis Results\n\n${truncatedReport}`;
-            }
-
-            // Check for existing container security comments to update instead of creating new ones
-            const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number
-            });
-
-            const existingComment = comments.data.find(comment =>
-              (comment.body.includes('🐳 Container Security Analysis') ||
-               comment.body.includes('🐳 Container Security')) &&
-              comment.user.type === 'Bot'
-            );
-
-            if (existingComment) {
-              // Update existing comment with latest information
-              console.log('🔄 Updating existing container security comment');
-              const timestamp = new Date().toLocaleString();
-              const commitSha = context.sha.substring(0, 8);
-              const updatedBody = commentBody + `\n\n---\n*Last updated: ${timestamp} | Commit: ${commitSha} | [View Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
-
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existingComment.id,
-                body: updatedBody
-              });
-            } else {
-              // Create new comment
-              console.log('📝 Creating new container security comment');
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: commentBody
-              });
-            }
-
-            console.log('✅ Successfully posted/updated container security summary comment');
-            core.setOutput('comment_posted', 'true');
-          } catch (error) {
-            console.log('❌ Failed to post container security comment:', error.message);
-            console.log('Error status:', error.status);
-
-            if (error.status === 403) {
-              console.log('🔒 Permission denied - this can happen when:');
-              console.log('   • Running on a fork (security restriction)');
-              console.log('   • Missing pull-requests: write permission');
-              console.log('   • Repository settings restrict PR comments');
-            } else if (error.status === 404) {
-              console.log('🔍 Resource not found - check if PR exists');
-            }
-
-            console.log('📋 Container security report is still available in workflow artifacts');
-
-            // Set step output to indicate comment failed
-            core.setOutput('comment_posted', 'false');
-            core.setOutput('comment_error', error.message);
-          }
