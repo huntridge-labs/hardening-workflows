@@ -7,17 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.6.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.5.8...2.6.0) (2025-12-02)
+
+### Features
+
+* **container-scan:** add unique CVE column to summary totals ([ec99c3f](https://github.com/huntridge-labs/hardening-workflows/commit/ec99c3fe209e2fff24f4fe4122c933dd4a1c5a9d))
+* **container-scan:** summary PR comment separated by container name ([9c64431](https://github.com/huntridge-labs/hardening-workflows/commit/9c644314e84eed6eae227667ab24da8986f04f77)), closes [#78](https://github.com/huntridge-labs/hardening-workflows/issues/78)
+
+### Bug Fixes
+
+* **container-scan-summary:** incorrect trivy vuln counts ([9cf052a](https://github.com/huntridge-labs/hardening-workflows/commit/9cf052aebf0ed27e40631d975aac97787d3794d7)), closes [#74](https://github.com/huntridge-labs/hardening-workflows/issues/74)
+* **pr-verification:** container-scan.yml changes not triggering workflows ([bb47c3d](https://github.com/huntridge-labs/hardening-workflows/commit/bb47c3d539bb9b340f3a00eefcd42283950fbc2f)), closes [#77](https://github.com/huntridge-labs/hardening-workflows/issues/77)
+* **trivy:** vuln table not displaying ([f159e2c](https://github.com/huntridge-labs/hardening-workflows/commit/f159e2cd9400b42539678d5daf6575da60c8f95d)), closes [#75](https://github.com/huntridge-labs/hardening-workflows/issues/75)
+
+### Security Tools
+
+* **deps:** bump bridgecrewio/checkov-action ([b6fbc9b](https://github.com/huntridge-labs/hardening-workflows/commit/b6fbc9bca277b6d1518e75cf9264d528c7a7e213))
+
+### Dependencies
+
+* **deps:** bump actions/checkout in the github-actions-major group ([2d6bcfd](https://github.com/huntridge-labs/hardening-workflows/commit/2d6bcfd5b4d1742d899cabd9d13863635b636dd7))
+
+### Maintenance
+
+* **.release-it.json:** update to improve changelog handling ([bda1287](https://github.com/huntridge-labs/hardening-workflows/commit/bda1287fd156bb33555136829e31f01b381b99c9))
+* **container-scan:** remove docker emoji from summary ([0934258](https://github.com/huntridge-labs/hardening-workflows/commit/0934258b4207118819ef384d09944c8dcccdb4e1))
+* **container-scan:** skip sbom files found in container_dir ([20ea5bf](https://github.com/huntridge-labs/hardening-workflows/commit/20ea5bfe3313d719600022e73dcef5b02af6f75d))
+* **container-scan:** vulnerability summary in job summary and reports ([8c76557](https://github.com/huntridge-labs/hardening-workflows/commit/8c7655746a3840c6d936b6d64c89862c82bb2ebe))
+* **pr-verification:** add contianer-scan to any_scanner ([9d4d308](https://github.com/huntridge-labs/hardening-workflows/commit/9d4d3080e3023df481e0419825ae2563929597bb))
+* **reusable-security-hardening.yml:** temporarily set container-scan.yml ref to feat branch ([134b90e](https://github.com/huntridge-labs/hardening-workflows/commit/134b90eb150625f77554cc286da1a1359637b01c))
+
+
 ## [2.5.8](https://github.com/huntridge-labs/hardening-workflows/compare/2.5.6...2.5.8) (2025-11-18)
+
+### Security Tools
+
+* **deps:** bump anchore/sbom-action from 0.20.9 to 0.20.10 ([fccfc4e](https://github.com/huntridge-labs/hardening-workflows/commit/fccfc4efe2d1b464d3e3ef7947c583ce9a66aff6))
+* **deps:** bump bridgecrewio/checkov-action ([1afe4f4](https://github.com/huntridge-labs/hardening-workflows/commit/1afe4f473295f507d666137fbc55d4c8820e7f53))
+
+### Dependencies
+
+* **deps:** bump @release-it/conventional-changelog ([0bd7763](https://github.com/huntridge-labs/hardening-workflows/commit/0bd77633003653133dbf0d49e848458363fb99d4))
+* **deps:** bump js-yaml from 4.1.0 to 4.1.1 ([30761d1](https://github.com/huntridge-labs/hardening-workflows/commit/30761d1aa308d3e2db8d25001652d381639531f2))
 
 ### Maintenance
 
 * **.release-it.json:** regex for all refs in QUICK-START.md and README.md ([260df17](https://github.com/huntridge-labs/hardening-workflows/commit/260df173fe933c3ac68d37ce2f297371ae7159a0))
-* **deps:** bump @release-it/conventional-changelog ([0bd7763](https://github.com/huntridge-labs/hardening-workflows/commit/0bd77633003653133dbf0d49e848458363fb99d4))
-* **deps:** bump anchore/sbom-action from 0.20.9 to 0.20.10 ([fccfc4e](https://github.com/huntridge-labs/hardening-workflows/commit/fccfc4efe2d1b464d3e3ef7947c583ce9a66aff6))
-* **deps:** bump bridgecrewio/checkov-action ([1afe4f4](https://github.com/huntridge-labs/hardening-workflows/commit/1afe4f473295f507d666137fbc55d4c8820e7f53))
-* **deps:** bump js-yaml from 4.1.0 to 4.1.1 ([30761d1](https://github.com/huntridge-labs/hardening-workflows/commit/30761d1aa308d3e2db8d25001652d381639531f2))
 * **release-it-process-changelog.js:** add debug logging ([f8ba371](https://github.com/huntridge-labs/hardening-workflows/commit/f8ba3717593edefc81d825df515a80388572b731))
 * **release:** v2.5.7 ([b2856bb](https://github.com/huntridge-labs/hardening-workflows/commit/b2856bb5a9c57b3325b52ec8b59b8b4cb9067068))
+
 
 ### Continuous Integration
 
