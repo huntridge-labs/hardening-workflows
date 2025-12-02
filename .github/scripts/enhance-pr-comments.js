@@ -64,17 +64,19 @@ function parseContainerReport(reportContent) {
     totalHigh: 0,
     totalMedium: 0,
     totalLow: 0,
+    totalUnique: 0,
     scannedContainers: 0,
     buildFailures: 0
   };
 
-  // Extract totals from TOTAL row
-  const totalMatch = reportContent.match(/\| \*\*TOTAL\*\* \| \*\*(\d+)\*\* \| \*\*(\d+)\*\* \| \*\*(\d+)\*\* \| \*\*(\d+)\*\* \| \*\*(\d+)\*\* \|/);
+  // Extract totals from TOTAL row (now includes unique count)
+  const totalMatch = reportContent.match(/\| \*\*TOTAL\*\* \| \*\*(\d+)\*\* \| \*\*(\d+)\*\* \| \*\*(\d+)\*\* \| \*\*(\d+)\*\* \| \*\*(\d+)\*\* \| \*\*(\d+)\*\* \|/);
   if (totalMatch) {
     data.totalCritical = parseInt(totalMatch[1]) || 0;
     data.totalHigh = parseInt(totalMatch[2]) || 0;
     data.totalMedium = parseInt(totalMatch[3]) || 0;
     data.totalLow = parseInt(totalMatch[4]) || 0;
+    data.totalUnique = parseInt(totalMatch[6]) || 0;
   }
 
   // Extract scan overview
@@ -230,7 +232,7 @@ Great work! All SAST tools passed without detecting security vulnerabilities.
  * Generate enhanced Container comment
  */
 function generateEnhancedContainerComment(containerData, runId, repoOwner, repoName) {
-  const { containers, totalCritical, totalHigh, totalMedium, totalLow, scannedContainers, buildFailures } = containerData;
+  const { containers, totalCritical, totalHigh, totalMedium, totalLow, totalUnique, scannedContainers, buildFailures } = containerData;
   const totalVulns = totalCritical + totalHigh + totalMedium + totalLow;
   const riskLevel = getRiskLevel(totalCritical, totalHigh);
   const riskEmoji = totalCritical > 0 ? '🚨' : totalHigh > 0 ? '⚠️' : '✅';
@@ -299,9 +301,9 @@ Great! This container has no detected vulnerabilities.
 ### 📊 Overall Summary
 ${getRiskBadge(riskLevel)} **Risk Level: ${riskLevel}**
 
-| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📦 Total |
-|-------------|---------|-----------|---------|----------|
-| **${totalCritical}** | **${totalHigh}** | **${totalMedium}** | **${totalLow}** | **${totalVulns}** |
+| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📦 Total | 🔢 Unique |
+|-------------|---------|-----------|---------|----------|----------|
+| **${totalCritical}** | **${totalHigh}** | **${totalMedium}** | **${totalLow}** | **${totalVulns}** | **${totalUnique || 0}** |
 
 **Scanned:** ${scannedContainers} containers | **Build Failures:** ${buildFailures}
 
@@ -437,6 +439,7 @@ if (require.main === module) {
     totalHigh: 1220,
     totalMedium: 2853,
     totalLow: 1146,
+    totalUnique: 3842,
     scannedContainers: 2,
     buildFailures: 0
   };

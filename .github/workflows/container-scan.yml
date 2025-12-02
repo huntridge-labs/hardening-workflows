@@ -212,13 +212,14 @@ jobs:
           HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' trivy-${{ matrix.container.name }}-results.json 2>/dev/null || echo "0")
           MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length' trivy-${{ matrix.container.name }}-results.json 2>/dev/null || echo "0")
           LOW=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW")] | length' trivy-${{ matrix.container.name }}-results.json 2>/dev/null || echo "0")
+          UNIQUE=$(jq '[.Results[]?.Vulnerabilities[]?.VulnerabilityID] | map(select(. != null)) | unique | length' trivy-${{ matrix.container.name }}-results.json 2>/dev/null || echo "0")
           TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
 
           echo "### Vulnerability Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📊 Total |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------------|---------|-----------|---------|----------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **$CRITICAL** | **$HIGH** | **$MEDIUM** | **$LOW** | **$TOTAL** |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📊 Total | 🔢 Unique |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------|---------|-----------|---------|----------|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **$CRITICAL** | **$HIGH** | **$MEDIUM** | **$LOW** | **$TOTAL** | **$UNIQUE** |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Generate detailed vulnerability table by severity
@@ -631,7 +632,7 @@ jobs:
       run: |
         mkdir -p scanner-summaries
 
-        # Function to parse Trivy JSON results
+        # Function to parse Trivy JSON results (returns: crit high med low unique)
         parse_trivy() {
           local file="$1"
           if [ -f "$file" ] && [ -s "$file" ]; then
@@ -639,9 +640,10 @@ jobs:
             local high=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' "$file" 2>/dev/null || echo 0)
             local med=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length' "$file" 2>/dev/null || echo 0)
             local low=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW")] | length' "$file" 2>/dev/null || echo 0)
-            echo "$crit $high $med $low"
+            local unique=$(jq '[.Results[]?.Vulnerabilities[]?.VulnerabilityID] | map(select(. != null)) | unique | length' "$file" 2>/dev/null || echo 0)
+            echo "$crit $high $med $low $unique"
           else
-            echo "0 0 0 0"
+            echo "0 0 0 0 0"
           fi
         }
 
@@ -656,11 +658,14 @@ jobs:
             TOTAL_HIGH=0
             TOTAL_MEDIUM=0
             TOTAL_LOW=0
+            TOTAL_UNIQUE=0
             SCANNED_CONTAINERS=0
             FAILED_BUILDS=0
 
             # Collect container data
             declare -a CONTAINER_DATA
+            # Collect all unique CVE IDs across all containers
+            declare -a ALL_CVE_IDS
 
             # Parse results for each container
             if ls container-scan-results-* 1> /dev/null 2>&1; then
@@ -678,11 +683,18 @@ jobs:
                   # Check if container built successfully by looking for results
                   if [ -f "$trivy_json" ]; then
                     counts=$(parse_trivy "$trivy_json")
-                    read crit high med low <<< "$counts"
+                    read crit high med low unique <<< "$counts"
                     container_total=$((crit + high + med + low))
 
-                    # Store container data for later use
-                    CONTAINER_DATA+=("$container_name|$crit|$high|$med|$low|$container_total|success")
+                    # Store container data for later use (includes unique count)
+                    CONTAINER_DATA+=("$container_name|$crit|$high|$med|$low|$container_total|$unique|success")
+
+                    # Collect CVE IDs for cross-container unique calculation
+                    while IFS= read -r cve_id; do
+                      if [ -n "$cve_id" ] && [ "$cve_id" != "null" ]; then
+                        ALL_CVE_IDS+=("$cve_id")
+                      fi
+                    done < <(jq -r '.Results[]?.Vulnerabilities[]?.VulnerabilityID // empty' "$trivy_json" 2>/dev/null)
 
                     # Add to totals
                     TOTAL_CRITICAL=$((TOTAL_CRITICAL + crit))
@@ -691,7 +703,7 @@ jobs:
                     TOTAL_LOW=$((TOTAL_LOW + low))
                     SCANNED_CONTAINERS=$((SCANNED_CONTAINERS + 1))
                   else
-                    CONTAINER_DATA+=("$container_name|0|0|0|0|0|failed")
+                    CONTAINER_DATA+=("$container_name|0|0|0|0|0|0|failed")
                     FAILED_BUILDS=$((FAILED_BUILDS + 1))
                   fi
                 fi
@@ -699,6 +711,13 @@ jobs:
             fi
 
             TOTAL_VULN=$((TOTAL_CRITICAL + TOTAL_HIGH + TOTAL_MEDIUM + TOTAL_LOW))
+
+            # Calculate unique CVEs across all containers
+            if [ ${#ALL_CVE_IDS[@]} -gt 0 ]; then
+              TOTAL_UNIQUE=$(printf '%s\n' "${ALL_CVE_IDS[@]}" | sort -u | wc -l | tr -d ' ')
+            else
+              TOTAL_UNIQUE=0
+            fi
 
             # Write to both PR artifact and job summary
             for output in "scanner-summaries/container.md" "$GITHUB_STEP_SUMMARY"; do
@@ -716,9 +735,9 @@ jobs:
               # Overall Summary
               echo "### 📊 Overall Summary" >> "$output"
               echo "" >> "$output"
-              echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📦 Total |" >> "$output"
-              echo "|-------------|---------|-----------|---------|----------|" >> "$output"
-              echo "| **$TOTAL_CRITICAL** | **$TOTAL_HIGH** | **$TOTAL_MEDIUM** | **$TOTAL_LOW** | **$TOTAL_VULN** |" >> "$output"
+              echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📦 Total | 🔢 Unique |" >> "$output"
+              echo "|-------------|---------|-----------|---------|----------|----------|" >> "$output"
+              echo "| **$TOTAL_CRITICAL** | **$TOTAL_HIGH** | **$TOTAL_MEDIUM** | **$TOTAL_LOW** | **$TOTAL_VULN** | **$TOTAL_UNIQUE** |" >> "$output"
               echo "" >> "$output"
               echo "**Scanned:** $SCANNED_CONTAINERS containers | **Build Failures:** $FAILED_BUILDS" >> "$output"
               echo "" >> "$output"
@@ -738,7 +757,7 @@ jobs:
               echo "" >> "$output"
 
               for container_data in "${CONTAINER_DATA[@]}"; do
-                IFS='|' read -r name crit high med low total status <<< "$container_data"
+                IFS='|' read -r name crit high med low total unique status <<< "$container_data"
 
                 if [ "$status" = "failed" ]; then
                   echo "<details>" >> "$output"
