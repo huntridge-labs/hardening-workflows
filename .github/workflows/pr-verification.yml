@@ -27,7 +27,7 @@ jobs:
       reusable_workflow: ${{ steps.filter.outputs.reusable_workflow }}
       any_scanner: ${{ steps.filter.outputs.any_scanner }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: dorny/paths-filter@v3
         id: filter
@@ -63,7 +63,7 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.reusable_workflow == 'true' || needs.detect-changes.outputs.any_scanner == 'true'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Check workflows are in sync
         run: .github/scripts/validate-reusable-workflow-sync.sh
@@ -155,7 +155,7 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Test scanner resolution logic
       run: |
@@ -330,7 +330,7 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Test scanners input validation
       run: |

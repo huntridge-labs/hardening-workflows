@@ -673,7 +673,7 @@ jobs:
         echo "4. Consider enabling automated dependency updates" >> security-hardening-report.md
 
     - name: Checkout repository
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Get job ID
       id: job_id
