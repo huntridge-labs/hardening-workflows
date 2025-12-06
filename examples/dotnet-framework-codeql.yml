@@ -16,7 +16,7 @@ on:  # yamllint disable-line rule:truthy
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:
+  workflow_dispatch: ~
 
 jobs:
   security-hardening:
