@@ -17,7 +17,9 @@ normalize_workflow() {
     grep -v '.github/actions/get-job-id/action.yml' | \
     grep -v "Skip this checkout if we're already in the hardening-workflows repo" | \
     grep -v "if: github.repository != 'huntridge-labs/hardening-workflows'" | \
-    grep -v "if: github.repository == 'huntridge-labs/hardening-workflows'")
+    grep -v "if: github.repository == 'huntridge-labs/hardening-workflows'" | \
+    grep -v 'HARDENING_WORKFLOWS_CHECKOUT_TOKEN' | \
+    grep -v "Token for checking out hardening-workflows repo")
 
   # Second pass: normalize remaining content and remove duplicates
   echo "$temp" | \
