@@ -678,7 +678,7 @@ jobs:
         repository: huntridge-labs/hardening-workflows
         ref: 2.6.0
         path: .hardening-workflows
-        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN }}
+        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |
           .github/actions/get-job-id/action.yml
 
