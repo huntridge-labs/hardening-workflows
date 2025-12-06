@@ -19,6 +19,36 @@ on:
         required: false
         type: boolean
         default: false
+      runner:
+        description: 'GitHub runner to use (e.g., "ubuntu-latest", "windows-latest"). Use windows-latest for .NET Framework projects.'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+      custom_build_command:
+        description: 'Custom build command to run instead of autobuild (e.g., "msbuild MySolution.sln /p:Configuration=Release"). Leave empty to use autobuild.'
+        required: false
+        type: string
+        default: ''
+      setup_dotnet:
+        description: 'Whether to set up .NET SDK before building'
+        required: false
+        type: boolean
+        default: false
+      dotnet_version:
+        description: '.NET SDK version to install (e.g., "8.0.x", "6.0.x")'
+        required: false
+        type: string
+        default: '8.0.x'
+      setup_msbuild:
+        description: 'Whether to set up MSBuild (Windows only, for .NET Framework projects)'
+        required: false
+        type: boolean
+        default: false
+      nuget_restore:
+        description: 'Path to solution/project for NuGet restore (e.g., "MySolution.sln"). Leave empty to skip.'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -65,7 +95,7 @@ jobs:
 
   codeql-analysis:
     name: CodeQL Analysis
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     needs: generate-codeql-matrix
     timeout-minutes: 45
     continue-on-error: true
@@ -133,7 +163,36 @@ jobs:
         done
       continue-on-error: true
 
+    # ============================================
+    # .NET / MSBuild Setup (for C#/.NET projects)
+    # ============================================
+    - name: Setup MSBuild
+      if: inputs.setup_msbuild == true && contains(inputs.runner, 'windows')
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Setup NuGet
+      if: inputs.nuget_restore != ''
+      uses: NuGet/setup-nuget@v2
+
+    - name: Setup .NET SDK
+      if: inputs.setup_dotnet == true
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet_version }}
+
+    - name: Restore NuGet packages
+      if: inputs.nuget_restore != ''
+      run: nuget restore ${{ inputs.nuget_restore }}
+
+    # ============================================
+    # Build Step (Custom or Autobuild)
+    # ============================================
+    - name: Custom Build
+      if: inputs.custom_build_command != ''
+      run: ${{ inputs.custom_build_command }}
+
     - name: Autobuild
+      if: inputs.custom_build_command == ''
       uses: github/codeql-action/autobuild@v4
 
     - name: Perform CodeQL Analysis

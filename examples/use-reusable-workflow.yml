@@ -1,4 +1,7 @@
 # Example: How to use the reusable security hardening workflow in another project
+#
+# This example shows basic usage. For .NET Framework projects that require
+# custom build steps, see examples/dotnet-framework-codeql.yml
 
 # yamllint disable rule:brackets
 name: Security Pipeline
@@ -35,6 +38,14 @@ jobs:
       aws_region: 'us-west-2'
       post_pr_comment: true
       codeql_languages: 'python'  # Only analyze Python, skip JavaScript
+
+      # CodeQL Custom Build Options (uncomment if needed):
+      # codeql_runner: 'windows-latest'           # Use Windows for .NET Framework
+      # codeql_setup_msbuild: true                # Set up MSBuild
+      # codeql_nuget_restore: 'MySolution.sln'    # Restore NuGet packages
+      # codeql_custom_build_command: 'msbuild MySolution.sln /p:Configuration=Release'
+      # codeql_setup_dotnet: true                 # Set up .NET SDK
+      # codeql_dotnet_version: '8.0.x'            # .NET SDK version
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
     permissions:

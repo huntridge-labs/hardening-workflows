@@ -53,6 +53,37 @@ on:
         required: false
         default: '.'
         type: string
+      # CodeQL Custom Build Options
+      codeql_runner:
+        description: 'GitHub runner for CodeQL analysis (e.g., "ubuntu-latest", "windows-latest"). Use windows-latest for .NET Framework projects.'
+        required: false
+        default: 'ubuntu-latest'
+        type: string
+      codeql_custom_build_command:
+        description: 'Custom build command for CodeQL instead of autobuild (e.g., "msbuild MySolution.sln /p:Configuration=Release")'
+        required: false
+        default: ''
+        type: string
+      codeql_setup_dotnet:
+        description: 'Whether to set up .NET SDK before CodeQL build'
+        required: false
+        default: false
+        type: boolean
+      codeql_dotnet_version:
+        description: '.NET SDK version for CodeQL build (e.g., "8.0.x")'
+        required: false
+        default: '8.0.x'
+        type: string
+      codeql_setup_msbuild:
+        description: 'Whether to set up MSBuild for CodeQL (Windows only, for .NET Framework)'
+        required: false
+        default: false
+        type: boolean
+      codeql_nuget_restore:
+        description: 'Path to solution for NuGet restore before CodeQL build (e.g., "MySolution.sln")'
+        required: false
+        default: ''
+        type: string
     secrets:
       AWS_ACCOUNT_ID:
         description: 'AWS Account ID for infrastructure scans'
@@ -305,6 +336,12 @@ jobs:
       codeql_languages: ${{ inputs.codeql_languages }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      runner: ${{ inputs.codeql_runner }}
+      custom_build_command: ${{ inputs.codeql_custom_build_command }}
+      setup_dotnet: ${{ inputs.codeql_setup_dotnet }}
+      dotnet_version: ${{ inputs.codeql_dotnet_version }}
+      setup_msbuild: ${{ inputs.codeql_setup_msbuild }}
+      nuget_restore: ${{ inputs.codeql_nuget_restore }}
     permissions:
       contents: read
       security-events: write
