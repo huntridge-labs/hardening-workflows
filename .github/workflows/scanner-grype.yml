@@ -12,6 +12,11 @@ on:
         required: false
         type: boolean
         default: false
+      fail_on_severity:
+        description: 'Fail the job if vulnerabilities at or above this severity are found. Options: none, low, medium, high, critical.'
+        required: false
+        type: string
+        default: 'none'
   workflow_call:
     inputs:
       image_ref:
@@ -33,6 +38,11 @@ on:
         required: false
         type: boolean
         default: false
+      fail_on_severity:
+        description: 'Fail the job if vulnerabilities at or above this severity are found. Options: none, low, medium, high, critical. Set to "none" to never fail.'
+        required: false
+        type: string
+        default: 'none'
 
 permissions:
   contents: read
@@ -73,11 +83,14 @@ jobs:
     - name: Run Grype vulnerability scanner
       uses: anchore/scan-action@v7
       id: grype-scan
-      continue-on-error: true
+      # Only continue-on-error when not enforcing severity threshold
+      continue-on-error: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
       with:
         image: ${{ steps.validate.outputs.image_ref }}
-        fail-build: false
+        # Use Grype's native fail-build when severity threshold is set
+        fail-build: ${{ inputs.fail_on_severity != 'none' && inputs.fail_on_severity != '' }}
         output-format: sarif
+        severity-cutoff: ${{ inputs.fail_on_severity == 'none' && 'medium' || inputs.fail_on_severity }}
 
     - name: Save Grype SARIF output
       if: steps.grype-scan.outputs.sarif != ''
@@ -94,6 +107,7 @@ jobs:
         image: ${{ steps.validate.outputs.image_ref }}
         fail-build: false
         output-format: json
+        severity-cutoff: ${{ inputs.fail_on_severity == 'none' && 'medium' || inputs.fail_on_severity }}
 
     - name: Save Grype JSON output
       if: steps.grype-json.outputs.json != ''
@@ -110,6 +124,7 @@ jobs:
         image: ${{ steps.validate.outputs.image_ref }}
         fail-build: false
         output-format: table
+        severity-cutoff: ${{ inputs.fail_on_severity == 'none' && 'medium' || inputs.fail_on_severity }}
 
     - name: Save Grype table output
       if: always()

@@ -19,6 +19,11 @@ on:
         required: false
         type: string
         default: '.'
+      fail_on_severity:
+        description: 'Fail the job if malware is found. ClamAV does not support severity-based filtering - any value other than "none" will fail if malware is detected.'
+        required: false
+        type: string
+        default: 'none'
 
 permissions:
   contents: read
@@ -182,7 +187,7 @@ jobs:
           --exclude-dir="coverage" \
           --exclude-dir=".pytest_cache" \
           --log=clamav-reports/clamav-report.log \
-          $SCAN_PATHS || true
+          $SCAN_PATHS
 
         # Generate summary JSON from report
         python3 .hardening-workflows/.github/scripts/parse-clamav-report.py \
@@ -190,7 +195,7 @@ jobs:
 
         echo "Generated ClamAV files:"
         ls -la clamav-reports/ || echo "No files generated"
-      continue-on-error: true
+      continue-on-error: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
 
     - name: Upload ClamAV artifacts
       uses: actions/upload-artifact@v5

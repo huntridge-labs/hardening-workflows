@@ -14,6 +14,11 @@ on:
         required: false
         type: boolean
         default: false
+      fail_on_severity:
+        description: 'Fail the job if vulnerabilities at or above this severity are found. Options: none, low, medium, high. Set to "none" to never fail.'
+        required: false
+        type: string
+        default: 'none'
 
 permissions:
   contents: read
@@ -48,6 +53,50 @@ jobs:
         opengrep scan --config=auto --sarif --output=opengrep-reports/opengrep.sarif . || true
         opengrep scan --config=auto --json --output=opengrep-reports/opengrep.json . || true
       continue-on-error: true
+
+    - name: Check severity threshold
+      if: inputs.fail_on_severity != 'none' && inputs.fail_on_severity != ''
+      run: |
+        FAIL_ON="${{ inputs.fail_on_severity }}"
+        echo "🔍 Checking for vulnerabilities at or above severity: $FAIL_ON"
+
+        if [ ! -f "opengrep-reports/opengrep.json" ]; then
+          echo "⚠️  No OpenGrep JSON report found, skipping severity check"
+          exit 0
+        fi
+
+        # OpenGrep uses ERROR, WARNING, INFO for severity levels
+        ERROR_COUNT=$(jq -r '[.results[]? | select(.extra.severity == "ERROR")] | length' opengrep-reports/opengrep.json 2>/dev/null || echo "0")
+        WARNING_COUNT=$(jq -r '[.results[]? | select(.extra.severity == "WARNING")] | length' opengrep-reports/opengrep.json 2>/dev/null || echo "0")
+        INFO_COUNT=$(jq -r '[.results[]? | select(.extra.severity == "INFO")] | length' opengrep-reports/opengrep.json 2>/dev/null || echo "0")
+
+        echo "📊 Severity counts: Error=$ERROR_COUNT, Warning=$WARNING_COUNT, Info=$INFO_COUNT"
+
+        SHOULD_FAIL=false
+        case "$FAIL_ON" in
+          low)
+            if [ "$INFO_COUNT" -gt 0 ] || [ "$WARNING_COUNT" -gt 0 ] || [ "$ERROR_COUNT" -gt 0 ]; then
+              SHOULD_FAIL=true
+            fi
+            ;;
+          medium)
+            if [ "$WARNING_COUNT" -gt 0 ] || [ "$ERROR_COUNT" -gt 0 ]; then
+              SHOULD_FAIL=true
+            fi
+            ;;
+          high|critical)
+            if [ "$ERROR_COUNT" -gt 0 ]; then
+              SHOULD_FAIL=true
+            fi
+            ;;
+        esac
+
+        if [ "$SHOULD_FAIL" = "true" ]; then
+          echo "❌ Found vulnerabilities at or above $FAIL_ON severity level"
+          exit 1
+        else
+          echo "✅ No vulnerabilities at or above $FAIL_ON severity level"
+        fi
 
     - name: Upload OpenGrep artifacts
       uses: actions/upload-artifact@v5

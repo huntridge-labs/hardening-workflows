@@ -14,6 +14,11 @@ on:
         required: false
         type: boolean
         default: false
+      fail_on_severity:
+        description: 'Fail the job if any issue is found. Bandit does not support severity-based filtering - any value other than "none" will fail on any found issue.'
+        required: false
+        type: string
+        default: 'none'
 
 permissions:
   contents: read
@@ -50,18 +55,25 @@ jobs:
         echo "🔍 Running Bandit Python security analysis..."
         mkdir -p bandit-reports
 
+        # Determine exit-zero flag based on fail_on_severity
+        EXIT_ZERO_FLAG=""
+        if [ "${{ inputs.fail_on_severity }}" == "none" ] || [ -z "${{ inputs.fail_on_severity }}" ]; then
+          EXIT_ZERO_FLAG="--exit-zero"
+        fi
+
         echo "Generating SARIF report..."
-        bandit -r . --exclude .husky,.github -f sarif -o bandit-reports/bandit-report.sarif || true
+        bandit -r . --exclude .husky,.github -f sarif -o bandit-reports/bandit-report.sarif $EXIT_ZERO_FLAG || true
 
         echo "Generating JSON report..."
-        bandit -r . --exclude .husky,.github -f json -o bandit-reports/bandit-report.json || true
+        bandit -r . --exclude .husky,.github -f json -o bandit-reports/bandit-report.json $EXIT_ZERO_FLAG || true
 
         echo "Generating text report..."
-        bandit -r . --exclude .husky,.github -f txt -o bandit-reports/bandit-report.txt || true
+        bandit -r . --exclude .husky,.github -f txt -o bandit-reports/bandit-report.txt $EXIT_ZERO_FLAG
 
         echo "Generated Bandit files:"
         ls -la bandit-reports/
-      continue-on-error: true
+      # Only continue-on-error when not enforcing failure
+      continue-on-error: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
 
     - name: Upload Bandit artifacts
       uses: actions/upload-artifact@v5

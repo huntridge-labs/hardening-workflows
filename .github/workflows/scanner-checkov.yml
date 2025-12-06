@@ -24,6 +24,11 @@ on:
         required: false
         type: boolean
         default: false
+      fail_on_severity:
+        description: 'Fail the job if any check fails. Checkov does not support severity-based filtering - any value other than "none" will fail on any failed check.'
+        required: false
+        type: string
+        default: 'none'
 
 permissions:
   contents: read
@@ -71,8 +76,10 @@ jobs:
         framework: ${{ inputs.framework }}
         output_format: sarif,json,cli
         output_file_path: ${{ steps.validate.outputs.iac_path }}/security-reports/checkov-results.sarif,${{ steps.validate.outputs.iac_path }}/security-reports/checkov-results.json,${{ steps.validate.outputs.iac_path }}/security-reports/checkov-results.txt
-        soft_fail: true
-      continue-on-error: true
+        # soft_fail: true means don't fail, soft_fail: false means fail on issues
+        soft_fail: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
+      # Only continue-on-error when not enforcing severity threshold
+      continue-on-error: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
 
     - name: Upload Checkov SARIF results to GitHub Security
       if: inputs.enable_code_security == true && steps.validate.outputs.has_iac == 'true' && always() && github.actor != 'nektos/act'
