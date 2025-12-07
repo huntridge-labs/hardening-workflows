@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.7.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.6.0...2.7.0) (2025-12-07)
+
+### Features
+
+* add allow_failure and fail_on_severity options ([e09c8fa](https://github.com/huntridge-labs/hardening-workflows/commit/e09c8fa56400bceb8730684ab426276d7ada0c89))
+* support GHE servers ([4d66f7c](https://github.com/huntridge-labs/hardening-workflows/commit/4d66f7c77d6effb3618d1b8dc31ca1697a687f9d))
+
+### Bug Fixes
+
+* add sarif extra dependency for Bandit SARIF output support ([d19e004](https://github.com/huntridge-labs/hardening-workflows/commit/d19e00445f587409f1c99d13f567eecd93ea83cb))
+* correct Bandit critical threshold behavior - Bandit has no critical level ([b0ac80f](https://github.com/huntridge-labs/hardening-workflows/commit/b0ac80f1ceab25c902beba691508574eebca6690))
+
+
+### Documentation
+
+* add allow_failure and severity_threshold documentation ([6de36d3](https://github.com/huntridge-labs/hardening-workflows/commit/6de36d350fe57d2de99a905bef7f02d6c87b7a13))
+
 ## [2.6.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.5.8...2.6.0) (2025-12-02)
 
 ### Features

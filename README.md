@@ -22,7 +22,7 @@ on: [push, pull_request]
 
 jobs:
   hardening:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.6.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.7.0
     with:
       scanners: all
       python_version: '3.12'
@@ -86,7 +86,7 @@ By default, security scans report findings but don't fail the workflow. To enfor
 ```yaml
 jobs:
   hardening:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.6.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.7.0
     with:
       scanners: all
       allow_failure: false          # Fail on vulnerabilities
@@ -132,7 +132,7 @@ Run consistent code quality checks with `.github/workflows/linting.yml`:
 ```yaml
 jobs:
   lint:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@2.6.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@2.7.0
     permissions:
       contents: read
       pull-requests: write
@@ -146,12 +146,12 @@ Runs Ruff, ESLint, Prettier, markdownlint, and yamllint.
 ```yaml
 jobs:
   linting:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@2.6.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@2.7.0
 
   security:
     needs: linting
     if: always()
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.6.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.7.0
     with:
       scanners: all
 ```
@@ -171,14 +171,14 @@ For more granular control, you can call individual scanner workflows directly:
 ```yaml
 jobs:
   trivy-iac:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@2.6.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@2.7.0
     with:
       iac_path: 'infrastructure'
       enable_code_security: true
       fail_on_severity: high  # Fail on high or critical findings
 
   checkov:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@2.6.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@2.7.0
     with:
       iac_path: 'infrastructure'
       framework: 'terraform'
@@ -189,20 +189,20 @@ jobs:
 ```yaml
 jobs:
   trivy-container:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@2.6.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@2.7.0
     with:
       image_ref: 'myapp:latest'
       enable_code_security: true
       fail_on_severity: critical  # Only fail on critical vulnerabilities
 
   grype:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@2.6.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@2.7.0
     with:
       image_ref: 'myapp:latest'
       fail_on_severity: high  # Fail on high or critical
 
   sbom:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@2.6.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@2.7.0
     with:
       scan-path: 'some/dirOrFile/path'
       scan-image: 'myapp:latest'
@@ -213,23 +213,23 @@ jobs:
 ```yaml
 jobs:
   codeql:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@2.6.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@2.7.0
     with:
       codeql_languages: 'python,javascript'
       enable_code_security: true
 
   opengrep:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@2.6.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@2.7.0
     with:
       fail_on_severity: medium  # Fail on medium or higher
 
   bandit:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@2.6.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@2.7.0
     with:
       fail_on_severity: high  # Fail on high findings (Bandit's highest level)
 
   gitleaks:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@2.6.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@2.7.0
     with:
       fail_on_severity: critical  # Any secret detection fails
 ```
