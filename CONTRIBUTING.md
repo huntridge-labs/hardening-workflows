@@ -97,6 +97,11 @@ on:
         required: false
         type: boolean
         default: false
+      fail_on_severity:
+        description: 'Fail the job if findings at or above this severity are found. Options: none, low, medium, high, critical'
+        required: false
+        type: string
+        default: 'none'
       # Add scanner-specific inputs here
 
 permissions:
@@ -227,6 +232,60 @@ jobs:
         path: scanner-summaries/scanner-name.md
         retention-days: 7
       continue-on-error: true
+
+    # 9. Check severity threshold (REQUIRED for fail_on_severity support)
+    - name: Check severity threshold
+      if: inputs.fail_on_severity != 'none' && inputs.fail_on_severity != ''
+      run: |
+        echo "🔍 Checking findings against severity threshold: ${{ inputs.fail_on_severity }}"
+
+        # Parse severity counts from your scanner's report format
+        # Adjust the jq queries to match your scanner's JSON structure
+        if [ -f "scanner-reports/report.json" ]; then
+          CRITICAL_COUNT=$(jq -r '...' scanner-reports/report.json 2>/dev/null || echo "0")
+          HIGH_COUNT=$(jq -r '...' scanner-reports/report.json 2>/dev/null || echo "0")
+          MEDIUM_COUNT=$(jq -r '...' scanner-reports/report.json 2>/dev/null || echo "0")
+          LOW_COUNT=$(jq -r '...' scanner-reports/report.json 2>/dev/null || echo "0")
+        else
+          echo "⚠️ No report found, skipping severity check"
+          exit 0
+        fi
+
+        echo "Found: CRITICAL=$CRITICAL_COUNT, HIGH=$HIGH_COUNT, MEDIUM=$MEDIUM_COUNT, LOW=$LOW_COUNT"
+
+        SHOULD_FAIL=false
+        case "${{ inputs.fail_on_severity }}" in
+          critical)
+            if [ "$CRITICAL_COUNT" -gt 0 ]; then
+              echo "❌ Found $CRITICAL_COUNT critical severity issues"
+              SHOULD_FAIL=true
+            fi
+            ;;
+          high)
+            if [ "$CRITICAL_COUNT" -gt 0 ] || [ "$HIGH_COUNT" -gt 0 ]; then
+              echo "❌ Found $CRITICAL_COUNT critical and $HIGH_COUNT high severity issues"
+              SHOULD_FAIL=true
+            fi
+            ;;
+          medium)
+            if [ "$CRITICAL_COUNT" -gt 0 ] || [ "$HIGH_COUNT" -gt 0 ] || [ "$MEDIUM_COUNT" -gt 0 ]; then
+              echo "❌ Found critical/high/medium severity issues"
+              SHOULD_FAIL=true
+            fi
+            ;;
+          low)
+            if [ "$CRITICAL_COUNT" -gt 0 ] || [ "$HIGH_COUNT" -gt 0 ] || [ "$MEDIUM_COUNT" -gt 0 ] || [ "$LOW_COUNT" -gt 0 ]; then
+              echo "❌ Found issues at or above low severity"
+              SHOULD_FAIL=true
+            fi
+            ;;
+        esac
+
+        if [ "$SHOULD_FAIL" = true ]; then
+          exit 1
+        fi
+
+        echo "✅ No issues at or above severity threshold"
 ```
 
 ### Step 2: Update Both Reusable Workflows
@@ -302,6 +361,7 @@ Add your scanner job after the scan-coordinator.
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
       # Pass any scanner-specific inputs
     permissions:
       contents: read
@@ -320,6 +380,7 @@ Add your scanner job after the scan-coordinator.
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
       # Pass any scanner-specific inputs
     permissions:
       contents: read
@@ -327,6 +388,8 @@ Add your scanner job after the scan-coordinator.
       actions: read
       pull-requests: write
 ```
+
+> **Note:** The `fail_on_severity` parameter maps the parent workflow's `allow_failure` and `severity_threshold` inputs to the scanner's severity check. When `allow_failure: false`, the scanner will fail if findings meet or exceed the `severity_threshold`.
 
 #### 2.3 Update Report Generator
 

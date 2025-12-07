@@ -52,6 +52,8 @@ jobs:
       enable_code_security: true
       python_version: '3.12'
       post_pr_comment: true
+      allow_failure: false         # Enforce security gate
+      severity_threshold: high     # Fail on high or critical
     permissions:
       contents: read
       security-events: write
@@ -71,6 +73,8 @@ jobs:
       python_version: '3.12'
       aws_region: 'us-east-1'
       post_pr_comment: true
+      allow_failure: false         # Enforce IaC security
+      severity_threshold: medium   # Stricter for infrastructure
     permissions:
       contents: read
       security-events: write
@@ -103,6 +107,8 @@ jobs:
     with:
       scanners: 'secrets'
       post_pr_comment: true
+      allow_failure: false         # Never allow secrets to pass
+      severity_threshold: critical # Any secret is critical
     permissions:
       contents: read
       security-events: write

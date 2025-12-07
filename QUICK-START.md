@@ -36,6 +36,30 @@ jobs:
       pull-requests: write
 ```
 
+## Enforcing security gates
+
+Fail the workflow when vulnerabilities exceed a severity threshold:
+
+```yaml
+name: security-enforced
+on: [pull_request]
+
+jobs:
+  hardening:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.6.0
+    with:
+      scanners: all
+      allow_failure: false        # Enable failure mode
+      severity_threshold: high    # Fail on high or critical findings
+      post_pr_comment: true
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+```
+
+**Severity levels:** `low` → `medium` → `high` → `critical`
+
 ## Targeted mix
 
 ```yaml
@@ -86,11 +110,13 @@ jobs:
     with:
       iac_path: 'infrastructure'
       enable_code_security: true
+      fail_on_severity: high  # Fail on high or critical
 
   checkov:
     uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@2.6.0
     with:
       iac_path: 'infrastructure'
+      fail_on_severity: medium  # Stricter threshold
 ```
 
 ### Container scanning
@@ -107,6 +133,7 @@ jobs:
     with:
       image_ref: 'myapp:${{ github.sha }}'
       enable_code_security: true
+      fail_on_severity: critical  # Only fail on critical vulnerabilities
 ```
 
 More examples in the `examples/` directory. See `README.md` for the complete scanner reference.

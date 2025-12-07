@@ -24,6 +24,21 @@ on:  # yamllint disable-line rule:truthy
           - infrastructure
           - codeql
           - secrets
+      allow_failure:
+        description: 'Allow workflow to continue on security findings'
+        required: false
+        default: true
+        type: boolean
+      severity_threshold:
+        description: 'Minimum severity to fail on (when allow_failure is false)'
+        required: false
+        default: 'high'
+        type: choice
+        options:
+          - low
+          - medium
+          - high
+          - critical
 
 jobs:
   security-hardening:
@@ -35,6 +50,8 @@ jobs:
       aws_region: 'us-west-2'
       post_pr_comment: true
       codeql_languages: 'python'  # Only analyze Python, skip JavaScript
+      allow_failure: ${{ github.event.inputs.allow_failure == 'true' || github.event.inputs.allow_failure == '' }}
+      severity_threshold: ${{ github.event.inputs.severity_threshold || 'high' }}
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
     permissions:

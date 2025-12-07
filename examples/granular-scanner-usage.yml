@@ -39,6 +39,8 @@ jobs:
     with:
       scanners: sast
       post_pr_comment: true
+      allow_failure: false         # Enforce security gate
+      severity_threshold: high     # Fail on high or critical findings
     permissions:
       contents: read
       security-events: write
@@ -69,6 +71,8 @@ jobs:
     with:
       scanners: secrets
       post_pr_comment: true
+      allow_failure: false         # Always fail on secrets
+      severity_threshold: critical # Any secret is critical
     permissions:
       contents: read
       security-events: write

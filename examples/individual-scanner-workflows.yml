@@ -25,6 +25,7 @@ jobs:
       iac_path: 'infrastructure'
       post_pr_comment: true
       enable_code_security: true
+      fail_on_severity: high  # Fail on high or critical findings
     permissions:
       contents: read
       security-events: write
@@ -40,6 +41,7 @@ jobs:
       framework: 'terraform'
       post_pr_comment: true
       enable_code_security: true
+      fail_on_severity: medium  # Stricter: fail on medium or higher
     permissions:
       contents: read
       security-events: write
@@ -55,6 +57,7 @@ jobs:
       scan_name: 'nginx'
       post_pr_comment: true
       enable_code_security: true
+      fail_on_severity: critical  # Only fail on critical vulnerabilities
     permissions:
       contents: read
       security-events: write
@@ -70,6 +73,7 @@ jobs:
       scan_name: 'nginx'
       post_pr_comment: true
       enable_code_security: true
+      fail_on_severity: high  # Fail on high or critical
     permissions:
       contents: read
       security-events: write
