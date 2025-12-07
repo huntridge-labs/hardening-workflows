@@ -1,0 +1,122 @@
+# Example: CodeQL scanning for legacy .NET Framework projects
+#
+# .NET Framework projects (targeting .NET 4.x) require:
+# 1. Windows runner (for MSBuild and .NET Framework SDK)
+# 2. MSBuild setup (not dotnet CLI)
+# 3. NuGet restore for packages
+# 4. Custom build command (autobuild doesn't work)
+#
+# This example shows how to configure the reusable workflow for such projects.
+
+# yamllint disable rule:brackets
+name: Security Pipeline (.NET Framework)
+
+on:  # yamllint disable-line rule:truthy
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: ~
+
+jobs:
+  security-hardening:
+    name: Security Hardening
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
+    with:
+      scanners: 'codeql'
+
+      # CodeQL configuration for .NET Framework
+      codeql_languages: 'csharp'
+      codeql_runner: 'windows-latest'
+      codeql_setup_msbuild: true
+      codeql_nuget_restore: 'YourSolution.sln'
+      codeql_custom_build_command: 'msbuild YourSolution.sln /p:Configuration=Release /p:Platform="Any CPU"'
+
+      # Other options
+      enable_code_security: true
+      post_pr_comment: true
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+      checks: write
+      id-token: write
+
+---
+# Alternative: Call scanner-codeql.yml directly for more control
+
+# yamllint disable rule:brackets
+# name: CodeQL Direct (.NET Framework)
+#
+# on:
+#   push:
+#     branches: [main]
+#   pull_request:
+#     branches: [main]
+#
+# jobs:
+#   codeql:
+#     uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@main
+#     with:
+#       codeql_languages: 'csharp'
+#       runner: 'windows-latest'
+#       setup_msbuild: true
+#       nuget_restore: 'SEPS_Application/SEPS_Application.sln'
+#       custom_build_command: |
+#         msbuild SEPS_Application/SEPS_Application.sln /p:Configuration=Release /p:Platform="Any CPU"
+#       enable_code_security: true
+#     permissions:
+#       contents: read
+#       security-events: write
+#       actions: read
+#       pull-requests: write
+
+---
+# For projects that need even more customization (e.g., installing specific
+# Visual Studio workloads), you may need to create your own workflow that
+# calls CodeQL actions directly. Here's a template:
+
+# name: Custom CodeQL (.NET Framework Advanced)
+#
+# on:
+#   push:
+#     branches: [main]
+#   pull_request:
+#     branches: [main]
+#
+# jobs:
+#   codeql:
+#     runs-on: windows-latest
+#     permissions:
+#       contents: read
+#       security-events: write
+#
+#     steps:
+#     - uses: actions/checkout@v4
+#
+#     - name: Initialize CodeQL
+#       uses: github/codeql-action/init@v3
+#       with:
+#         languages: csharp
+#
+#     # Install Visual Studio Build Tools with web workload (if needed)
+#     - name: Install VS Build Tools
+#       run: |
+#         choco install visualstudio2022buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.WebBuildTools"
+#       shell: pwsh
+#
+#     - name: Setup MSBuild
+#       uses: microsoft/setup-msbuild@v2
+#
+#     - name: Setup NuGet
+#       uses: NuGet/setup-nuget@v2
+#
+#     - name: Restore packages
+#       run: nuget restore YourSolution.sln
+#
+#     - name: Build
+#       run: msbuild YourSolution.sln /p:Configuration=Release
+#
+#     - name: Perform CodeQL Analysis
+#       uses: github/codeql-action/analyze@v3
