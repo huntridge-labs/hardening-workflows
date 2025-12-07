@@ -33,6 +33,8 @@ jobs:
       pull-requests: write
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }} # optional
+      # Required for private GitHub Enterprise Server installations:
+      # HARDENING_WORKFLOWS_CHECKOUT_TOKEN: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN }}
 ```
 
 #### ClamAV malware scanning examples
@@ -82,7 +84,18 @@ with:
 
 ### Permissions & secrets
 
-Minimum permissions shown in the example. Omit `AWS_ACCOUNT_ID` when you don’t run AWS checks—the workflow will skip that portion automatically.
+Minimum permissions shown in the example. Omit `AWS_ACCOUNT_ID` when you don't run AWS checks—the workflow will skip that portion automatically.
+
+#### GitHub Enterprise Server (GHE)
+
+If you're using a private GitHub Enterprise Server and have forked or mirrored this repository, you'll need to provide a `HARDENING_WORKFLOWS_CHECKOUT_TOKEN` secret with read access to your private/internal hardening-workflows repository. This token is used to check out shared actions and scripts.
+
+```yaml
+secrets:
+  HARDENING_WORKFLOWS_CHECKOUT_TOKEN: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN }}
+```
+
+For public GitHub.com usage, this secret is not required.
 
 ## Linting workflow
 
