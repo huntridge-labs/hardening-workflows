@@ -62,6 +62,9 @@ on:
       AWS_ACCOUNT_ID:
         description: 'AWS Account ID for infrastructure scans'
         required: false
+      HARDENING_WORKFLOWS_CHECKOUT_TOKEN:
+        description: 'Token for checking out hardening-workflows repo (required for private GHE servers)'
+        required: false
 
 permissions:
   contents: read
@@ -695,6 +698,7 @@ jobs:
         repository: huntridge-labs/hardening-workflows
         ref: 2.6.0
         path: .hardening-workflows
+        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |
           .github/actions/get-job-id/action.yml
 

@@ -3,6 +3,10 @@ name: ClamAV Malware Scanner
 on:
   workflow_dispatch:
   workflow_call:
+    secrets:
+      HARDENING_WORKFLOWS_CHECKOUT_TOKEN:
+        description: 'Token for checking out hardening-workflows repo (required for private GHE servers)'
+        required: false
     inputs:
       post_pr_comment:
         description: 'Whether to post PR comments'
@@ -50,6 +54,7 @@ jobs:
         repository: huntridge-labs/hardening-workflows
         ref: 2.6.0
         path: .hardening-workflows
+        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |
           .github/scripts/extract-archives.py
           .github/scripts/parse-clamav-report.py

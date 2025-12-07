@@ -2,6 +2,10 @@ name: Code Quality and Linting Pipeline
 
 on:
   workflow_call:
+    secrets:
+      HARDENING_WORKFLOWS_CHECKOUT_TOKEN:
+        description: 'Token for checking out hardening-workflows repo (required for private GHE servers)'
+        required: false
     outputs:
       linting_status:
         description: "Overall linting status"
@@ -44,6 +48,7 @@ jobs:
         repository: huntridge-labs/hardening-workflows
         ref: 2.6.0
         path: .hardening-workflows
+        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |
           .github/actions/get-job-id/action.yml
 
@@ -138,6 +143,7 @@ jobs:
         repository: huntridge-labs/hardening-workflows
         ref: 2.6.0
         path: .hardening-workflows
+        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |
           .github/actions/get-job-id/action.yml
 
@@ -238,6 +244,7 @@ jobs:
         repository: huntridge-labs/hardening-workflows
         ref: 2.6.0
         path: .hardening-workflows
+        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |
           .github/actions/get-job-id/action.yml
 
@@ -362,6 +369,7 @@ jobs:
         repository: huntridge-labs/hardening-workflows
         ref: 2.6.0
         path: .hardening-workflows
+        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |
           .github/actions/get-job-id/action.yml
 
@@ -481,6 +489,7 @@ jobs:
         repository: huntridge-labs/hardening-workflows
         ref: 2.6.0
         path: .hardening-workflows
+        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |
           .github/actions/get-job-id/action.yml
 
@@ -586,6 +595,7 @@ jobs:
         repository: huntridge-labs/hardening-workflows
         ref: 2.6.0
         path: .hardening-workflows
+        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |
           .github/actions/get-job-id/action.yml
 
@@ -714,6 +724,7 @@ jobs:
         repository: huntridge-labs/hardening-workflows
         ref: 2.6.0
         path: .hardening-workflows
+        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |
           .github/actions/get-job-id/action.yml
 
