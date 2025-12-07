@@ -53,6 +53,16 @@ on:
         required: false
         default: '.'
         type: string
+      allow_failure:
+        description: 'Whether to allow the workflow to continue when vulnerabilities are found above the severity threshold. When false, scanners will fail the job if vulnerabilities at or above severity_threshold are detected.'
+        required: false
+        default: true
+        type: boolean
+      severity_threshold:
+        description: 'Minimum severity level that will cause job failure when allow_failure is false. Options: low, medium, high, critical'
+        required: false
+        default: 'high'
+        type: string
     secrets:
       AWS_ACCOUNT_ID:
         description: 'AWS Account ID for infrastructure scans'
@@ -323,6 +333,7 @@ jobs:
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -338,6 +349,7 @@ jobs:
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -353,6 +365,7 @@ jobs:
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -369,6 +382,7 @@ jobs:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
       scan_path: ${{ inputs.clamav_scan_path }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -431,6 +445,7 @@ jobs:
       iac_path: ${{ inputs.iac_path }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -447,6 +462,7 @@ jobs:
       iac_path: ${{ inputs.iac_path }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -463,6 +479,7 @@ jobs:
       image_ref: 'nginx:latest'
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -479,6 +496,7 @@ jobs:
       image_ref: 'nginx:latest'
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write

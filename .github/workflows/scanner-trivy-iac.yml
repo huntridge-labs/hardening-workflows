@@ -19,6 +19,11 @@ on:
         required: false
         type: boolean
         default: false
+      fail_on_severity:
+        description: 'Fail the job if vulnerabilities at or above this severity are found. Options: none, low, medium, high, critical. Set to "none" to never fail.'
+        required: false
+        type: string
+        default: 'none'
 
 permissions:
   contents: read
@@ -61,13 +66,17 @@ jobs:
     - name: Run Trivy Infrastructure Scan (SARIF)
       if: steps.validate.outputs.has_iac == 'true'
       uses: aquasecurity/trivy-action@0.33.1
+      # Only continue-on-error when not enforcing severity threshold
+      continue-on-error: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
       with:
         scan-type: 'config'
         scan-ref: '${{ steps.validate.outputs.iac_path }}'
         format: 'sarif'
         output: '${{ steps.validate.outputs.iac_path }}/security-reports/trivy-results.sarif'
         hide-progress: true
-      continue-on-error: true
+        # Use native exit-code when severity threshold is set
+        exit-code: ${{ inputs.fail_on_severity != 'none' && inputs.fail_on_severity != '' && '1' || '0' }}
+        severity: ${{ inputs.fail_on_severity == 'critical' && 'CRITICAL' || inputs.fail_on_severity == 'high' && 'HIGH,CRITICAL' || inputs.fail_on_severity == 'medium' && 'MEDIUM,HIGH,CRITICAL' || inputs.fail_on_severity == 'low' && 'LOW,MEDIUM,HIGH,CRITICAL' || 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL' }}
 
     - name: Run Trivy Infrastructure Scan (JSON)
       if: steps.validate.outputs.has_iac == 'true'

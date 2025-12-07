@@ -14,6 +14,11 @@ on:
         required: false
         type: boolean
         default: false
+      fail_on_severity:
+        description: 'Fail the job if any issue is found. Bandit does not support severity-based filtering - any value other than "none" will fail on any found issue.'
+        required: false
+        type: string
+        default: 'none'
 
 permissions:
   contents: read
@@ -43,25 +48,84 @@ jobs:
     - name: Install Bandit
       run: |
         python -m pip install --upgrade pip
-        pip install bandit[toml]
+        pip install 'bandit[toml,sarif]>=1.7.5'
 
     - name: Run Bandit Security Scan
       run: |
         echo "🔍 Running Bandit Python security analysis..."
         mkdir -p bandit-reports
 
+        # Determine exit-zero flag based on fail_on_severity
+        EXIT_ZERO_FLAG=""
+        if [ "${{ inputs.fail_on_severity }}" == "none" ] || [ -z "${{ inputs.fail_on_severity }}" ]; then
+          EXIT_ZERO_FLAG="--exit-zero"
+        fi
+
         echo "Generating SARIF report..."
-        bandit -r . --exclude .husky,.github -f sarif -o bandit-reports/bandit-report.sarif || true
+        bandit -r . --exclude .husky,.github -f sarif -o bandit-reports/bandit-report.sarif $EXIT_ZERO_FLAG || true
 
         echo "Generating JSON report..."
-        bandit -r . --exclude .husky,.github -f json -o bandit-reports/bandit-report.json || true
+        bandit -r . --exclude .husky,.github -f json -o bandit-reports/bandit-report.json $EXIT_ZERO_FLAG || true
 
         echo "Generating text report..."
-        bandit -r . --exclude .husky,.github -f txt -o bandit-reports/bandit-report.txt || true
+        bandit -r . --exclude .husky,.github -f txt -o bandit-reports/bandit-report.txt $EXIT_ZERO_FLAG || true
 
         echo "Generated Bandit files:"
         ls -la bandit-reports/
-      continue-on-error: true
+
+    - name: Check severity threshold
+      if: inputs.fail_on_severity != 'none' && inputs.fail_on_severity != ''
+      run: |
+        echo "🔍 Checking Bandit findings against severity threshold: ${{ inputs.fail_on_severity }}"
+
+        if [ ! -f "bandit-reports/bandit-report.json" ]; then
+          echo "⚠️ No Bandit JSON report found, skipping severity check"
+          exit 0
+        fi
+
+        # Parse severity counts from JSON report
+        HIGH_COUNT=$(jq -r '.results[] | select(.issue_severity == "HIGH") | .test_id' bandit-reports/bandit-report.json 2>/dev/null | wc -l | tr -d ' ')
+        MEDIUM_COUNT=$(jq -r '.results[] | select(.issue_severity == "MEDIUM") | .test_id' bandit-reports/bandit-report.json 2>/dev/null | wc -l | tr -d ' ')
+        LOW_COUNT=$(jq -r '.results[] | select(.issue_severity == "LOW") | .test_id' bandit-reports/bandit-report.json 2>/dev/null | wc -l | tr -d ' ')
+
+        echo "Found: HIGH=$HIGH_COUNT, MEDIUM=$MEDIUM_COUNT, LOW=$LOW_COUNT"
+
+        SHOULD_FAIL=false
+        case "${{ inputs.fail_on_severity }}" in
+          critical)
+            # Bandit only has HIGH/MEDIUM/LOW - no critical severity exists
+            # Treat HIGH as the equivalent of critical for Bandit
+            if [ "$HIGH_COUNT" -gt 0 ]; then
+              echo "ℹ️ Bandit does not have 'critical' severity - treating HIGH as equivalent"
+              echo "❌ Found $HIGH_COUNT high severity issues (Bandit's highest level)"
+              SHOULD_FAIL=true
+            fi
+            ;;
+          high)
+            if [ "$HIGH_COUNT" -gt 0 ]; then
+              echo "❌ Found $HIGH_COUNT high severity issues"
+              SHOULD_FAIL=true
+            fi
+            ;;
+          medium)
+            if [ "$HIGH_COUNT" -gt 0 ] || [ "$MEDIUM_COUNT" -gt 0 ]; then
+              echo "❌ Found $HIGH_COUNT high and $MEDIUM_COUNT medium severity issues"
+              SHOULD_FAIL=true
+            fi
+            ;;
+          low)
+            if [ "$HIGH_COUNT" -gt 0 ] || [ "$MEDIUM_COUNT" -gt 0 ] || [ "$LOW_COUNT" -gt 0 ]; then
+              echo "❌ Found $HIGH_COUNT high, $MEDIUM_COUNT medium, and $LOW_COUNT low severity issues"
+              SHOULD_FAIL=true
+            fi
+            ;;
+        esac
+
+        if [ "$SHOULD_FAIL" = true ]; then
+          exit 1
+        fi
+
+        echo "✅ No issues at or above severity threshold"
 
     - name: Upload Bandit artifacts
       uses: actions/upload-artifact@v5

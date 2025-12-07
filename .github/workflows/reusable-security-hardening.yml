@@ -48,6 +48,16 @@ on:
         required: false
         default: '.'
         type: string
+      allow_failure:
+        description: 'Whether to allow the workflow to continue when vulnerabilities are found above the severity threshold. When false, scanners will fail the job if vulnerabilities at or above severity_threshold are detected.'
+        required: false
+        default: true
+        type: boolean
+      severity_threshold:
+        description: 'Minimum severity level that will cause job failure when allow_failure is false. Options: low, medium, high, critical'
+        required: false
+        default: 'high'
+        type: string
     secrets:
       AWS_ACCOUNT_ID:
         description: 'AWS Account ID for infrastructure scans'
@@ -287,7 +297,7 @@ jobs:
     name: Code Quality & Linting
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_lint == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@feat/ghe-servers
+    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@feat/fail-on-severity
     permissions:
       contents: read
       actions: read
@@ -298,7 +308,7 @@ jobs:
     name: CodeQL Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_codeql == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@feat/ghe-servers
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@feat/fail-on-severity
     with:
       codeql_languages: ${{ inputs.codeql_languages }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -314,10 +324,11 @@ jobs:
     name: OpenGrep Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_opengrep == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@feat/ghe-servers
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@feat/fail-on-severity
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -329,10 +340,11 @@ jobs:
     name: Bandit Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_bandit == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@feat/ghe-servers
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@feat/fail-on-severity
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -344,10 +356,11 @@ jobs:
     name: Gitleaks Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_gitleaks == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@feat/ghe-servers
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@feat/fail-on-severity
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -359,11 +372,12 @@ jobs:
     name: ClamAV Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_clamav == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-clamav.yml@feat/ghe-servers
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-clamav.yml@feat/fail-on-severity
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
       scan_path: ${{ inputs.clamav_scan_path }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -375,10 +389,11 @@ jobs:
     name: Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_container == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@feat/ghe-servers
+    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@feat/fail-on-severity
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -390,12 +405,13 @@ jobs:
     name: Infrastructure Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_infrastructure == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/infrastructure.yml@feat/ghe-servers
+    uses: huntridge-labs/hardening-workflows/.github/workflows/infrastructure.yml@feat/fail-on-severity
     with:
       iac_path: ${{ inputs.iac_path }}
       python_version: ${{ inputs.python_version }}
       aws_region: ${{ inputs.aws_region }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -407,7 +423,7 @@ jobs:
     name: SBOM Generator
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_sbom == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@feat/ghe-servers
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@feat/fail-on-severity
     with:
       enable_code_security: ${{ inputs.enable_code_security }}
     permissions:
@@ -421,11 +437,12 @@ jobs:
     name: Trivy IaC Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_trivy_iac == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@feat/ghe-servers
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@feat/fail-on-severity
     with:
       iac_path: ${{ inputs.iac_path }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -437,11 +454,12 @@ jobs:
     name: Checkov Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_checkov == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@feat/ghe-servers
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@feat/fail-on-severity
     with:
       iac_path: ${{ inputs.iac_path }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -453,11 +471,12 @@ jobs:
     name: Trivy Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_trivy_container == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@feat/ghe-servers
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@feat/fail-on-severity
     with:
       image_ref: 'nginx:latest'
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -469,11 +488,12 @@ jobs:
     name: Grype Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_grype == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@feat/ghe-servers
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@feat/fail-on-severity
     with:
       image_ref: 'nginx:latest'
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write

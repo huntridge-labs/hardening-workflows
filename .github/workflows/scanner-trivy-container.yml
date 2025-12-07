@@ -12,6 +12,11 @@ on:
         required: false
         type: boolean
         default: false
+      fail_on_severity:
+        description: 'Fail the job if vulnerabilities at or above this severity are found. Options: none, low, medium, high, critical.'
+        required: false
+        type: string
+        default: 'none'
   workflow_call:
     inputs:
       image_ref:
@@ -33,6 +38,11 @@ on:
         required: false
         type: boolean
         default: false
+      fail_on_severity:
+        description: 'Fail the job if vulnerabilities at or above this severity are found. Options: none, low, medium, high, critical. Set to "none" to never fail.'
+        required: false
+        type: string
+        default: 'none'
 
 permissions:
   contents: read
@@ -72,11 +82,15 @@ jobs:
 
     - name: Run Trivy vulnerability scanner (SARIF)
       uses: aquasecurity/trivy-action@0.33.1
-      continue-on-error: true
+      # Only continue-on-error when not enforcing severity threshold
+      continue-on-error: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
       with:
         image-ref: ${{ steps.validate.outputs.image_ref }}
         format: 'sarif'
         output: 'trivy-${{ steps.validate.outputs.scan_name }}-results.sarif'
+        # Use native exit-code when severity threshold is set
+        exit-code: ${{ inputs.fail_on_severity != 'none' && inputs.fail_on_severity != '' && '1' || '0' }}
+        severity: ${{ inputs.fail_on_severity == 'critical' && 'CRITICAL' || inputs.fail_on_severity == 'high' && 'HIGH,CRITICAL' || inputs.fail_on_severity == 'medium' && 'MEDIUM,HIGH,CRITICAL' || inputs.fail_on_severity == 'low' && 'LOW,MEDIUM,HIGH,CRITICAL' || 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL' }}
 
     - name: Run Trivy vulnerability scanner (JSON)
       uses: aquasecurity/trivy-action@0.33.1

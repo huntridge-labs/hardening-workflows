@@ -24,6 +24,11 @@ on:
         required: false
         type: boolean
         default: false
+      fail_on_severity:
+        description: 'Fail the job if vulnerabilities at or above this severity are found. Options: none, low, medium, high, critical. Set to "none" to never fail.'
+        required: false
+        type: string
+        default: 'none'
 
 permissions:
   contents: read
@@ -112,6 +117,80 @@ jobs:
         path: |
           ${{ inputs.iac_path }}/security-reports/
         retention-days: 30
+
+    - name: Check severity threshold
+      if: inputs.fail_on_severity != 'none' && inputs.fail_on_severity != ''
+      run: |
+        FAIL_ON="${{ inputs.fail_on_severity }}"
+        IAC_PATH="${{ inputs.iac_path }}"
+
+        echo "🔍 Checking for issues at or above severity: $FAIL_ON"
+
+        CRITICAL=0
+        HIGH=0
+        MEDIUM=0
+        LOW=0
+
+        # Parse Trivy JSON results
+        TRIVY_JSON="$IAC_PATH/security-reports/trivy-results.json"
+        if [ -f "$TRIVY_JSON" ]; then
+          CRITICAL=$((CRITICAL + $(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "CRITICAL")] | length' "$TRIVY_JSON" 2>/dev/null || echo "0")))
+          HIGH=$((HIGH + $(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "HIGH")] | length' "$TRIVY_JSON" 2>/dev/null || echo "0")))
+          MEDIUM=$((MEDIUM + $(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "MEDIUM")] | length' "$TRIVY_JSON" 2>/dev/null || echo "0")))
+          LOW=$((LOW + $(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "LOW")] | length' "$TRIVY_JSON" 2>/dev/null || echo "0")))
+        fi
+
+        # Parse Checkov JSON results
+        CHECKOV_JSON="$IAC_PATH/security-reports/checkov-results.json"
+        if [ -f "$CHECKOV_JSON" ]; then
+          CHECKOV_CRITICAL=$(jq '[.results.failed_checks[]? | select(.severity == "CRITICAL")] | length' "$CHECKOV_JSON" 2>/dev/null || echo "0")
+          CHECKOV_HIGH=$(jq '[.results.failed_checks[]? | select(.severity == "HIGH")] | length' "$CHECKOV_JSON" 2>/dev/null || echo "0")
+          CHECKOV_MEDIUM=$(jq '[.results.failed_checks[]? | select(.severity == "MEDIUM")] | length' "$CHECKOV_JSON" 2>/dev/null || echo "0")
+          CHECKOV_LOW=$(jq '[.results.failed_checks[]? | select(.severity == "LOW")] | length' "$CHECKOV_JSON" 2>/dev/null || echo "0")
+
+          # If no severity info, count all failures as high
+          if [ "$CHECKOV_CRITICAL" == "0" ] && [ "$CHECKOV_HIGH" == "0" ] && [ "$CHECKOV_MEDIUM" == "0" ] && [ "$CHECKOV_LOW" == "0" ]; then
+            CHECKOV_HIGH=$(jq '.results.failed_checks | length' "$CHECKOV_JSON" 2>/dev/null || echo "0")
+          fi
+
+          CRITICAL=$((CRITICAL + CHECKOV_CRITICAL))
+          HIGH=$((HIGH + CHECKOV_HIGH))
+          MEDIUM=$((MEDIUM + CHECKOV_MEDIUM))
+          LOW=$((LOW + CHECKOV_LOW))
+        fi
+
+        echo "📊 Combined severity counts: Critical=$CRITICAL, High=$HIGH, Medium=$MEDIUM, Low=$LOW"
+
+        SHOULD_FAIL=false
+        case "$FAIL_ON" in
+          low)
+            if [ "$LOW" -gt 0 ] || [ "$MEDIUM" -gt 0 ] || [ "$HIGH" -gt 0 ] || [ "$CRITICAL" -gt 0 ]; then
+              SHOULD_FAIL=true
+            fi
+            ;;
+          medium)
+            if [ "$MEDIUM" -gt 0 ] || [ "$HIGH" -gt 0 ] || [ "$CRITICAL" -gt 0 ]; then
+              SHOULD_FAIL=true
+            fi
+            ;;
+          high)
+            if [ "$HIGH" -gt 0 ] || [ "$CRITICAL" -gt 0 ]; then
+              SHOULD_FAIL=true
+            fi
+            ;;
+          critical)
+            if [ "$CRITICAL" -gt 0 ]; then
+              SHOULD_FAIL=true
+            fi
+            ;;
+        esac
+
+        if [ "$SHOULD_FAIL" = "true" ]; then
+          echo "❌ Found issues at or above $FAIL_ON severity level"
+          exit 1
+        else
+          echo "✅ No issues at or above $FAIL_ON severity level"
+        fi
 
     - name: Generate Infrastructure summary section
       if: always()
