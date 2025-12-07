@@ -24,16 +24,11 @@ on:
         required: false
         type: boolean
         default: false
-      allow_failure:
-        description: 'Whether to allow the workflow to continue when vulnerabilities are found above the severity threshold. When false, scanners will fail the job if vulnerabilities at or above severity_threshold are detected.'
+      fail_on_severity:
+        description: 'Fail the job if vulnerabilities at or above this severity are found. Options: none, low, medium, high, critical. Set to "none" to never fail.'
         required: false
-        default: true
-        type: boolean
-      severity_threshold:
-        description: 'Minimum severity level that will cause job failure when allow_failure is false. Options: low, medium, high, critical'
-        required: false
-        default: 'high'
         type: string
+        default: 'none'
 
 permissions:
   contents: read
@@ -124,9 +119,9 @@ jobs:
         retention-days: 30
 
     - name: Check severity threshold
-      if: inputs.allow_failure == false
+      if: inputs.fail_on_severity != 'none' && inputs.fail_on_severity != ''
       run: |
-        FAIL_ON="${{ inputs.severity_threshold }}"
+        FAIL_ON="${{ inputs.fail_on_severity }}"
         IAC_PATH="${{ inputs.iac_path }}"
 
         echo "🔍 Checking for issues at or above severity: $FAIL_ON"
