@@ -754,16 +754,6 @@ jobs:
               echo "**Scanned:** $SCANNED_CONTAINERS containers | **Build Failures:** $FAILED_BUILDS" >> "$output"
               echo "" >> "$output"
 
-              # Priority messages
-              if [ $TOTAL_CRITICAL -gt 0 ]; then
-                echo "🚨 **URGENT**: $TOTAL_CRITICAL critical vulnerabilities need immediate attention" >> "$output"
-                echo "" >> "$output"
-              fi
-              if [ $TOTAL_HIGH -gt 0 ]; then
-                echo "⚠️ **HIGH**: $TOTAL_HIGH high-severity vulnerabilities to address within 24h" >> "$output"
-                echo "" >> "$output"
-              fi
-
               # Individual container breakdowns
               echo "### 📦 Individual Containers" >> "$output"
               echo "" >> "$output"
@@ -802,20 +792,6 @@ jobs:
                   echo "|-------------|---------|-----------|---------|-------|" >> "$output"
                   echo "| $crit | $high | $med | $low | $total |" >> "$output"
                   echo "" >> "$output"
-
-                  if [ $crit -gt 0 ]; then
-                    echo "**🚨 Critical Issues**" >> "$output"
-                    echo "- $crit critical vulnerabilities require immediate attention" >> "$output"
-                    echo "- Should be addressed before deployment" >> "$output"
-                    echo "" >> "$output"
-                  fi
-
-                  if [ $high -gt 0 ]; then
-                    echo "**⚠️ High Priority**" >> "$output"
-                    echo "- $high high-severity vulnerabilities found" >> "$output"
-                    echo "- Address within 24 hours" >> "$output"
-                    echo "" >> "$output"
-                  fi
 
                   if [ $total -eq 0 ]; then
                     echo "**✅ No Vulnerabilities**" >> "$output"

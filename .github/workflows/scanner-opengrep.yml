@@ -115,59 +115,126 @@ jobs:
 
     - name: Generate OpenGrep summary section
       if: always()
+      env:
+        HEAD_REF: ${{ github.head_ref || github.ref_name }}
       run: |
         mkdir -p scanner-summaries
 
-        echo "<details>" > scanner-summaries/opengrep.md
-        echo "<summary>🔍 OpenGrep</summary>" >> scanner-summaries/opengrep.md
-        echo "" >> scanner-summaries/opengrep.md
+        # Function to generate summary for a given output
+        generate_opengrep_summary() {
+          local output="$1"
+          local is_pr_comment="$2"
 
-        if [ -d "opengrep-reports" ] && [ "$(ls -A opengrep-reports)" ]; then
-          echo "**Status:** ✅ Completed" >> scanner-summaries/opengrep.md
-          echo "" >> scanner-summaries/opengrep.md
+          if [ "$is_pr_comment" = "true" ]; then
+            echo "<details>" >> "$output"
+            echo "<summary>🔍 OpenGrep SAST</summary>" >> "$output"
+          else
+            echo "## 🔍 OpenGrep SAST Scan Summary" >> "$output"
+          fi
+          echo "" >> "$output"
 
-          # Count issues from JSON files (OpenGrep uses JSON, not SARIF)
-          ISSUE_COUNT=0
-          ERROR_COUNT=0
-          WARNING_COUNT=0
-          INFO_COUNT=0
-
-          for json_file in $(find ./opengrep-reports -name "*.json" -type f 2>/dev/null); do
-            if [ -f "$json_file" ] && [ -s "$json_file" ] && command -v jq >/dev/null 2>&1; then
-              issues=$(jq -r '.results[]? | .check_id' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
-              ISSUE_COUNT=$((ISSUE_COUNT + issues))
-
-              errors=$(jq -r '.results[]? | select(.extra.severity == "ERROR") | .check_id' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
-              ERROR_COUNT=$((ERROR_COUNT + errors))
-
-              warnings=$(jq -r '.results[]? | select(.extra.severity == "WARNING") | .check_id' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
-              WARNING_COUNT=$((WARNING_COUNT + warnings))
-
-              infos=$(jq -r '.results[]? | select(.extra.severity == "INFO") | .check_id' "$json_file" 2>/dev/null | wc -l | tr -d ' ')
-              INFO_COUNT=$((INFO_COUNT + infos))
+          if [ -d "opengrep-reports" ] && [ "$(ls -A opengrep-reports 2>/dev/null)" ]; then
+            if [ "$is_pr_comment" = "true" ]; then
+              echo "**Status:** ✅ Completed" >> "$output"
+              echo "" >> "$output"
             fi
-          done
 
-          echo "**Issues Found:** $ISSUE_COUNT" >> scanner-summaries/opengrep.md
-          echo "" >> scanner-summaries/opengrep.md
+            # Count issues from JSON files (OpenGrep uses JSON)
+            ISSUE_COUNT=0
+            ERROR_COUNT=0
+            WARNING_COUNT=0
+            INFO_COUNT=0
 
-          if [ $ISSUE_COUNT -gt 0 ]; then
-            echo "| Severity | Count |" >> scanner-summaries/opengrep.md
-            echo "|----------|-------|" >> scanner-summaries/opengrep.md
-            [ $ERROR_COUNT -gt 0 ] && echo "| 🔴 Error | $ERROR_COUNT |" >> scanner-summaries/opengrep.md
-            [ $WARNING_COUNT -gt 0 ] && echo "| 🟠 Warning | $WARNING_COUNT |" >> scanner-summaries/opengrep.md
-            [ $INFO_COUNT -gt 0 ] && echo "| 🔵 Info | $INFO_COUNT |" >> scanner-summaries/opengrep.md
-            echo "" >> scanner-summaries/opengrep.md
+            json_file="opengrep-reports/opengrep.json"
+            # Set up repo URL for clickable links
+            REPO_URL="https://github.com/${{ github.repository }}/blob/${HEAD_REF}"
+
+            if [ -f "$json_file" ] && [ -s "$json_file" ] && command -v jq >/dev/null 2>&1; then
+              ISSUE_COUNT=$(jq -r '[.results[]?] | length' "$json_file" 2>/dev/null || echo "0")
+              ERROR_COUNT=$(jq -r '[.results[]? | select(.extra.severity == "ERROR")] | length' "$json_file" 2>/dev/null || echo "0")
+              WARNING_COUNT=$(jq -r '[.results[]? | select(.extra.severity == "WARNING")] | length' "$json_file" 2>/dev/null || echo "0")
+              INFO_COUNT=$(jq -r '[.results[]? | select(.extra.severity == "INFO")] | length' "$json_file" 2>/dev/null || echo "0")
+            fi
+
+            # Overall Summary Table
+            echo "### 📊 Findings Summary" >> "$output"
+            echo "" >> "$output"
+            echo "| 🔴 Error | 🟠 Warning | 🔵 Info | 📦 Total |" >> "$output"
+            echo "|----------|------------|---------|----------|" >> "$output"
+            echo "| **$ERROR_COUNT** | **$WARNING_COUNT** | **$INFO_COUNT** | **$ISSUE_COUNT** |" >> "$output"
+            echo "" >> "$output"
+
+            # Detailed findings with collapsible sections
+            if [ $ISSUE_COUNT -gt 0 ] && [ -f "$json_file" ]; then
+              echo "<details open>" >> "$output"
+              echo "<summary>🔍 Finding Details</summary>" >> "$output"
+              echo "" >> "$output"
+
+              # Show Error findings first (expanded)
+              if [ $ERROR_COUNT -gt 0 ]; then
+                echo "<details>" >> "$output"
+                echo "<summary>🔴 Error Findings ($ERROR_COUNT)</summary>" >> "$output"
+                echo "" >> "$output"
+                echo "| Rule ID | Location | Message |" >> "$output"
+                echo "|---------|----------|---------|" >> "$output"
+                jq -r --arg repo_url "$REPO_URL" '.results[]? | select(.extra.severity == "ERROR") | (.path // "N/A") as $file | (.start.line // 1) as $start | (.end.line // .start.line // 1) as $end | "| \(.check_id // "N/A" | split(".")[-1]) | [\($file)#L\($start)-L\($end)](\($repo_url)/\($file)#L\($start)-L\($end)) | \(.extra.message // .extra.metadata.message // "N/A" | gsub("\n"; " ") | .[0:80]) |"' "$json_file" >> "$output" 2>/dev/null || echo "| Error parsing | - | - |" >> "$output"
+                echo "</details>" >> "$output"
+                echo "" >> "$output"
+              fi
+
+              # Show Warning findings (expanded)
+              if [ $WARNING_COUNT -gt 0 ]; then
+                echo "<details>" >> "$output"
+                echo "<summary>🟠 Warning Findings ($WARNING_COUNT)</summary>" >> "$output"
+                echo "" >> "$output"
+                echo "| Rule ID | Location | Message |" >> "$output"
+                echo "|---------|----------|---------|" >> "$output"
+                jq -r --arg repo_url "$REPO_URL" '.results[]? | select(.extra.severity == "WARNING") | (.path // "N/A") as $file | (.start.line // 1) as $start | (.end.line // .start.line // 1) as $end | "| \(.check_id // "N/A" | split(".")[-1]) | [\($file)#L\($start)-L\($end)](\($repo_url)/\($file)#L\($start)-L\($end)) | \(.extra.message // .extra.metadata.message // "N/A" | gsub("\n"; " ") | .[0:80]) |"' "$json_file" >> "$output" 2>/dev/null || echo "| Error parsing | - | - |" >> "$output"
+                echo "</details>" >> "$output"
+                echo "" >> "$output"
+              fi
+
+              # Show Info findings in collapsed section
+              if [ $INFO_COUNT -gt 0 ]; then
+                echo "<details>" >> "$output"
+                echo "<summary>🔵 Info Findings ($INFO_COUNT)</summary>" >> "$output"
+                echo "" >> "$output"
+                echo "| Rule ID | Location | Message |" >> "$output"
+                echo "|---------|----------|---------|" >> "$output"
+                jq -r --arg repo_url "$REPO_URL" '.results[]? | select(.extra.severity == "INFO") | (.path // "N/A") as $file | (.start.line // 1) as $start | (.end.line // .start.line // 1) as $end | "| \(.check_id // "N/A" | split(".")[-1]) | [\($file)#L\($start)-L\($end)](\($repo_url)/\($file)#L\($start)-L\($end)) | \(.extra.message // .extra.metadata.message // "N/A" | gsub("\n"; " ") | .[0:80]) |"' "$json_file" >> "$output" 2>/dev/null || echo "| Error parsing | - | - |" >> "$output"
+                echo "" >> "$output"
+                echo "</details>" >> "$output"
+                echo "" >> "$output"
+              fi
+
+              echo "</details>" >> "$output"
+              echo "" >> "$output"
+            elif [ $ISSUE_COUNT -eq 0 ]; then
+              echo "✅ **No security findings detected!**" >> "$output"
+              echo "" >> "$output"
+            fi
+
+            echo "**📁 Artifacts:** [OpenGrep Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> "$output"
+          else
+            if [ "$is_pr_comment" = "true" ]; then
+              echo "**Status:** ⏭️ Skipped" >> "$output"
+            else
+              echo "**Status:** ⏭️ No OpenGrep results available" >> "$output"
+            fi
           fi
 
-          echo "**📁 Artifacts:** [OpenGrep Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/opengrep.md
-        else
-          echo "**Status:** ⏭️ Skipped" >> scanner-summaries/opengrep.md
-        fi
+          if [ "$is_pr_comment" = "true" ]; then
+            echo "" >> "$output"
+            echo "</details>" >> "$output"
+          fi
+          echo "" >> "$output"
+        }
 
-        echo "" >> scanner-summaries/opengrep.md
-        echo "</details>" >> scanner-summaries/opengrep.md
-        echo "" >> scanner-summaries/opengrep.md
+        # Generate PR comment artifact
+        generate_opengrep_summary "scanner-summaries/opengrep.md" "true"
+
+        # Generate job summary
+        generate_opengrep_summary "$GITHUB_STEP_SUMMARY" "false"
       continue-on-error: true
 
     - name: Upload OpenGrep summary section
