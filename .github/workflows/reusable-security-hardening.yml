@@ -757,8 +757,11 @@ jobs:
 
           try {
             const report = fs.readFileSync('security-hardening-report.md', 'utf8');
-            const summary = report.length > 65000 ?
-              report.substring(0, 65000) + '\n\n... (report truncated, download full report from artifacts)' :
+            console.log('security-hardening-report.md read successfully, length:', report.length);
+            // GitHub PR comment limit is 262,144 bytes (65,536 4-byte unicode chars)
+            const MAX_COMMENT_LENGTH = 262000;
+            const summary = report.length > MAX_COMMENT_LENGTH ?
+              report.substring(0, MAX_COMMENT_LENGTH) + '\n\n... (report truncated, download full report from artifacts)' :
               report;
 
             const commentBody = `## 🛡️ Security Hardening Pipeline Results\n\n<!-- security-hardening-comment-marker -->\n\n${summary}`;
