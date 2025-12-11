@@ -206,7 +206,11 @@ jobs:
                 echo "" >> "$output"
                 echo "| Test ID | Location | CWE | Issue |" >> "$output"
                 echo "|---------|----------|-----|-------|" >> "$output"
-                jq -r --arg repo_url "$REPO_URL" '.results[]? | select(.issue_severity == "HIGH") | (.filename // "N/A" | gsub("^\\./"; "")) as $file | (.line_number // 1) as $line | "| \(.test_id // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | CWE-\(.issue_cwe.id // "N/A") | \(.issue_text // "N/A" | gsub("\n"; " ") | .[0:60]) |"' "$json_file" >> "$output" 2>/dev/null || echo "| Error parsing | - | - | - |" >> "$output"
+                jq -r --arg repo_url "$REPO_URL" '.results[]? | select(.issue_severity == "HIGH") | (.filename // "N/A" | gsub("^\\./"; "")) as $file | (.line_number // 1) as $line | "| \(.test_id // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | CWE-\(.issue_cwe.id // "N/A") | \(.issue_text // "N/A" | gsub("\n"; " ") | .[0:60]) |"' "$json_file" 2>/dev/null | head -50 >> "$output" || echo "| Error parsing | - | - | - |" >> "$output"
+                if [ $HIGH_COUNT -gt 50 ]; then
+                  echo "" >> "$output"
+                  echo "_...and $((HIGH_COUNT - 50)) more high severity findings_" >> "$output"
+                fi
                 echo "</details>" >> "$output"
                 echo "" >> "$output"
               fi
@@ -218,7 +222,11 @@ jobs:
                 echo "" >> "$output"
                 echo "| Test ID | Location | CWE | Issue |" >> "$output"
                 echo "|---------|----------|-----|-------|" >> "$output"
-                jq -r --arg repo_url "$REPO_URL" '.results[]? | select(.issue_severity == "MEDIUM") | (.filename // "N/A" | gsub("^\\./"; "")) as $file | (.line_number // 1) as $line | "| \(.test_id // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | CWE-\(.issue_cwe.id // "N/A") | \(.issue_text // "N/A" | gsub("\n"; " ") | .[0:60]) |"' "$json_file" >> "$output" 2>/dev/null || echo "| Error parsing | - | - | - |" >> "$output"
+                jq -r --arg repo_url "$REPO_URL" '.results[]? | select(.issue_severity == "MEDIUM") | (.filename // "N/A" | gsub("^\\./"; "")) as $file | (.line_number // 1) as $line | "| \(.test_id // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | CWE-\(.issue_cwe.id // "N/A") | \(.issue_text // "N/A" | gsub("\n"; " ") | .[0:60]) |"' "$json_file" 2>/dev/null | head -50 >> "$output" || echo "| Error parsing | - | - | - |" >> "$output"
+                if [ $MEDIUM_COUNT -gt 50 ]; then
+                  echo "" >> "$output"
+                  echo "_...and $((MEDIUM_COUNT - 50)) more medium severity findings_" >> "$output"
+                fi
                 echo "</details>" >> "$output"
                 echo "" >> "$output"
               fi
@@ -230,7 +238,11 @@ jobs:
                 echo "" >> "$output"
                 echo "| Test ID | Location | CWE | Issue |" >> "$output"
                 echo "|---------|----------|-----|-------|" >> "$output"
-                jq -r --arg repo_url "$REPO_URL" '.results[]? | select(.issue_severity == "LOW") | (.filename // "N/A" | gsub("^\\./"; "")) as $file | (.line_number // 1) as $line | "| \(.test_id // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | CWE-\(.issue_cwe.id // "N/A") | \(.issue_text // "N/A" | gsub("\n"; " ") | .[0:60]) |"' "$json_file" >> "$output" 2>/dev/null || echo "| Error parsing | - | - | - |" >> "$output"
+                jq -r --arg repo_url "$REPO_URL" '.results[]? | select(.issue_severity == "LOW") | (.filename // "N/A" | gsub("^\\./"; "")) as $file | (.line_number // 1) as $line | "| \(.test_id // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | CWE-\(.issue_cwe.id // "N/A") | \(.issue_text // "N/A" | gsub("\n"; " ") | .[0:60]) |"' "$json_file" 2>/dev/null | head -50 >> "$output" || echo "| Error parsing | - | - | - |" >> "$output"
+                if [ $LOW_COUNT -gt 50 ]; then
+                  echo "" >> "$output"
+                  echo "_...and $((LOW_COUNT - 50)) more low severity findings_" >> "$output"
+                fi
                 echo "" >> "$output"
                 echo "</details>" >> "$output"
                 echo "" >> "$output"

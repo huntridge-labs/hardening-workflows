@@ -296,7 +296,11 @@ jobs:
                  elif $severity >= 4.0 then "🟡 Medium"
                  else "🔵 Low" end) as $sev_label |
                 "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($sev_label) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:50]) |"
-              ' "$TRIVY_SARIF" >> "$output" 2>/dev/null || echo "| Error parsing | - | - | - |" >> "$output"
+              ' "$TRIVY_SARIF" 2>/dev/null | head -50 >> "$output" || echo "| Error parsing | - | - | - |" >> "$output"
+              if [ "$TRIVY_ISSUES" -gt 50 ]; then
+                echo "" >> "$output"
+                echo "_...and $((TRIVY_ISSUES - 50)) more findings_" >> "$output"
+              fi
               echo "" >> "$output"
 
               echo "</details>" >> "$output"
@@ -316,7 +320,11 @@ jobs:
                 (.file_path // "N/A" | ltrimstr("/")) as $filepath |
                 (.file_line_range[0] // 1) as $start |
                 (.file_line_range[1] // 1) as $end |
-                "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:40]) | \(.resource // "N/A" | .[0:30]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$CHECKOV_JSON" >> "$output" 2>/dev/null || echo "| Error parsing | - | - | - |" >> "$output"
+                "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:40]) | \(.resource // "N/A" | .[0:30]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$CHECKOV_JSON" 2>/dev/null | head -50 >> "$output" || echo "| Error parsing | - | - | - |" >> "$output"
+              if [ "$CHECKOV_FAILED" -gt 50 ]; then
+                echo "" >> "$output"
+                echo "_...and $((CHECKOV_FAILED - 50)) more failed checks_" >> "$output"
+              fi
               echo "" >> "$output"
 
               echo "</details>" >> "$output"

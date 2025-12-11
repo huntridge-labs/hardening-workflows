@@ -177,7 +177,11 @@ jobs:
                 echo "" >> "$output"
                 echo "| Rule ID | Location | Message |" >> "$output"
                 echo "|---------|----------|---------|" >> "$output"
-                jq -r --arg repo_url "$REPO_URL" '.results[]? | select(.extra.severity == "ERROR") | (.path // "N/A") as $file | (.start.line // 1) as $start | (.end.line // .start.line // 1) as $end | "| \(.check_id // "N/A" | split(".")[-1]) | [\($file)#L\($start)-L\($end)](\($repo_url)/\($file)#L\($start)-L\($end)) | \(.extra.message // .extra.metadata.message // "N/A" | gsub("\n"; " ") | .[0:80]) |"' "$json_file" >> "$output" 2>/dev/null || echo "| Error parsing | - | - |" >> "$output"
+                jq -r --arg repo_url "$REPO_URL" '.results[]? | select(.extra.severity == "ERROR") | (.path // "N/A") as $file | (.start.line // 1) as $start | (.end.line // .start.line // 1) as $end | "| \(.check_id // "N/A" | split(".")[-1]) | [\($file)#L\($start)-L\($end)](\($repo_url)/\($file)#L\($start)-L\($end)) | \(.extra.message // .extra.metadata.message // "N/A" | gsub("\n"; " ") | .[0:80]) |"' "$json_file" 2>/dev/null | head -50 >> "$output" || echo "| Error parsing | - | - |" >> "$output"
+                if [ $ERROR_COUNT -gt 50 ]; then
+                  echo "" >> "$output"
+                  echo "_...and $((ERROR_COUNT - 50)) more error findings_" >> "$output"
+                fi
                 echo "</details>" >> "$output"
                 echo "" >> "$output"
               fi
@@ -189,7 +193,11 @@ jobs:
                 echo "" >> "$output"
                 echo "| Rule ID | Location | Message |" >> "$output"
                 echo "|---------|----------|---------|" >> "$output"
-                jq -r --arg repo_url "$REPO_URL" '.results[]? | select(.extra.severity == "WARNING") | (.path // "N/A") as $file | (.start.line // 1) as $start | (.end.line // .start.line // 1) as $end | "| \(.check_id // "N/A" | split(".")[-1]) | [\($file)#L\($start)-L\($end)](\($repo_url)/\($file)#L\($start)-L\($end)) | \(.extra.message // .extra.metadata.message // "N/A" | gsub("\n"; " ") | .[0:80]) |"' "$json_file" >> "$output" 2>/dev/null || echo "| Error parsing | - | - |" >> "$output"
+                jq -r --arg repo_url "$REPO_URL" '.results[]? | select(.extra.severity == "WARNING") | (.path // "N/A") as $file | (.start.line // 1) as $start | (.end.line // .start.line // 1) as $end | "| \(.check_id // "N/A" | split(".")[-1]) | [\($file)#L\($start)-L\($end)](\($repo_url)/\($file)#L\($start)-L\($end)) | \(.extra.message // .extra.metadata.message // "N/A" | gsub("\n"; " ") | .[0:80]) |"' "$json_file" 2>/dev/null | head -50 >> "$output" || echo "| Error parsing | - | - |" >> "$output"
+                if [ $WARNING_COUNT -gt 50 ]; then
+                  echo "" >> "$output"
+                  echo "_...and $((WARNING_COUNT - 50)) more warning findings_" >> "$output"
+                fi
                 echo "</details>" >> "$output"
                 echo "" >> "$output"
               fi
@@ -201,7 +209,11 @@ jobs:
                 echo "" >> "$output"
                 echo "| Rule ID | Location | Message |" >> "$output"
                 echo "|---------|----------|---------|" >> "$output"
-                jq -r --arg repo_url "$REPO_URL" '.results[]? | select(.extra.severity == "INFO") | (.path // "N/A") as $file | (.start.line // 1) as $start | (.end.line // .start.line // 1) as $end | "| \(.check_id // "N/A" | split(".")[-1]) | [\($file)#L\($start)-L\($end)](\($repo_url)/\($file)#L\($start)-L\($end)) | \(.extra.message // .extra.metadata.message // "N/A" | gsub("\n"; " ") | .[0:80]) |"' "$json_file" >> "$output" 2>/dev/null || echo "| Error parsing | - | - |" >> "$output"
+                jq -r --arg repo_url "$REPO_URL" '.results[]? | select(.extra.severity == "INFO") | (.path // "N/A") as $file | (.start.line // 1) as $start | (.end.line // .start.line // 1) as $end | "| \(.check_id // "N/A" | split(".")[-1]) | [\($file)#L\($start)-L\($end)](\($repo_url)/\($file)#L\($start)-L\($end)) | \(.extra.message // .extra.metadata.message // "N/A" | gsub("\n"; " ") | .[0:80]) |"' "$json_file" 2>/dev/null | head -50 >> "$output" || echo "| Error parsing | - | - |" >> "$output"
+                if [ $INFO_COUNT -gt 50 ]; then
+                  echo "" >> "$output"
+                  echo "_...and $((INFO_COUNT - 50)) more info findings_" >> "$output"
+                fi
                 echo "" >> "$output"
                 echo "</details>" >> "$output"
                 echo "" >> "$output"

@@ -243,7 +243,11 @@ jobs:
               echo "" >> $GITHUB_STEP_SUMMARY
               echo "| CVE | Severity | Package | Installed Version | Fixed Version |" >> $GITHUB_STEP_SUMMARY
               echo "|-----|----------|---------|-------------------|---------------|" >> $GITHUB_STEP_SUMMARY
-              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | "| \(.VulnerabilityID // "N/A") | 🚨 CRITICAL | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${{ matrix.container.name }}-results.json" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
+              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | "| \(.VulnerabilityID // "N/A") | 🚨 CRITICAL | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${{ matrix.container.name }}-results.json" 2>/dev/null | head -50 >> $GITHUB_STEP_SUMMARY || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
+              if [ $CRITICAL -gt 50 ]; then
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "_...and $((CRITICAL - 50)) more critical vulnerabilities_" >> $GITHUB_STEP_SUMMARY
+              fi
               echo "" >> $GITHUB_STEP_SUMMARY
             fi
 
@@ -253,7 +257,11 @@ jobs:
               echo "" >> $GITHUB_STEP_SUMMARY
               echo "| CVE | Severity | Package | Installed Version | Fixed Version |" >> $GITHUB_STEP_SUMMARY
               echo "|-----|----------|---------|-------------------|---------------|" >> $GITHUB_STEP_SUMMARY
-              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | "| \(.VulnerabilityID // "N/A") | ⚠️ HIGH | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${{ matrix.container.name }}-results.json" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
+              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | "| \(.VulnerabilityID // "N/A") | ⚠️ HIGH | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${{ matrix.container.name }}-results.json" 2>/dev/null | head -50 >> $GITHUB_STEP_SUMMARY || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
+              if [ $HIGH -gt 50 ]; then
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "_...and $((HIGH - 50)) more high vulnerabilities_" >> $GITHUB_STEP_SUMMARY
+              fi
               echo "" >> $GITHUB_STEP_SUMMARY
             fi
 
@@ -264,7 +272,11 @@ jobs:
               echo "" >> $GITHUB_STEP_SUMMARY
               echo "| CVE | Severity | Package | Installed Version | Fixed Version |" >> $GITHUB_STEP_SUMMARY
               echo "|-----|----------|---------|-------------------|---------------|" >> $GITHUB_STEP_SUMMARY
-              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM") | "| \(.VulnerabilityID // "N/A") | 🟡 MEDIUM | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${{ matrix.container.name }}-results.json" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
+              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM") | "| \(.VulnerabilityID // "N/A") | 🟡 MEDIUM | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${{ matrix.container.name }}-results.json" 2>/dev/null | head -50 >> $GITHUB_STEP_SUMMARY || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
+              if [ $MEDIUM -gt 50 ]; then
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "_...and $((MEDIUM - 50)) more medium vulnerabilities_" >> $GITHUB_STEP_SUMMARY
+              fi
               echo "" >> $GITHUB_STEP_SUMMARY
               echo "</details>" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
@@ -277,7 +289,11 @@ jobs:
               echo "" >> $GITHUB_STEP_SUMMARY
               echo "| CVE | Severity | Package | Installed Version | Fixed Version |" >> $GITHUB_STEP_SUMMARY
               echo "|-----|----------|---------|-------------------|---------------|" >> $GITHUB_STEP_SUMMARY
-              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW") | "| \(.VulnerabilityID // "N/A") | 🔵 LOW | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${{ matrix.container.name }}-results.json" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
+              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW") | "| \(.VulnerabilityID // "N/A") | 🔵 LOW | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${{ matrix.container.name }}-results.json" 2>/dev/null | head -50 >> $GITHUB_STEP_SUMMARY || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
+              if [ $LOW -gt 50 ]; then
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "_...and $((LOW - 50)) more low vulnerabilities_" >> $GITHUB_STEP_SUMMARY
+              fi
               echo "" >> $GITHUB_STEP_SUMMARY
               echo "</details>" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
