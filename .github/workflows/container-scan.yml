@@ -309,6 +309,7 @@ jobs:
         image: ${{ steps.build.outputs.full_image }}
         fail-build: false  # Never fail here - we check severity in a dedicated step
         output-format: sarif
+        output-file: grype-${{ matrix.container.name }}-results.sarif
         severity-cutoff: ${{ inputs.fail_on_severity == 'none' && 'medium' || inputs.fail_on_severity }}
 
     - name: Run Grype vulnerability scanner (JSON)
@@ -320,20 +321,27 @@ jobs:
         image: ${{ steps.build.outputs.full_image }}
         fail-build: false
         output-format: json
+        output-file: grype-${{ matrix.container.name }}-results.json
         severity-cutoff: ${{ inputs.fail_on_severity == 'none' && 'medium' || inputs.fail_on_severity }}
 
-    - name: Save Grype JSON output
-      if: steps.build.outputs.build_success == 'true' && steps.grype-json.outputs.json != ''
-      run: |
-        echo "${{ steps.grype-json.outputs.json }}" > "grype-${{ matrix.container.name }}-results.json"
+    - name: Run Grype vulnerability scanner (Table)
+      if: steps.build.outputs.build_success == 'true'
+      uses: anchore/scan-action@v7
+      id: grype-table
       continue-on-error: true
+      with:
+        image: ${{ steps.build.outputs.full_image }}
+        fail-build: false
+        output-format: table
+        output-file: grype-${{ matrix.container.name }}-results.txt
+        severity-cutoff: ${{ inputs.fail_on_severity == 'none' && 'medium' || inputs.fail_on_severity }}
 
     - name: Upload Grype scan results
-      if: inputs.enable_code_security == true && steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act' && steps.grype-scan.outputs.sarif != ''
+      if: inputs.enable_code_security == true && steps.build.outputs.build_success == 'true' && github.actor != 'nektos/act'
       uses: github/codeql-action/upload-sarif@v4
       continue-on-error: true  # Never fail the pipeline
       with:
-        sarif_file: ${{ steps.grype-scan.outputs.sarif }}
+        sarif_file: grype-${{ matrix.container.name }}-results.sarif
 
     - name: Check severity threshold
       if: steps.build.outputs.build_success == 'true' && inputs.fail_on_severity != 'none' && inputs.fail_on_severity != ''
