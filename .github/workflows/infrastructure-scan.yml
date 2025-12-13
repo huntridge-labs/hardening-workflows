@@ -331,36 +331,6 @@ jobs:
 
               echo "</details>" >> "$output"
               echo "" >> "$output"
-
-              # Group by check type
-              echo "<details>" >> "$output"
-              echo "<summary>📋 Failed Checks by Rule</summary>" >> "$output"
-              echo "" >> "$output"
-
-              echo "| Check ID | Count | Description |" >> "$output"
-              echo "|----------|-------|-------------|" >> "$output"
-
-              jq -r '[.results.failed_checks[]? | {check_id, check_name}] | group_by(.check_id) | .[] | "| \(.[0].check_id) | \(length) | \(.[0].check_name | .[0:50]) |"' "$CHECKOV_JSON" >> "$output" 2>/dev/null || echo "| Error parsing | - | - |" >> "$output"
-              echo "" >> "$output"
-
-              echo "</details>" >> "$output"
-              echo "" >> "$output"
-            fi
-
-            # Checkov Passed Checks (collapsed)
-            if [ -f "$CHECKOV_JSON" ] && [ "$CHECKOV_PASSED" -gt 0 ]; then
-              echo "<details>" >> "$output"
-              echo "<summary>✅ Checkov Passed Checks ($CHECKOV_PASSED)</summary>" >> "$output"
-              echo "" >> "$output"
-
-              echo "| Check ID | Count | Description |" >> "$output"
-              echo "|----------|-------|-------------|" >> "$output"
-
-              jq -r '[.results.passed_checks[]? | {check_id, check_name}] | group_by(.check_id) | .[] | "| \(.[0].check_id) | \(length) | \(.[0].check_name | .[0:50]) |"' "$CHECKOV_JSON" >> "$output" 2>/dev/null || echo "| Error parsing | - | - |" >> "$output"
-              echo "" >> "$output"
-
-              echo "</details>" >> "$output"
-              echo "" >> "$output"
             fi
 
             if [ $TOTAL_ISSUES -eq 0 ]; then

@@ -219,40 +219,8 @@ jobs:
 
                 echo "</details>" >> "$output"
                 echo "" >> "$output"
-
-                # Group by check type for additional context
-                echo "<details>" >> "$output"
-                echo "<summary>📋 Failed Checks by Rule</summary>" >> "$output"
-                echo "" >> "$output"
-
-                echo "| Check ID | Count | Description |" >> "$output"
-                echo "|----------|-------|-------------|" >> "$output"
-
-                # Group and count by check_id
-                jq -r '[.results.failed_checks[]? | {check_id, check_name}] | group_by(.check_id) | .[] | "| \(.[0].check_id) | \(length) | \(.[0].check_name | .[0:60]) |"' "$JSON_FILE" >> "$output" 2>/dev/null || echo "| Error parsing | - | - |" >> "$output"
-                echo "" >> "$output"
-
-                echo "</details>" >> "$output"
-                echo "" >> "$output"
               elif [ $FAILED -eq 0 ] && [ $PASSED -gt 0 ]; then
                 echo "✅ **All $PASSED security checks passed!**" >> "$output"
-                echo "" >> "$output"
-              fi
-
-              # Show passed checks summary in collapsed section
-              if [ $PASSED -gt 0 ]; then
-                echo "<details>" >> "$output"
-                echo "<summary>✅ Passed Checks Summary ($PASSED)</summary>" >> "$output"
-                echo "" >> "$output"
-
-                echo "| Check ID | Count | Description |" >> "$output"
-                echo "|----------|-------|-------------|" >> "$output"
-
-                # Group and count passed checks by check_id
-                jq -r '[.results.passed_checks[]? | {check_id, check_name}] | group_by(.check_id) | .[] | "| \(.[0].check_id) | \(length) | \(.[0].check_name | .[0:60]) |"' "$JSON_FILE" >> "$output" 2>/dev/null || echo "| Error parsing | - | - |" >> "$output"
-                echo "" >> "$output"
-
-                echo "</details>" >> "$output"
                 echo "" >> "$output"
               fi
 
