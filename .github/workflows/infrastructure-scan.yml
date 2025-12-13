@@ -275,7 +275,7 @@ jobs:
 
             # Trivy Detailed Findings
             if [ -f "$TRIVY_SARIF" ] && [ "$TRIVY_ISSUES" -gt 0 ]; then
-              echo "<details open>" >> "$output"
+              echo "<details>" >> "$output"
               echo "<summary>🔍 Trivy IaC Findings ($TRIVY_ISSUES)</summary>" >> "$output"
               echo "" >> "$output"
 
