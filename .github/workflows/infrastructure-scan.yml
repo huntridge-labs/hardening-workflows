@@ -282,14 +282,15 @@ jobs:
               echo "| Rule ID | Location | Severity | Message |" >> "$output"
               echo "|---------|----------|----------|---------|" >> "$output"
 
-              jq -r --arg repo_url "$REPO_URL" '
+              jq -r --arg repo_url "$REPO_URL" --arg iac_path "$IAC_PATH" '
                 .runs[]? | {rules: (.tool.driver.rules // []), results: .results} |
                 .rules as $rules |
                 .results[]? |
                 . as $result |
                 ($rules[] | select(.id == $result.ruleId)) as $rule |
                 ($rule.properties["security-severity"] // "0" | tonumber) as $severity |
-                ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A") as $file |
+                ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A" | ltrimstr("./") | ltrimstr("/")) as $relfile |
+                (if $relfile == "N/A" then "N/A" else "\($iac_path)/\($relfile)" end) as $file |
                 ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
                 (if $severity >= 9.0 then "🚨 Critical"
                  elif $severity >= 7.0 then "⚠️ High"
@@ -316,8 +317,9 @@ jobs:
               echo "| Check ID | Check Name | Resource | Location |" >> "$output"
               echo "|----------|------------|----------|----------|" >> "$output"
 
-              jq -r --arg repo_url "$REPO_URL" '.results.failed_checks[]? |
-                (.file_path // "N/A" | ltrimstr("/")) as $filepath |
+              jq -r --arg repo_url "$REPO_URL" --arg iac_path "$IAC_PATH" '.results.failed_checks[]? |
+                (.file_path // "N/A" | ltrimstr("/") | ltrimstr("./")) as $relpath |
+                (if $relpath == "N/A" then "N/A" else "\($iac_path)/\($relpath)" end) as $filepath |
                 (.file_line_range[0] // 1) as $start |
                 (.file_line_range[1] // 1) as $end |
                 "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:40]) | \(.resource // "N/A" | .[0:30]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$CHECKOV_JSON" 2>/dev/null | head -50 >> "$output" || echo "| Error parsing | - | - | - |" >> "$output"
