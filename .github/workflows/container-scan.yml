@@ -859,7 +859,7 @@ jobs:
                   combined_unique=$(sort -u /tmp/container_cves.txt | grep -c . || echo 0)
 
                   # Get deduplicated counts by severity
-                  > /tmp/crit_cves.txt /tmp/high_cves.txt /tmp/med_cves.txt /tmp/low_cves.txt
+                  : > /tmp/crit_cves.txt; : > /tmp/high_cves.txt; : > /tmp/med_cves.txt; : > /tmp/low_cves.txt
                   if [ -f "$trivy_json" ]; then
                     jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | .VulnerabilityID' "$trivy_json" 2>/dev/null >> /tmp/crit_cves.txt
                     jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | .VulnerabilityID' "$trivy_json" 2>/dev/null >> /tmp/high_cves.txt
