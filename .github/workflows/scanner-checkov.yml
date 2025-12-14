@@ -146,60 +146,112 @@ jobs:
 
     - name: Generate scanner summary section
       if: always()
+      env:
+        HEAD_REF: ${{ github.head_ref || github.ref_name }}
       run: |
         mkdir -p scanner-summaries
 
-        echo "<details>" > scanner-summaries/checkov.md
-        echo "<summary>🏗️  Checkov Scanner</summary>" >> scanner-summaries/checkov.md
-        echo "" >> scanner-summaries/checkov.md
+        # Function to generate summary for a given output
+        generate_checkov_summary() {
+          local output="$1"
+          local is_pr_comment="$2"
 
-        if [ "${{ steps.validate.outputs.has_iac }}" == "true" ]; then
-          IAC_PATH="${{ steps.validate.outputs.iac_path }}"
-          JSON_FILE="$IAC_PATH/security-reports/checkov-results.json"
-
-          if [ -f "$JSON_FILE" ]; then
-            echo "**Status:** ✅ Completed" >> scanner-summaries/checkov.md
-            echo "" >> scanner-summaries/checkov.md
-
-            CRITICAL=$(jq '[.results.failed_checks[] | select(.severity == "CRITICAL")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
-            HIGH=$(jq '[.results.failed_checks[] | select(.severity == "HIGH")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
-            MEDIUM=$(jq '[.results.failed_checks[] | select(.severity == "MEDIUM")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
-            LOW=$(jq '[.results.failed_checks[] | select(.severity == "LOW")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
-
-            if [ "$CRITICAL" == "0" ] && [ "$HIGH" == "0" ] && [ "$MEDIUM" == "0" ] && [ "$LOW" == "0" ]; then
-              TOTAL=$(jq '.results.failed_checks | length' "$JSON_FILE" 2>/dev/null || echo "0")
-              HIGH=$TOTAL
-            else
-              TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
-            fi
-
-            PASSED=$(jq '.results.passed_checks | length' "$JSON_FILE" 2>/dev/null || echo "0")
-
-            echo "**Failed Checks:** $TOTAL" >> scanner-summaries/checkov.md
-            echo "**Passed Checks:** $PASSED" >> scanner-summaries/checkov.md
-            echo "" >> scanner-summaries/checkov.md
-
-            if [ $TOTAL -gt 0 ]; then
-              echo "| Severity | Count |" >> scanner-summaries/checkov.md
-              echo "|----------|-------|" >> scanner-summaries/checkov.md
-              [ $CRITICAL -gt 0 ] && echo "| 🔴 Critical | $CRITICAL |" >> scanner-summaries/checkov.md
-              [ $HIGH -gt 0 ] && echo "| 🟠 High | $HIGH |" >> scanner-summaries/checkov.md
-              [ $MEDIUM -gt 0 ] && echo "| 🟡 Medium | $MEDIUM |" >> scanner-summaries/checkov.md
-              [ $LOW -gt 0 ] && echo "| 🔵 Low | $LOW |" >> scanner-summaries/checkov.md
-              echo "" >> scanner-summaries/checkov.md
-            fi
-
-            echo "**📁 Artifacts:** [Checkov Results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/checkov.md
+          if [ "$is_pr_comment" = "true" ]; then
+            echo "<details>" >> "$output"
+            echo "<summary>🏗️ Checkov IaC Security</summary>" >> "$output"
           else
-            echo "**Status:** ⚠️ No results generated" >> scanner-summaries/checkov.md
+            echo "## 🏗️ Checkov IaC Security Scan Summary" >> "$output"
           fi
-        else
-          echo "**Status:** ⏭️ Skipped (no IaC directory found)" >> scanner-summaries/checkov.md
-        fi
+          echo "" >> "$output"
 
-        echo "" >> scanner-summaries/checkov.md
-        echo "</details>" >> scanner-summaries/checkov.md
-        echo "" >> scanner-summaries/checkov.md
+          if [ "${{ steps.validate.outputs.has_iac }}" == "true" ]; then
+            IAC_PATH="${{ steps.validate.outputs.iac_path }}"
+            JSON_FILE="$IAC_PATH/security-reports/checkov-results.json"
+
+            if [ -f "$JSON_FILE" ]; then
+              if [ "$is_pr_comment" = "true" ]; then
+                echo "**Status:** ✅ Completed" >> "$output"
+                echo "" >> "$output"
+              fi
+
+              # Get counts from summary if available, otherwise count from results
+              FAILED=$(jq -r '.summary.failed // 0' "$JSON_FILE" 2>/dev/null || echo "0")
+              PASSED=$(jq -r '.summary.passed // 0' "$JSON_FILE" 2>/dev/null || echo "0")
+              SKIPPED=$(jq -r '.summary.skipped // 0' "$JSON_FILE" 2>/dev/null || echo "0")
+              CHECK_TYPE=$(jq -r '.check_type // "unknown"' "$JSON_FILE" 2>/dev/null || echo "unknown")
+
+              # Overall Summary Table
+              echo "### 📊 Check Summary" >> "$output"
+              echo "" >> "$output"
+              echo "| ❌ Failed | ✅ Passed | ⏭️ Skipped | 📦 Total |" >> "$output"
+              echo "|-----------|-----------|------------|----------|" >> "$output"
+              TOTAL=$((FAILED + PASSED + SKIPPED))
+              echo "| **$FAILED** | **$PASSED** | **$SKIPPED** | **$TOTAL** |" >> "$output"
+              echo "" >> "$output"
+
+              echo "**Framework:** $CHECK_TYPE" >> "$output"
+              echo "" >> "$output"
+
+              # Priority messages
+              if [ $FAILED -gt 0 ]; then
+                echo "❌ **FAILED**: $FAILED IaC security checks failed and need attention" >> "$output"
+                echo "" >> "$output"
+              fi
+
+              # Detailed findings with collapsible sections
+              if [ $FAILED -gt 0 ]; then
+                echo "<details open>" >> "$output"
+                echo "<summary>🔍 Failed Check Details ($FAILED)</summary>" >> "$output"
+                echo "" >> "$output"
+
+                echo "| Check ID | Check Name | Resource | Location |" >> "$output"
+                echo "|----------|------------|----------|----------|" >> "$output"
+
+                # Extract failed checks with clickable file links
+                # GitHub link format: https://github.com/{owner}/{repo}/blob/{branch}/{filepath}#L{start}-L{end}
+                REPO_URL="https://github.com/${{ github.repository }}/blob/${HEAD_REF}"
+                jq -r --arg repo_url "$REPO_URL" '.results.failed_checks[]? |
+                  (.file_path // "N/A" | ltrimstr("/")) as $filepath |
+                  (.file_line_range[0] // 1) as $start |
+                  (.file_line_range[1] // 1) as $end |
+                  "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:50]) | \(.resource // "N/A" | .[0:40]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$JSON_FILE" >> "$output" 2>/dev/null || echo "| Error parsing results | - | - | - |" >> "$output"
+                echo "" >> "$output"
+
+                echo "</details>" >> "$output"
+                echo "" >> "$output"
+              elif [ $FAILED -eq 0 ] && [ $PASSED -gt 0 ]; then
+                echo "✅ **All $PASSED security checks passed!**" >> "$output"
+                echo "" >> "$output"
+              fi
+
+              echo "**📁 Artifacts:** [Checkov Results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> "$output"
+            else
+              if [ "$is_pr_comment" = "true" ]; then
+                echo "**Status:** ⚠️ No results generated" >> "$output"
+              else
+                echo "**Status:** ⚠️ No Checkov results available" >> "$output"
+              fi
+            fi
+          else
+            if [ "$is_pr_comment" = "true" ]; then
+              echo "**Status:** ⏭️ Skipped (no IaC directory found)" >> "$output"
+            else
+              echo "**Status:** ⏭️ Skipped - no IaC directory found at '${{ inputs.iac_path }}'" >> "$output"
+            fi
+          fi
+
+          if [ "$is_pr_comment" = "true" ]; then
+            echo "" >> "$output"
+            echo "</details>" >> "$output"
+          fi
+          echo "" >> "$output"
+        }
+
+        # Generate PR comment artifact
+        generate_checkov_summary "scanner-summaries/checkov.md" "true"
+
+        # Generate job summary
+        generate_checkov_summary "$GITHUB_STEP_SUMMARY" "false"
       continue-on-error: true
 
     - name: Upload scanner summary section

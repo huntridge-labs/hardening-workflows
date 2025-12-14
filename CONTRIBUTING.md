@@ -23,7 +23,7 @@ The security hardening pipeline uses a modular architecture:
 ├── reusable-security-hardening.yml   # Main orchestration workflow
 ├── scanner-{name}.yml                # Individual scanner workflows
 ├── container-scan.yml                # Container security scanning
-├── infrastructure.yml                # Infrastructure as Code scanning
+├── infrastructure-scan.yml                # Infrastructure as Code scanning
 └── linting.yml                       # Code quality & linting
 
 Key Components:

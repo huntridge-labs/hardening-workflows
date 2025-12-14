@@ -155,6 +155,8 @@ jobs:
 
     - name: Generate scanner summary section
       if: always()
+      env:
+        HEAD_REF: ${{ github.head_ref || github.ref_name }}
       run: |
         mkdir -p scanner-summaries
 
@@ -165,6 +167,8 @@ jobs:
         if [ "${{ steps.validate.outputs.has_iac }}" == "true" ]; then
           IAC_PATH="${{ steps.validate.outputs.iac_path }}"
           JSON_FILE="$IAC_PATH/security-reports/trivy-results.json"
+          SARIF_FILE="$IAC_PATH/security-reports/trivy-results.sarif"
+          REPO_URL="https://github.com/${{ github.repository }}/blob/${HEAD_REF}"
 
           if [ -f "$JSON_FILE" ]; then
             echo "**Status:** ✅ Completed" >> scanner-summaries/trivy-iac.md
@@ -176,16 +180,49 @@ jobs:
             LOW=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "LOW")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
             TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
 
-            echo "**Issues Found:** $TOTAL" >> scanner-summaries/trivy-iac.md
+            echo "### 📊 Findings Summary" >> scanner-summaries/trivy-iac.md
+            echo "" >> scanner-summaries/trivy-iac.md
+            echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📦 Total |" >> scanner-summaries/trivy-iac.md
+            echo "|-------------|---------|-----------|--------|----------|" >> scanner-summaries/trivy-iac.md
+            echo "| **$CRITICAL** | **$HIGH** | **$MEDIUM** | **$LOW** | **$TOTAL** |" >> scanner-summaries/trivy-iac.md
             echo "" >> scanner-summaries/trivy-iac.md
 
-            if [ $TOTAL -gt 0 ]; then
-              echo "| Severity | Count |" >> scanner-summaries/trivy-iac.md
-              echo "|----------|-------|" >> scanner-summaries/trivy-iac.md
-              [ $CRITICAL -gt 0 ] && echo "| 🔴 Critical | $CRITICAL |" >> scanner-summaries/trivy-iac.md
-              [ $HIGH -gt 0 ] && echo "| 🟠 High | $HIGH |" >> scanner-summaries/trivy-iac.md
-              [ $MEDIUM -gt 0 ] && echo "| 🟡 Medium | $MEDIUM |" >> scanner-summaries/trivy-iac.md
-              [ $LOW -gt 0 ] && echo "| 🔵 Low | $LOW |" >> scanner-summaries/trivy-iac.md
+            # Detailed findings with clickable links
+            if [ $TOTAL -gt 0 ] && [ -f "$SARIF_FILE" ]; then
+              echo "<details open>" >> scanner-summaries/trivy-iac.md
+              echo "<summary>🔍 Finding Details ($TOTAL)</summary>" >> scanner-summaries/trivy-iac.md
+              echo "" >> scanner-summaries/trivy-iac.md
+
+              echo "| Rule ID | Location | Severity | Message |" >> scanner-summaries/trivy-iac.md
+              echo "|---------|----------|----------|---------|" >> scanner-summaries/trivy-iac.md
+
+              jq -r --arg repo_url "$REPO_URL" --arg iac_path "$IAC_PATH" '
+                .runs[]? | {rules: (.tool.driver.rules // []), results: .results} |
+                .rules as $rules |
+                .results[]? |
+                . as $result |
+                ($rules[] | select(.id == $result.ruleId)) as $rule |
+                ($rule.properties["security-severity"] // "0" | tonumber) as $severity |
+                ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A" | ltrimstr("./") | ltrimstr("/")) as $relfile |
+                (if $relfile == "N/A" then "N/A" else "\($iac_path)/\($relfile)" end) as $file |
+                ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
+                (if $severity >= 9.0 then "🚨 Critical"
+                 elif $severity >= 7.0 then "⚠️ High"
+                 elif $severity >= 4.0 then "🟡 Medium"
+                 else "🔵 Low" end) as $sev_label |
+                "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($sev_label) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:50]) |"
+              ' "$SARIF_FILE" 2>/dev/null | head -50 >> scanner-summaries/trivy-iac.md || echo "| Error parsing | - | - | - |" >> scanner-summaries/trivy-iac.md
+
+              if [ "$TOTAL" -gt 50 ]; then
+                echo "" >> scanner-summaries/trivy-iac.md
+                echo "_...and $((TOTAL - 50)) more findings_" >> scanner-summaries/trivy-iac.md
+              fi
+              echo "" >> scanner-summaries/trivy-iac.md
+
+              echo "</details>" >> scanner-summaries/trivy-iac.md
+              echo "" >> scanner-summaries/trivy-iac.md
+            elif [ $TOTAL -eq 0 ]; then
+              echo "✅ **No misconfigurations detected!**" >> scanner-summaries/trivy-iac.md
               echo "" >> scanner-summaries/trivy-iac.md
             fi
 

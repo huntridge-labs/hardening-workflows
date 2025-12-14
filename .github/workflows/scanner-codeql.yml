@@ -270,71 +270,299 @@ jobs:
 
     - name: Generate CodeQL summary section
       if: always()
+      env:
+        HEAD_REF: ${{ github.head_ref || github.ref_name }}
       run: |
         mkdir -p scanner-summaries
 
-        echo "<details>" > scanner-summaries/codeql.md
-        echo "<summary>🔍 CodeQL</summary>" >> scanner-summaries/codeql.md
-        echo "" >> scanner-summaries/codeql.md
+        # Function to generate summary for a given output
+        generate_codeql_summary() {
+          local output="$1"
+          local is_pr_comment="$2"
 
-        if [ -d "sarif" ] && [ "$(ls -A sarif 2>/dev/null)" ]; then
-          echo "**Status:** ✅ Completed" >> scanner-summaries/codeql.md
-          echo "" >> scanner-summaries/codeql.md
+          if [ "$is_pr_comment" = "true" ]; then
+            echo "<details>" >> "$output"
+            echo "<summary>🔍 CodeQL SAST</summary>" >> "$output"
+          else
+            echo "## 🔍 CodeQL SAST Scan Summary" >> "$output"
+          fi
+          echo "" >> "$output"
 
-          # Count issues from SARIF files
-          ISSUE_COUNT=0
-          ERROR_COUNT=0
-          WARNING_COUNT=0
-          NOTE_COUNT=0
-          NONE_COUNT=0
-
-          for sarif_file in $(find ./sarif -name "*.sarif" -type f 2>/dev/null); do
-            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
-              # Count total issues
-              issues=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
-              ISSUE_COUNT=$((ISSUE_COUNT + issues))
-
-              # CodeQL SARIF uses .level field with values: error, warning, note, none
-              # If level is missing, it defaults to "warning"
-              error=$(jq -r '.runs[]?.results[]? | select(.level == "error") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
-              ERROR_COUNT=$((ERROR_COUNT + error))
-
-              warning=$(jq -r '.runs[]?.results[]? | select(.level == "warning") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
-              WARNING_COUNT=$((WARNING_COUNT + warning))
-
-              note=$(jq -r '.runs[]?.results[]? | select(.level == "note") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
-              NOTE_COUNT=$((NOTE_COUNT + note))
-
-              none=$(jq -r '.runs[]?.results[]? | select(.level == "none") | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
-              NONE_COUNT=$((NONE_COUNT + none))
-
-              # Count results without a level field (default to warning)
-              no_level=$(jq -r '.runs[]?.results[]? | select(.level == null) | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
-              WARNING_COUNT=$((WARNING_COUNT + no_level))
+          if [ -d "sarif" ] && [ "$(ls -A sarif 2>/dev/null)" ] || [ -d "sarif-json" ] && [ "$(ls -A sarif-json 2>/dev/null)" ]; then
+            if [ "$is_pr_comment" = "true" ]; then
+              echo "**Status:** ✅ Completed" >> "$output"
+              echo "" >> "$output"
             fi
-          done
 
-          echo "**Issues Found:** $ISSUE_COUNT" >> scanner-summaries/codeql.md
-          echo "" >> scanner-summaries/codeql.md
+            # Count issues from SARIF/JSON files
+            ISSUE_COUNT=0
+            ERROR_COUNT=0
+            WARNING_COUNT=0
+            NOTE_COUNT=0
+            CRITICAL_COUNT=0
+            HIGH_COUNT=0
+            MEDIUM_COUNT=0
+            LOW_COUNT=0
 
-          if [ $ISSUE_COUNT -gt 0 ]; then
-            echo "| Severity | Count |" >> scanner-summaries/codeql.md
-            echo "|----------|-------|" >> scanner-summaries/codeql.md
-            [ $ERROR_COUNT -gt 0 ] && echo "| 🔴 Error | $ERROR_COUNT |" >> scanner-summaries/codeql.md
-            [ $WARNING_COUNT -gt 0 ] && echo "| 🟠 Warning | $WARNING_COUNT |" >> scanner-summaries/codeql.md
-            [ $NOTE_COUNT -gt 0 ] && echo "| 🟡 Note | $NOTE_COUNT |" >> scanner-summaries/codeql.md
-            [ $NONE_COUNT -gt 0 ] && echo "| 🔵 Recommendation | $NONE_COUNT |" >> scanner-summaries/codeql.md
-            echo "" >> scanner-summaries/codeql.md
+            # Prefer sarif-json directory if it exists, otherwise use sarif
+            SCAN_DIR="sarif-json"
+            FILE_EXT="json"
+            if [ ! -d "$SCAN_DIR" ] || [ -z "$(ls -A $SCAN_DIR 2>/dev/null)" ]; then
+              SCAN_DIR="sarif"
+              FILE_EXT="sarif"
+            fi
+
+            # Build a combined results file for detailed parsing
+            echo '{"all_results":[],"all_rules":{}}' > /tmp/codeql_combined.json
+
+            # Set up repo URL for clickable links
+            REPO_URL="https://github.com/${{ github.repository }}/blob/${HEAD_REF}"
+
+            for scan_file in $(find ./$SCAN_DIR -name "*.$FILE_EXT" -type f 2>/dev/null); do
+              if [ -f "$scan_file" ] && [ -s "$scan_file" ] && command -v jq >/dev/null 2>&1; then
+                # Count total issues
+                issues=$(jq -r '[.runs[]?.results[]?] | length' "$scan_file" 2>/dev/null || echo "0")
+                ISSUE_COUNT=$((ISSUE_COUNT + issues))
+
+                # Count by SARIF level (error, warning, note, none)
+                error=$(jq -r '[.runs[]?.results[]? | select(.level == "error")] | length' "$scan_file" 2>/dev/null || echo "0")
+                ERROR_COUNT=$((ERROR_COUNT + error))
+
+                warning=$(jq -r '[.runs[]?.results[]? | select(.level == "warning" or .level == null)] | length' "$scan_file" 2>/dev/null || echo "0")
+                WARNING_COUNT=$((WARNING_COUNT + warning))
+
+                note=$(jq -r '[.runs[]?.results[]? | select(.level == "note")] | length' "$scan_file" 2>/dev/null || echo "0")
+                NOTE_COUNT=$((NOTE_COUNT + note))
+
+                # Count by security-severity (CVSS score)
+                # Critical: >= 9.0, High: >= 7.0, Medium: >= 4.0, Low: < 4.0
+                # Get rules with security-severity and match to results
+                critical=$(jq -r '
+                  [.runs[]? | {rules: (.tool.driver.rules // []), results: .results} |
+                   .rules as $rules |
+                   .results[]? |
+                   . as $result |
+                   ($rules[] | select(.id == $result.ruleId) | .properties["security-severity"] // "0" | tonumber) as $severity |
+                   select($severity >= 9.0)] | length' "$scan_file" 2>/dev/null || echo "0")
+                CRITICAL_COUNT=$((CRITICAL_COUNT + critical))
+
+                high=$(jq -r '
+                  [.runs[]? | {rules: (.tool.driver.rules // []), results: .results} |
+                   .rules as $rules |
+                   .results[]? |
+                   . as $result |
+                   ($rules[] | select(.id == $result.ruleId) | .properties["security-severity"] // "0" | tonumber) as $severity |
+                   select($severity >= 7.0 and $severity < 9.0)] | length' "$scan_file" 2>/dev/null || echo "0")
+                HIGH_COUNT=$((HIGH_COUNT + high))
+
+                medium=$(jq -r '
+                  [.runs[]? | {rules: (.tool.driver.rules // []), results: .results} |
+                   .rules as $rules |
+                   .results[]? |
+                   . as $result |
+                   ($rules[] | select(.id == $result.ruleId) | .properties["security-severity"] // "0" | tonumber) as $severity |
+                   select($severity >= 4.0 and $severity < 7.0)] | length' "$scan_file" 2>/dev/null || echo "0")
+                MEDIUM_COUNT=$((MEDIUM_COUNT + medium))
+
+                low=$(jq -r '
+                  [.runs[]? | {rules: (.tool.driver.rules // []), results: .results} |
+                   .rules as $rules |
+                   .results[]? |
+                   . as $result |
+                   ($rules[] | select(.id == $result.ruleId) | .properties["security-severity"] // "0" | tonumber) as $severity |
+                   select($severity > 0 and $severity < 4.0)] | length' "$scan_file" 2>/dev/null || echo "0")
+                LOW_COUNT=$((LOW_COUNT + low))
+              fi
+            done
+
+            # Overall Summary Table (by security severity)
+            echo "### 📊 Findings Summary" >> "$output"
+            echo "" >> "$output"
+            echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📦 Total |" >> "$output"
+            echo "|-------------|---------|-----------|---------|----------|" >> "$output"
+            echo "| **$CRITICAL_COUNT** | **$HIGH_COUNT** | **$MEDIUM_COUNT** | **$LOW_COUNT** | **$ISSUE_COUNT** |" >> "$output"
+            echo "" >> "$output"
+
+            # Also show by SARIF level
+            echo "**By SARIF Level:** 🔴 Error: $ERROR_COUNT | 🟠 Warning: $WARNING_COUNT | 🟡 Note: $NOTE_COUNT" >> "$output"
+            echo "" >> "$output"
+
+            # Priority messages
+            if [ $CRITICAL_COUNT -gt 0 ]; then
+              echo "🚨 **CRITICAL**: $CRITICAL_COUNT critical-severity findings (CVSS ≥ 9.0) need immediate attention" >> "$output"
+              echo "" >> "$output"
+            fi
+            if [ $HIGH_COUNT -gt 0 ]; then
+              echo "⚠️ **HIGH**: $HIGH_COUNT high-severity findings (CVSS ≥ 7.0) should be addressed promptly" >> "$output"
+              echo "" >> "$output"
+            fi
+
+            # Detailed findings with collapsible sections
+            if [ $ISSUE_COUNT -gt 0 ]; then
+              echo "<details open>" >> "$output"
+              echo "<summary>🔍 Finding Details</summary>" >> "$output"
+              echo "" >> "$output"
+
+              # Process each SARIF file for detailed output
+              for scan_file in $(find ./$SCAN_DIR -name "*.$FILE_EXT" -type f 2>/dev/null); do
+                if [ -f "$scan_file" ] && [ -s "$scan_file" ]; then
+                  # Extract language from filename
+                  lang=$(basename "$scan_file" .$FILE_EXT)
+
+                  # Show Critical findings (CVSS >= 9.0)
+                  crit_findings=$(jq -r --arg repo_url "$REPO_URL" '
+                    .runs[]? | {rules: (.tool.driver.rules // []), results: .results} |
+                    .rules as $rules |
+                    .results[]? |
+                    . as $result |
+                    ($rules[] | select(.id == $result.ruleId)) as $rule |
+                    ($rule.properties["security-severity"] // "0" | tonumber) as $severity |
+                    select($severity >= 9.0) |
+                    ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A") as $file |
+                    ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
+                    "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($severity) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:60]) |"
+                  ' "$scan_file" 2>/dev/null)
+
+                  if [ -n "$crit_findings" ] && [ "$crit_findings" != "" ]; then
+                    echo "#### 🚨 Critical Findings (CVSS ≥ 9.0)" >> "$output"
+                    echo "" >> "$output"
+                    echo "| Rule ID | Location | CVSS | Message |" >> "$output"
+                    echo "|---------|----------|------|---------|" >> "$output"
+                    echo "$crit_findings" >> "$output"
+                    echo "" >> "$output"
+                  fi
+
+                  # Show High findings (CVSS >= 7.0 and < 9.0)
+                  high_findings=$(jq -r --arg repo_url "$REPO_URL" '
+                    .runs[]? | {rules: (.tool.driver.rules // []), results: .results} |
+                    .rules as $rules |
+                    .results[]? |
+                    . as $result |
+                    ($rules[] | select(.id == $result.ruleId)) as $rule |
+                    ($rule.properties["security-severity"] // "0" | tonumber) as $severity |
+                    select($severity >= 7.0 and $severity < 9.0) |
+                    ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A") as $file |
+                    ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
+                    "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($severity) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:60]) |"
+                  ' "$scan_file" 2>/dev/null)
+
+                  if [ -n "$high_findings" ] && [ "$high_findings" != "" ]; then
+                    echo "#### ⚠️ High Findings (CVSS 7.0-8.9)" >> "$output"
+                    echo "" >> "$output"
+                    echo "| Rule ID | Location | CVSS | Message |" >> "$output"
+                    echo "|---------|----------|------|---------|" >> "$output"
+                    echo "$high_findings" >> "$output"
+                    echo "" >> "$output"
+                  fi
+
+                  # Show Medium findings in collapsed section (CVSS >= 4.0 and < 7.0)
+                  medium_findings=$(jq -r --arg repo_url "$REPO_URL" '
+                    .runs[]? | {rules: (.tool.driver.rules // []), results: .results} |
+                    .rules as $rules |
+                    .results[]? |
+                    . as $result |
+                    ($rules[] | select(.id == $result.ruleId)) as $rule |
+                    ($rule.properties["security-severity"] // "0" | tonumber) as $severity |
+                    select($severity >= 4.0 and $severity < 7.0) |
+                    ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A") as $file |
+                    ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
+                    "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($severity) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:60]) |"
+                  ' "$scan_file" 2>/dev/null)
+
+                  if [ -n "$medium_findings" ] && [ "$medium_findings" != "" ]; then
+                    echo "<details>" >> "$output"
+                    echo "<summary>🟡 Medium Findings (CVSS 4.0-6.9)</summary>" >> "$output"
+                    echo "" >> "$output"
+                    echo "| Rule ID | Location | CVSS | Message |" >> "$output"
+                    echo "|---------|----------|------|---------|" >> "$output"
+                    echo "$medium_findings" >> "$output"
+                    echo "" >> "$output"
+                    echo "</details>" >> "$output"
+                    echo "" >> "$output"
+                  fi
+
+                  # Show Low findings in collapsed section (CVSS > 0 and < 4.0)
+                  low_findings=$(jq -r --arg repo_url "$REPO_URL" '
+                    .runs[]? | {rules: (.tool.driver.rules // []), results: .results} |
+                    .rules as $rules |
+                    .results[]? |
+                    . as $result |
+                    ($rules[] | select(.id == $result.ruleId)) as $rule |
+                    ($rule.properties["security-severity"] // "0" | tonumber) as $severity |
+                    select($severity > 0 and $severity < 4.0) |
+                    ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A") as $file |
+                    ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
+                    "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($severity) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:60]) |"
+                  ' "$scan_file" 2>/dev/null)
+
+                  if [ -n "$low_findings" ] && [ "$low_findings" != "" ]; then
+                    echo "<details>" >> "$output"
+                    echo "<summary>🔵 Low Findings (CVSS < 4.0)</summary>" >> "$output"
+                    echo "" >> "$output"
+                    echo "| Rule ID | Location | CVSS | Message |" >> "$output"
+                    echo "|---------|----------|------|---------|" >> "$output"
+                    echo "$low_findings" >> "$output"
+                    echo "" >> "$output"
+                    echo "</details>" >> "$output"
+                    echo "" >> "$output"
+                  fi
+
+                  # Show findings without security-severity (informational/code quality)
+                  info_findings=$(jq -r --arg repo_url "$REPO_URL" '
+                    .runs[]? | {rules: (.tool.driver.rules // []), results: .results} |
+                    .rules as $rules |
+                    .results[]? |
+                    . as $result |
+                    ($rules[] | select(.id == $result.ruleId)) as $rule |
+                    ($rule.properties["security-severity"] // null) as $severity |
+                    select($severity == null or $severity == "0" or $severity == 0) |
+                    ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A") as $file |
+                    ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
+                    "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($result.level // "warning") | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:60]) |"
+                  ' "$scan_file" 2>/dev/null)
+
+                  if [ -n "$info_findings" ] && [ "$info_findings" != "" ]; then
+                    echo "<details>" >> "$output"
+                    echo "<summary>ℹ️ Code Quality / Informational Findings</summary>" >> "$output"
+                    echo "" >> "$output"
+                    echo "| Rule ID | Location | Level | Message |" >> "$output"
+                    echo "|---------|----------|-------|---------|" >> "$output"
+                    echo "$info_findings" >> "$output"
+                    echo "" >> "$output"
+                    echo "</details>" >> "$output"
+                    echo "" >> "$output"
+                  fi
+                fi
+              done
+
+              echo "</details>" >> "$output"
+              echo "" >> "$output"
+            elif [ $ISSUE_COUNT -eq 0 ]; then
+              echo "✅ **No security findings detected!**" >> "$output"
+              echo "" >> "$output"
+            fi
+
+            echo "**📁 Artifacts:** [CodeQL Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> "$output"
+          else
+            if [ "$is_pr_comment" = "true" ]; then
+              echo "**Status:** ⏭️ Skipped" >> "$output"
+            else
+              echo "**Status:** ⏭️ No CodeQL results available" >> "$output"
+            fi
           fi
 
-          echo "**📁 Artifacts:** [CodeQL Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/codeql.md
-        else
-          echo "**Status:** ⏭️ Skipped" >> scanner-summaries/codeql.md
-        fi
+          if [ "$is_pr_comment" = "true" ]; then
+            echo "" >> "$output"
+            echo "</details>" >> "$output"
+          fi
+          echo "" >> "$output"
+        }
 
-        echo "" >> scanner-summaries/codeql.md
-        echo "</details>" >> scanner-summaries/codeql.md
-        echo "" >> scanner-summaries/codeql.md
+        # Generate PR comment artifact
+        generate_codeql_summary "scanner-summaries/codeql.md" "true"
+
+        # Generate job summary
+        generate_codeql_summary "$GITHUB_STEP_SUMMARY" "false"
       continue-on-error: true
 
     - name: Upload CodeQL summary section
