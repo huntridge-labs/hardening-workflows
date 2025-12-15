@@ -73,7 +73,7 @@ jobs:
           syft ${{ steps.target.outputs.target }} -o table > ${{ steps.target.outputs.output_table }}
 
       - name: Upload SBOM Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: sbom-${{ steps.target.outputs.prefix }}
           path: |
@@ -105,7 +105,7 @@ jobs:
           echo "</details>" >> sbom.md
 
       - name: Upload SBOM Summary
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: scanner-summary-sbom
           path: sbom.md

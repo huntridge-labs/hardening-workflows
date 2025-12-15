@@ -172,7 +172,7 @@ jobs:
 
     - name: Upload Grype artifacts
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: grype-container-${{ steps.validate.outputs.scan_name }}-results
         path: |
@@ -228,7 +228,7 @@ jobs:
 
     - name: Upload scanner summary section
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: scanner-summary-grype-${{ steps.validate.outputs.scan_name }}
         path: scanner-summaries/grype-${{ steps.validate.outputs.scan_name }}.md

@@ -99,7 +99,7 @@ jobs:
         fi
 
     - name: Upload OpenGrep artifacts
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: opengrep-reports
         path: opengrep-reports/
@@ -251,7 +251,7 @@ jobs:
 
     - name: Upload OpenGrep summary section
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: scanner-summary-opengrep
         path: scanner-summaries/opengrep.md
