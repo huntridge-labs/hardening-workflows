@@ -153,7 +153,7 @@ jobs:
 
     - name: Generate SBOM for built image (Syft)
       if: steps.build.outputs.build_success == 'true'
-      uses: anchore/sbom-action@v0.20.10
+      uses: anchore/sbom-action@v0.20.11
       with:
         image: ${{ steps.build.outputs.full_image }}
         format: cyclonedx-json
@@ -161,7 +161,7 @@ jobs:
 
     - name: Upload SBOM Artifact
       if: steps.build.outputs.build_success == 'true'
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: container-scan-results-sbom-${{ matrix.container.name }}
         path: container-scan-results-sbom-${{ matrix.container.name }}.json
@@ -173,7 +173,7 @@ jobs:
 
     - name: Upload human-readable SBOM Artifact
       if: steps.build.outputs.build_success == 'true'
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: container-scan-results-sbom-table-${{ matrix.container.name }}
         path: container-scan-results-sbom-${{ matrix.container.name }}.txt
@@ -509,7 +509,7 @@ jobs:
 
     - name: Archive vulnerability scan results
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: container-scan-results-${{ matrix.container.name }}
         path: |
@@ -527,7 +527,7 @@ jobs:
     steps:
     - name: Download all scan artifacts
       if: needs.discover-containers.outputs.has_containers == 'true'
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v7
       continue-on-error: true
 
     - name: Create comprehensive container security report
@@ -746,7 +746,7 @@ jobs:
         echo "Generated on: $(date)" >> container-security-report.md
 
     - name: Upload container security report
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: container-security-summary
         path: container-security-report.md
@@ -1057,7 +1057,7 @@ jobs:
 
     - name: Upload Container summary section
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: scanner-summary-container
         path: scanner-summaries/container.md
