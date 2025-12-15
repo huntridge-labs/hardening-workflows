@@ -137,7 +137,7 @@ jobs:
 
     - name: Upload Checkov artifacts
       if: steps.validate.outputs.has_iac == 'true' && always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: checkov-scan-results
         path: |
@@ -256,7 +256,7 @@ jobs:
 
     - name: Upload scanner summary section
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: scanner-summary-checkov
         path: scanner-summaries/checkov.md
