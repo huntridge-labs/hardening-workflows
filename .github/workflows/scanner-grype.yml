@@ -90,14 +90,8 @@ jobs:
         # Use Grype's native fail-build when severity threshold is set
         fail-build: ${{ inputs.fail_on_severity != 'none' && inputs.fail_on_severity != '' }}
         output-format: sarif
+        output-file: grype-${{ steps.validate.outputs.scan_name }}-results.sarif
         severity-cutoff: ${{ inputs.fail_on_severity == 'none' && 'medium' || inputs.fail_on_severity }}
-
-    - name: Save Grype SARIF output
-      if: steps.grype-scan.outputs.sarif != ''
-      run: |
-        SCAN_NAME="${{ steps.validate.outputs.scan_name }}"
-        echo "${{ steps.grype-scan.outputs.sarif }}" > "grype-$SCAN_NAME-results.sarif"
-      continue-on-error: true
 
     - name: Run Grype for JSON output
       uses: anchore/scan-action@v7
@@ -107,14 +101,8 @@ jobs:
         image: ${{ steps.validate.outputs.image_ref }}
         fail-build: false
         output-format: json
+        output-file: grype-${{ steps.validate.outputs.scan_name }}-results.json
         severity-cutoff: ${{ inputs.fail_on_severity == 'none' && 'medium' || inputs.fail_on_severity }}
-
-    - name: Save Grype JSON output
-      if: steps.grype-json.outputs.json != ''
-      run: |
-        SCAN_NAME="${{ steps.validate.outputs.scan_name }}"
-        echo "${{ steps.grype-json.outputs.json }}" > "grype-$SCAN_NAME-results.json"
-      continue-on-error: true
 
     - name: Run Grype for table output
       uses: anchore/scan-action@v7
@@ -124,14 +112,8 @@ jobs:
         image: ${{ steps.validate.outputs.image_ref }}
         fail-build: false
         output-format: table
+        output-file: grype-${{ steps.validate.outputs.scan_name }}-results.txt
         severity-cutoff: ${{ inputs.fail_on_severity == 'none' && 'medium' || inputs.fail_on_severity }}
-
-    - name: Save Grype table output
-      if: always()
-      run: |
-        SCAN_NAME="${{ steps.validate.outputs.scan_name }}"
-        echo "${{ steps.grype-table.outputs.table }}" > "grype-$SCAN_NAME-results.txt"
-      continue-on-error: true
 
     - name: Upload Grype scan results to GitHub Security tab
       if: inputs.enable_code_security == true && github.actor != 'nektos/act'
@@ -190,7 +172,7 @@ jobs:
 
     - name: Upload Grype artifacts
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: grype-container-${{ steps.validate.outputs.scan_name }}-results
         path: |
@@ -246,7 +228,7 @@ jobs:
 
     - name: Upload scanner summary section
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: scanner-summary-grype-${{ steps.validate.outputs.scan_name }}
         path: scanner-summaries/grype-${{ steps.validate.outputs.scan_name }}.md
