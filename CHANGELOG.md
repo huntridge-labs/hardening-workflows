@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.8.1](///compare/2.8.0...2.8.1) (2025-12-16)
+
+### Security Tools
+
+* **deps:** bump anchore/sbom-action from 0.20.10 to 0.20.11 f302689
+
+### Dependencies
+
+* **deps:** bump @commitlint/cli from 20.1.0 to 20.2.0 ([#84](undefined/undefined/undefined/issues/84)) 5cc7c24
+* **deps:** bump @commitlint/config-conventional from 20.0.0 to 20.2.0 ([#83](undefined/undefined/undefined/issues/83)) 5f1dd6d
+* **deps:** bump @release-it/conventional-changelog 81d0e26
+* **deps:** bump release-it from 19.0.6 to 19.1.0 ec15994
+* **deps:** bump the github-actions-major group with 2 updates cd16739
+
+
 ## [2.8.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.7.0...2.8.0) (2025-12-14)
 
 ### Features
