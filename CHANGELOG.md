@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.8.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.7.0...2.8.0) (2025-12-14)
+
+### Features
+
+* **container-scan:** add detailed scanner breakdown with deduplication ([a0f49e6](https://github.com/huntridge-labs/hardening-workflows/commit/a0f49e6fb6590b20253ff698b511b58fe51e6a1e))
+* **scanners:** improve vuln summary details ([5a64ad3](https://github.com/huntridge-labs/hardening-workflows/commit/5a64ad3298e35d1a6cc9cb24e43688b30eb1da31))
+
+### Bug Fixes
+
+* **comment pr:** update max character count ([f2fdeae](https://github.com/huntridge-labs/hardening-workflows/commit/f2fdeaecc4b58b70e099f7d4ff7b7ed626321dee))
+* **container-scan:** prevent early exit on Grype severity threshold ([0ab3713](https://github.com/huntridge-labs/hardening-workflows/commit/0ab3713c277393d0c03030b547023351fe2a1afc))
+* **grype:** use output-file parameter instead of action outputs ([5729d2a](https://github.com/huntridge-labs/hardening-workflows/commit/5729d2aebf14ad1328251758060c70279e8b7901))
+
+### Maintenance
+
+* **checkov:** remove detailed check summaries for grouped by rule and passed checks ([cbe9749](https://github.com/huntridge-labs/hardening-workflows/commit/cbe9749f94680fc77a7803ee92beba204ca386c8))
+* **infrastructure-scan:** default trivy findings details section to be closed ([ad4575f](https://github.com/huntridge-labs/hardening-workflows/commit/ad4575fa21c41c3883cd1747d08f362f53749241))
+* **scanner-trivy-iac:** add vuln links ([397f66e](https://github.com/huntridge-labs/hardening-workflows/commit/397f66effc4dfc994f636469eb175514d5413731))
+* **test-docker:** bump express ([#79](https://github.com/huntridge-labs/hardening-workflows/issues/79)) ([e7d8af8](https://github.com/huntridge-labs/hardening-workflows/commit/e7d8af8e504e69cf04cdfeb4534388e1bea40a35))
+
+
+### Code Refactoring
+
+* **scanners:** limit vulnerability table output to 50 rows ([6d0a31e](https://github.com/huntridge-labs/hardening-workflows/commit/6d0a31ef0ab98a13156a4f687b755e19f050aa51))
+
 ## [2.7.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.6.0...2.7.0) (2025-12-07)
 
 ### Features

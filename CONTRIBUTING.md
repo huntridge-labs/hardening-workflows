@@ -23,7 +23,7 @@ The security hardening pipeline uses a modular architecture:
 ├── reusable-security-hardening.yml   # Main orchestration workflow
 ├── scanner-{name}.yml                # Individual scanner workflows
 ├── container-scan.yml                # Container security scanning
-├── infrastructure.yml                # Infrastructure as Code scanning
+├── infrastructure-scan.yml                # Infrastructure as Code scanning
 └── linting.yml                       # Code quality & linting
 
 Key Components:
@@ -518,7 +518,7 @@ on: [push]
 
 jobs:
   scan:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.7.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.8.0
     with:
       scanners: example
 ```
@@ -530,7 +530,7 @@ Add to `examples/scanner-list-examples.yml`:
 ```yaml
   example-focus:
     name: Example Scanner Focus
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.7.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.8.0
     with:
       scanners: 'example'
       post_pr_comment: true

@@ -163,7 +163,7 @@ jobs:
 
     - name: Upload Trivy artifacts
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: trivy-container-${{ steps.validate.outputs.scan_name }}-results
         path: |
@@ -217,7 +217,7 @@ jobs:
 
     - name: Upload scanner summary section
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: scanner-summary-trivy-container-${{ steps.validate.outputs.scan_name }}
         path: scanner-summaries/trivy-container-${{ steps.validate.outputs.scan_name }}.md
