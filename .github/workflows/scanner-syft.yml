@@ -1,6 +1,28 @@
 name: Generate SBOM
 
 on:
+  workflow_dispatch:
+    inputs:
+      scan-path:
+        description: 'Directory or file path to scan'
+        required: false
+        type: string
+        default: '.'
+      scan-image:
+        description: 'Container image to scan (e.g., nginx:latest, ghcr.io/owner/image:tag)'
+        required: false
+        type: string
+        default: ''
+      registry_username:
+        description: 'Username for registry authentication (leave empty for public images)'
+        required: false
+        type: string
+        default: ''
+      registry_password:
+        description: 'Password/token for registry authentication (use secrets)'
+        required: false
+        type: string
+        default: ''
   workflow_call:
     inputs:
       enable_code_security:
@@ -14,9 +36,18 @@ on:
         type: string
         default: '.'
       scan-image:
-        description: 'Container image to scan'
+        description: 'Container image to scan (e.g., nginx:latest, ghcr.io/owner/image:tag)'
         required: false
         type: string
+      registry_username:
+        description: 'Username for registry authentication (leave empty for public images)'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      registry_password:
+        description: 'Password/token for registry authentication'
+        required: false
 
 permissions:
   contents: read
@@ -67,6 +98,8 @@ jobs:
           image: ${{ steps.target.outputs.target }}
           format: cyclonedx-json
           output-file: ${{ steps.target.outputs.output_file }}
+          registry-username: ${{ inputs.registry_username }}
+          registry-password: ${{ secrets.registry_password || inputs.registry_password }}
 
       - name: Generate human-readable SBOM (table)
         run: |

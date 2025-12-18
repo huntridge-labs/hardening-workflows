@@ -186,26 +186,51 @@ jobs:
 
 ### Container scanning
 
+All container scanners support both public and private registries (Docker Hub, GHCR, AWS ECR, GCR, etc.).
+
 ```yaml
 jobs:
-  trivy-container:
+  # Public image - no authentication needed
+  trivy-public:
     uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@2.8.1
     with:
-      image_ref: 'myapp:latest'
-      enable_code_security: true
-      fail_on_severity: critical  # Only fail on critical vulnerabilities
+      image_ref: 'nginx:alpine'
+      fail_on_severity: high
 
-  grype:
+  # GitHub Container Registry (GHCR) with authentication
+  grype-ghcr:
     uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@2.8.1
     with:
-      image_ref: 'myapp:latest'
-      fail_on_severity: high  # Fail on high or critical
+      image_ref: 'ghcr.io/myorg/myapp:latest'
+      registry_username: ${{ github.actor }}
+      fail_on_severity: high
+    secrets:
+      registry_password: ${{ secrets.GITHUB_TOKEN }}
 
+  # AWS ECR with authentication
+  trivy-ecr:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@2.8.1
+    with:
+      image_ref: '123456789.dkr.ecr.us-east-1.amazonaws.com/myapp:latest'
+      registry_username: 'AWS'
+    secrets:
+      registry_password: ${{ secrets.ECR_PASSWORD }}
+
+  # Docker Hub with authentication
+  grype-dockerhub:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@2.8.1
+    with:
+      image_ref: 'docker.io/myorg/myapp:latest'
+      registry_username: ${{ secrets.DOCKERHUB_USERNAME }}
+    secrets:
+      registry_password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  # SBOM generation - supports paths and images
   sbom:
     uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@2.8.1
     with:
-      scan-path: 'some/dirOrFile/path'
-      scan-image: 'myapp:latest'
+      scan-image: 'myapp:latest'  # Can scan local or remote images
+      # OR scan-path: 'src/'      # Can also scan directories/files
 ```
 
 ### SAST scanning

@@ -4,9 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       image_ref:
-        description: 'Container image reference to scan (e.g., nginx:latest or locally built image)'
+        description: 'Container image reference to scan (e.g., nginx:latest, ghcr.io/owner/image:tag, or 123456.dkr.ecr.region.amazonaws.com/image:tag)'
         required: true
         type: string
+      registry_username:
+        description: 'Username for registry authentication (leave empty for public images)'
+        required: false
+        type: string
+        default: ''
+      registry_password:
+        description: 'Password/token for registry authentication (use secrets)'
+        required: false
+        type: string
+        default: ''
       enable_code_security:
         description: 'Whether to upload SARIF to GitHub Security'
         required: false
@@ -20,7 +30,7 @@ on:
   workflow_call:
     inputs:
       image_ref:
-        description: 'Container image reference to scan'
+        description: 'Container image reference to scan (e.g., nginx:latest, ghcr.io/owner/image:tag)'
         required: true
         type: string
       scan_name:
@@ -28,6 +38,11 @@ on:
         required: false
         type: string
         default: 'container'
+      registry_username:
+        description: 'Username for registry authentication (leave empty for public images)'
+        required: false
+        type: string
+        default: ''
       enable_code_security:
         description: 'Whether to upload SARIF to GitHub Security'
         required: false
@@ -43,6 +58,10 @@ on:
         required: false
         type: string
         default: 'none'
+    secrets:
+      registry_password:
+        description: 'Password/token for registry authentication'
+        required: false
 
 permissions:
   contents: read
@@ -92,6 +111,8 @@ jobs:
         output-format: sarif
         output-file: grype-${{ steps.validate.outputs.scan_name }}-results.sarif
         severity-cutoff: ${{ inputs.fail_on_severity == 'none' && 'medium' || inputs.fail_on_severity }}
+        registry-username: ${{ inputs.registry_username }}
+        registry-password: ${{ secrets.registry_password || inputs.registry_password }}
 
     - name: Run Grype for JSON output
       uses: anchore/scan-action@v7
@@ -103,6 +124,8 @@ jobs:
         output-format: json
         output-file: grype-${{ steps.validate.outputs.scan_name }}-results.json
         severity-cutoff: ${{ inputs.fail_on_severity == 'none' && 'medium' || inputs.fail_on_severity }}
+        registry-username: ${{ inputs.registry_username }}
+        registry-password: ${{ secrets.registry_password || inputs.registry_password }}
 
     - name: Run Grype for table output
       uses: anchore/scan-action@v7
@@ -114,6 +137,8 @@ jobs:
         output-format: table
         output-file: grype-${{ steps.validate.outputs.scan_name }}-results.txt
         severity-cutoff: ${{ inputs.fail_on_severity == 'none' && 'medium' || inputs.fail_on_severity }}
+        registry-username: ${{ inputs.registry_username }}
+        registry-password: ${{ secrets.registry_password || inputs.registry_password }}
 
     - name: Upload Grype scan results to GitHub Security tab
       if: inputs.enable_code_security == true && github.actor != 'nektos/act'
