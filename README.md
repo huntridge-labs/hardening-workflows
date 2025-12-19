@@ -261,6 +261,216 @@ jobs:
 
 All individual scanners support `workflow_dispatch` for manual runs and `workflow_call` for reusable workflow integration.
 
+## Config-driven matrix container scanning
+<details>
+  <summary>Scan multiple containers across registries using a config file</summary>
+
+When you need to scan multiple containers across different registries, use the config-driven matrix workflow instead of calling individual scanner workflows multiple times.
+
+### When to use this workflow
+
+**Use the matrix workflow when:**
+- Scanning 3+ containers regularly
+- Managing containers across multiple registries (GHCR, ECR, Docker Hub, etc.)
+- You want centralized configuration for all container scans
+- Running the same scanners against multiple containers
+
+**Use individual scanner workflows when:**
+- Scanning 1-2 containers
+- Need different scanner combinations per container
+- One-off or ad-hoc scanning needs
+
+### Setup instructions
+
+This workflow is designed to be **copied to your repository** (not called remotely) so you can add custom registry secrets.
+
+**1. Copy the workflow template**
+
+Copy [.github/workflows/container-scan-from-config.yml](https://github.com/huntridge-labs/hardening-workflows/blob/main/.github/workflows/container-scan-from-config.yml) to your repository's `.github/workflows/` directory.
+
+**2. Add your registry secrets**
+
+Edit the copied workflow's `env:` block in the `parse-config` job to include your registry secrets:
+
+```yaml
+env:
+  CONFIG_FILE: ${{ inputs.config_file }}
+  SCHEMA_FILE: .hardening-workflows/.github/schemas/container-config.schema.json
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # Add your custom secrets here:
+  GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+  ECR_PASSWORD: ${{ secrets.ECR_PASSWORD }}
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+  MY_CUSTOM_SECRET: ${{ secrets.MY_CUSTOM_SECRET }}
+```
+
+**3. Create your container config file**
+
+Create a config file (YAML, JSON, or JavaScript) defining your containers. See [examples/container-config.example.yml](https://github.com/huntridge-labs/hardening-workflows/blob/main/examples/container-config.example.yml) for reference.
+
+### Config file format
+
+Config files support three formats: YAML, JSON, or JavaScript (CommonJS).
+
+**YAML example:**
+
+```yaml
+containers:
+  - name: my-api
+    image: ghcr.io/myorg/api:latest
+    registry_username: ${GHCR_USERNAME}
+    registry_password: ${GITHUB_TOKEN}
+    scanners:
+      - trivy
+      - grype
+      - syft
+    fail_on_severity: high
+    enable_code_security: true
+    post_pr_comment: true
+
+  - name: my-worker
+    image: 123456789.dkr.ecr.us-east-1.amazonaws.com/worker:latest
+    registry_username: AWS
+    registry_password: ${ECR_PASSWORD}
+    scanners:
+      - trivy
+    fail_on_severity: critical
+    enable_code_security: true
+    post_pr_comment: false
+```
+
+**JSON example:**
+
+```json
+{
+  "containers": [
+    {
+      "name": "nginx-public",
+      "image": "nginx:alpine",
+      "scanners": ["trivy", "grype"],
+      "fail_on_severity": "high",
+      "enable_code_security": true,
+      "post_pr_comment": true
+    }
+  ]
+}
+```
+
+**JavaScript example:**
+
+```javascript
+module.exports = {
+  containers: [
+    {
+      name: 'my-app',
+      image: 'myapp:latest',
+      registry_username: process.env.DOCKERHUB_USERNAME,
+      registry_password: process.env.DOCKERHUB_TOKEN,
+      scanners: ['trivy', 'syft'],
+      fail_on_severity: 'medium',
+      enable_code_security: true,
+      post_pr_comment: true
+    }
+  ]
+};
+```
+
+### Config file properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name` | string | Yes | Unique identifier (alphanumeric, dashes, underscores) |
+| `image` | string | Yes | Full container image reference (registry/repo:tag) |
+| `registry_username` | string | No | Username for authentication (use `${SECRET_NAME}` syntax) |
+| `registry_password` | string | No | Password/token for authentication (use `${SECRET_NAME}` syntax) |
+| `scanners` | array | Yes | List of scanners to run: `trivy`, `grype`, `syft` |
+| `fail_on_severity` | string | No | Fail threshold: `none`, `low`, `medium`, `high`, `critical` (default: `none`) |
+| `enable_code_security` | boolean | No | Upload SARIF to GitHub Security tab (default: `false`) |
+| `post_pr_comment` | boolean | No | Post results as PR comment (default: `false`) |
+
+### Environment variable expansion
+
+Use `${SECRET_NAME}` syntax in your config file to reference secrets. The workflow expands these at runtime:
+
+```yaml
+registry_username: ${GHCR_USERNAME}      # References GHCR_USERNAME from env block
+registry_password: ${GITHUB_TOKEN}       # References GITHUB_TOKEN from env block
+registry_password: ${MY_CUSTOM_SECRET}   # References MY_CUSTOM_SECRET from env block
+```
+
+**Important:** Every secret referenced in your config file **must** be defined in the workflow's `env:` block.
+
+### Schema validation
+
+Config files are validated against [.github/schemas/container-config.schema.json](https://github.com/huntridge-labs/hardening-workflows/blob/main/.github/schemas/container-config.schema.json) before execution. The workflow will fail early if:
+- Required fields are missing
+- Field values are invalid (wrong type, invalid enum values)
+- JSON/YAML syntax is malformed
+
+### Usage examples
+
+**Manual trigger:**
+
+```yaml
+# Trigger from GitHub UI or gh CLI
+gh workflow run container-scan-from-config.yml \
+  -f config_file=config/production-containers.yml
+```
+
+**Scheduled scanning:**
+
+```yaml
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2am
+  workflow_dispatch:
+    inputs:
+      config_file:
+        description: 'Container config file path'
+        default: 'config/containers.yml'
+```
+
+**Multiple config files:**
+
+Create separate workflows or use `workflow_dispatch` with different config files:
+
+```bash
+# Scan production containers
+gh workflow run container-scan-from-config.yml -f config_file=config/prod.yml
+
+# Scan development containers
+gh workflow run container-scan-from-config.yml -f config_file=config/dev.yml
+```
+
+### Matrix execution
+
+The workflow automatically generates a matrix combining each container with its specified scanners. For example, with 3 containers each using 2 scanners, you'll get 6 parallel scan jobs:
+
+```
+Container A × Trivy
+Container A × Grype
+Container B × Trivy
+Container B × Syft
+Container C × Grype
+Container C × Syft
+```
+
+Each combination runs independently, allowing parallel execution and granular results.
+
+### Updating the template
+
+The workflow template includes a version comment that tracks updates:
+
+```yaml
+# Template Version: 1.0.0 - Check for updates at:
+# https://github.com/huntridge-labs/hardening-workflows/blob/main/.github/workflows/container-scan-from-config.yml
+ref: '2.8.1'
+```
+
+Dependabot will automatically update the `ref` value. Check the template URL periodically for new features or improvements to the workflow structure itself.
+</details>
+
 ## More examples
 
 Check `QUICK-START.md` for curated recipes and browse the `examples/` directory for ready-to-copy snippets, from nightly runs to matrix fan-outs.
