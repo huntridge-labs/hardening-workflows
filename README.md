@@ -33,6 +33,7 @@ jobs:
       pull-requests: write
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }} # optional
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }} # required for organization repos
       # Required for private GitHub Enterprise Server installations:
       # HARDENING_WORKFLOWS_CHECKOUT_TOKEN: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN }}
 ```
@@ -113,6 +114,17 @@ When `allow_failure: false`:
 ### Permissions & secrets
 
 Minimum permissions shown in the example. Omit `AWS_ACCOUNT_ID` when you don't run AWS checks—the workflow will skip that portion automatically.
+
+#### GitLeaks Organization License
+
+If you're running GitLeaks scans in a GitHub organization, you'll need to provide a `GITLEAKS_LICENSE` secret. Obtain a license key from [gitleaks.io](https://gitleaks.io) and add it as an organization secret.
+
+```yaml
+secrets:
+  GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+```
+
+For personal repositories without an organization license, GitLeaks will still run but may show license warnings.
 
 #### GitHub Enterprise Server (GHE)
 
@@ -232,6 +244,8 @@ jobs:
     uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@2.8.1
     with:
       fail_on_severity: critical  # Any secret detection fails
+    secrets:
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Required for org repos
 ```
 
 All individual scanners support `workflow_dispatch` for manual runs and `workflow_call` for reusable workflow integration.

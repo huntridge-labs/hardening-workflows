@@ -31,6 +31,8 @@ jobs:
       pull-requests: write
       checks: write
       id-token: write
+    secrets:
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Required for org repos
 
   # Example 2: Full SAST scan with all static analysis tools
   full-sast:
@@ -48,6 +50,8 @@ jobs:
       pull-requests: write
       checks: write
       id-token: write
+    secrets:
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Required for org repos
 
   # Example 3: Python-focused security (Bandit only, no CodeQL or OpenGrep)
   python-only:
@@ -80,6 +84,8 @@ jobs:
       pull-requests: write
       checks: write
       id-token: write
+    secrets:
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Required for org repos
 
   # Example 5: Custom mix - CodeQL + Gitleaks only
   custom-mix:
@@ -95,6 +101,8 @@ jobs:
       pull-requests: write
       checks: write
       id-token: write
+    secrets:
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Required for org repos
 
   # Example 6: Using individual scanner workflows directly
   direct-codeql-call:

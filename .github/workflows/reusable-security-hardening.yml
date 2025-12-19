@@ -65,6 +65,9 @@ on:
       HARDENING_WORKFLOWS_CHECKOUT_TOKEN:
         description: 'Token for checking out hardening-workflows repo (required for private GHE servers)'
         required: false
+      GITLEAKS_LICENSE:
+        description: 'License key for GitLeaks scans within a Github Organization. Obtain from https://gitleaks.io'
+        required: false
 
 permissions:
   contents: read
@@ -308,7 +311,7 @@ jobs:
     name: Code Quality & Linting
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_lint == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@2.8.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@fix/gitleaks-org-secret
     permissions:
       contents: read
       actions: read
@@ -319,7 +322,7 @@ jobs:
     name: CodeQL Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_codeql == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@2.8.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@fix/gitleaks-org-secret
     with:
       codeql_languages: ${{ inputs.codeql_languages }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -335,7 +338,7 @@ jobs:
     name: OpenGrep Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_opengrep == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@2.8.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@fix/gitleaks-org-secret
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -351,7 +354,7 @@ jobs:
     name: Bandit Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_bandit == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@2.8.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@fix/gitleaks-org-secret
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -367,7 +370,7 @@ jobs:
     name: Gitleaks Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_gitleaks == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@2.8.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@fix/gitleaks-org-secret
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -377,13 +380,14 @@ jobs:
       security-events: write
       actions: read
       pull-requests: write
-    secrets: inherit
+    secrets:
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
 
   scanner-clamav:
     name: ClamAV Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_clamav == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-clamav.yml@2.8.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-clamav.yml@fix/gitleaks-org-secret
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -400,7 +404,7 @@ jobs:
     name: Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_container == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@2.8.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@fix/gitleaks-org-secret
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -416,7 +420,7 @@ jobs:
     name: Infrastructure Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_infrastructure == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/infrastructure-scan.yml@2.8.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/infrastructure-scan.yml@fix/gitleaks-org-secret
     with:
       iac_path: ${{ inputs.iac_path }}
       python_version: ${{ inputs.python_version }}
@@ -434,7 +438,7 @@ jobs:
     name: SBOM Generator
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_sbom == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@2.8.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@fix/gitleaks-org-secret
     with:
       enable_code_security: ${{ inputs.enable_code_security }}
     permissions:
@@ -448,7 +452,7 @@ jobs:
     name: Trivy IaC Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_trivy_iac == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@2.8.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@fix/gitleaks-org-secret
     with:
       iac_path: ${{ inputs.iac_path }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -465,7 +469,7 @@ jobs:
     name: Checkov Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_checkov == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@2.8.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@fix/gitleaks-org-secret
     with:
       iac_path: ${{ inputs.iac_path }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -482,7 +486,7 @@ jobs:
     name: Trivy Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_trivy_container == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@2.8.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@fix/gitleaks-org-secret
     with:
       image_ref: 'nginx:latest'
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -499,7 +503,7 @@ jobs:
     name: Grype Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_grype == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@2.8.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@fix/gitleaks-org-secret
     with:
       image_ref: 'nginx:latest'
       post_pr_comment: ${{ inputs.post_pr_comment }}

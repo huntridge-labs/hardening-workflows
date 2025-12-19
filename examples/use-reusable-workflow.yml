@@ -54,6 +54,7 @@ jobs:
       severity_threshold: ${{ github.event.inputs.severity_threshold || 'high' }}
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Required for org repos
     permissions:
       contents: read
       security-events: write

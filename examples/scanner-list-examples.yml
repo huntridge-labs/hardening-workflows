@@ -40,7 +40,8 @@ jobs:
       pull-requests: write
       checks: write
       id-token: write
-    secrets: inherit
+    secrets:
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Required for org repos
 
   # Example 2: Python-focused security
   python-security:
@@ -61,7 +62,8 @@ jobs:
       pull-requests: write
       checks: write
       id-token: write
-    secrets: inherit
+    secrets:
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Required for org repos
 
   # Example 3: Infrastructure as Code focus
   infrastructure-focus:
