@@ -32,18 +32,11 @@
           },
           "registry_username": {
             "type": "string",
-            "description": "Username for registry authentication (can be literal value or reference to secrets)",
-            "default": ""
+            "description": "Registry username - supports literal values or ${VAR_NAME} syntax for environment variable expansion (e.g., 'AWS', '_json_key', '${GHCR_USERNAME}')"
           },
-          "registry_username_secret": {
+          "registry_password": {
             "type": "string",
-            "description": "Name of the GitHub secret containing registry username",
-            "pattern": "^[A-Z0-9_]+$"
-          },
-          "registry_password_secret": {
-            "type": "string",
-            "description": "Name of the GitHub secret containing registry password/token (required for private registries)",
-            "pattern": "^[A-Z0-9_]+$"
+            "description": "Registry password/token - use ${SECRET_NAME} syntax for secrets (e.g., '${GITHUB_TOKEN}', '${DOCKERHUB_TOKEN}')"
           },
           "scanners": {
             "type": "array",
@@ -85,35 +78,7 @@
             "description": "Whether to post PR comments for this scan",
             "default": false
           }
-        },
-        "oneOf": [
-          {
-            "required": [
-              "registry_username"
-            ]
-          },
-          {
-            "required": [
-              "registry_username_secret"
-            ]
-          },
-          {
-            "not": {
-              "anyOf": [
-                {
-                  "required": [
-                    "registry_username"
-                  ]
-                },
-                {
-                  "required": [
-                    "registry_username_secret"
-                  ]
-                }
-              ]
-            }
-          }
-        ]
+        }
       }
     }
   }

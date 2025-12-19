@@ -16,6 +16,35 @@ const CONFIG_FILE = process.env.CONFIG_FILE || 'examples/container-config.exampl
 const SCHEMA_FILE = '.github/schemas/container-config.schema.json'; // Fixed schema path
 
 /**
+ * Expand environment variables in a string
+ * Supports ${VAR_NAME} syntax
+ */
+function expandEnvVars(str) {
+  if (typeof str !== 'string') return str;
+  return str.replace(/\$\{([^}]+)\}/g, (match, varName) => {
+    return process.env[varName] || match;
+  });
+}
+
+/**
+ * Recursively expand environment variables in an object
+ */
+function expandEnvVarsInObject(obj) {
+  if (typeof obj === 'string') {
+    return expandEnvVars(obj);
+  } else if (Array.isArray(obj)) {
+    return obj.map(item => expandEnvVarsInObject(item));
+  } else if (obj !== null && typeof obj === 'object') {
+    const result = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = expandEnvVarsInObject(value);
+    }
+    return result;
+  }
+  return obj;
+}
+
+/**
  * Load config file based on extension
  */
 function loadConfig(filePath) {
@@ -74,19 +103,10 @@ function generateMatrix(config) {
         image: container.image,
         fail_on_severity: container.fail_on_severity || 'high',
         enable_code_security: container.enable_code_security !== false,
-        post_pr_comment: container.post_pr_comment === true
+        post_pr_comment: container.post_pr_comment === true,
+        registry_username: container.registry_username || '',
+        registry_password: container.registry_password || ''
       };
-
-      // Add registry authentication if specified
-      if (container.registry_username) {
-        entry.registry_username = container.registry_username;
-      }
-      if (container.registry_username_secret) {
-        entry.registry_username_secret = container.registry_username_secret;
-      }
-      if (container.registry_password_secret) {
-        entry.registry_password_secret = container.registry_password_secret;
-      }
 
       matrix.include.push(entry);
     });
@@ -101,7 +121,11 @@ function generateMatrix(config) {
 function main() {
   try {
     console.log(`Loading config from: ${CONFIG_FILE}`);
-    const config = loadConfig(CONFIG_FILE);
+    let config = loadConfig(CONFIG_FILE);
+
+    console.log('Expanding environment variables...');
+    config = expandEnvVarsInObject(config);
+    console.log('✓ Environment variables expanded');
 
     console.log(`Loading schema from: ${SCHEMA_FILE}`);
     const schema = JSON.parse(fs.readFileSync(SCHEMA_FILE, 'utf8'));

@@ -1,4 +1,14 @@
-name: Matrix Container Scan
+name: Container Scan from Config
+
+# This workflow is designed to be COPIED to your repository, not called remotely.
+# Why? To add custom secrets to the env block, you need to edit this file.
+#
+# Setup Instructions:
+# 1. Copy this workflow to .github/workflows/ in your repository
+# 2. Add your custom secrets to the env block in the parse-config job
+#    Example: MY_CUSTOM_SECRET: ${{ secrets.MY_CUSTOM_SECRET }}
+# 3. Create your container config file (YAML/JSON/JS) using examples/ as reference
+# 4. Config files use ${SECRET_NAME} syntax to reference secrets
 
 on:
   workflow_dispatch:
@@ -16,21 +26,8 @@ on:
         default: 'examples/container-config.example.yml'
         type: string
     secrets:
-      GHCR_USERNAME:
-        required: false
-      GITHUB_TOKEN:
-        required: false
-      ECR_PASSWORD:
-        required: false
-      DOCKERHUB_USERNAME:
-        required: false
-      DOCKERHUB_TOKEN:
-        required: false
-      GCR_JSON_KEY:
-        required: false
-      ACR_USERNAME:
-        required: false
-      ACR_PASSWORD:
+      HARDENING_WORKFLOWS_CHECKOUT_TOKEN:
+        description: 'Token for checking out hardening-workflows repo (required for private GHE)'
         required: false
 
 permissions:
@@ -49,6 +46,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Checkout hardening-workflows for parser script
+        uses: actions/checkout@v4
+        with:
+          repository: huntridge-labs/hardening-workflows
+          # Template Version: 1.0.0 - Check for updates at:
+          # https://github.com/huntridge-labs/hardening-workflows/blob/main/.github/workflows/container-scan-from-config.yml
+          ref: '2.8.1'
+          path: .hardening-workflows
+          token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
+          sparse-checkout: |
+            .github/scripts/parse-container-config.js
+            .github/schemas/container-config.schema.json
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -62,11 +72,26 @@ jobs:
         id: parse
         env:
           CONFIG_FILE: ${{ inputs.config_file }}
+          SCHEMA_FILE: .hardening-workflows/.github/schemas/container-config.schema.json
+          # ADD YOUR CUSTOM SECRETS HERE
+          # Any secret referenced in your config file using ${SECRET_NAME} syntax
+          # must be listed here as: SECRET_NAME: ${{ secrets.SECRET_NAME }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Example registry secrets (uncomment and add as needed):
+          # GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          # ECR_PASSWORD: ${{ secrets.ECR_PASSWORD }}
+          # DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          # DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          # GCR_JSON_KEY: ${{ secrets.GCR_JSON_KEY }}
+          # ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          # ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+          # MY_REGISTRY_USER: ${{ secrets.MY_REGISTRY_USER }}
+          # MY_REGISTRY_PASS: ${{ secrets.MY_REGISTRY_PASS }}
         run: |
-          node .github/scripts/parse-container-config.js
+          node .hardening-workflows/.github/scripts/parse-container-config.js
 
-  scan-trivy:
-    name: Trivy - ${{ matrix.name }}
+  scan-containers:
+    name: ${{ matrix.scanner }} - ${{ matrix.name }}
     needs: parse-config
     if: ${{ needs.parse-config.outputs.matrix != '{}' }}
     runs-on: ubuntu-latest
@@ -74,143 +99,62 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.parse-config.outputs.matrix) }}
     steps:
-      - name: Filter for Trivy scanner
-        if: matrix.scanner == 'trivy'
-        run: echo "Running Trivy scan for ${{ matrix.name }}"
-
       - name: Checkout repository
-        if: matrix.scanner == 'trivy'
         uses: actions/checkout@v4
 
-      - name: Get registry username
+      - name: Run Trivy Container Scanner
         if: matrix.scanner == 'trivy'
-        id: registry-username
-        run: |
-          if [ -n "${{ matrix.registry_username }}" ]; then
-            echo "username=${{ matrix.registry_username }}" >> $GITHUB_OUTPUT
-          elif [ -n "${{ matrix.registry_username_secret }}" ]; then
-            echo "username=${{ secrets[matrix.registry_username_secret] }}" >> $GITHUB_OUTPUT
-          else
-            echo "username=" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Get registry password
-        if: matrix.scanner == 'trivy'
-        id: registry-password
-        run: |
-          if [ -n "${{ matrix.registry_password_secret }}" ]; then
-            echo "password=${{ secrets[matrix.registry_password_secret] }}" >> $GITHUB_OUTPUT
-          else
-            echo "password=" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Call Trivy Scanner Workflow
-        if: matrix.scanner == 'trivy'
-        uses: ./.github/workflows/scanner-trivy-container.yml
+        uses: aquasecurity/trivy-action@0.28.0
         with:
-          image: ${{ matrix.image }}
-          fail-on-severity: ${{ matrix.fail_on_severity }}
-          enable-code-security: ${{ matrix.enable_code_security }}
-          post-pr-comment: ${{ matrix.post_pr_comment }}
+          scan-type: 'image'
+          image-ref: ${{ matrix.image }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
         env:
-          TRIVY_USERNAME: ${{ steps.registry-username.outputs.username }}
-          TRIVY_PASSWORD: ${{ steps.registry-password.outputs.password }}
+          TRIVY_USERNAME: ${{ matrix.registry_username }}
+          TRIVY_PASSWORD: ${{ matrix.registry_password }}
 
-  scan-grype:
-    name: Grype - ${{ matrix.name }}
-    needs: parse-config
-    if: ${{ needs.parse-config.outputs.matrix != '{}' }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.parse-config.outputs.matrix) }}
-    steps:
-      - name: Filter for Grype scanner
-        if: matrix.scanner == 'grype'
-        run: echo "Running Grype scan for ${{ matrix.name }}"
+      - name: Upload Trivy SARIF
+        if: matrix.scanner == 'trivy' && matrix.enable_code_security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: trivy-container-${{ matrix.name }}
 
-      - name: Checkout repository
+      - name: Run Grype Scanner
         if: matrix.scanner == 'grype'
-        uses: actions/checkout@v4
-
-      - name: Get registry username
-        if: matrix.scanner == 'grype'
-        id: registry-username
-        run: |
-          if [ -n "${{ matrix.registry_username }}" ]; then
-            echo "username=${{ matrix.registry_username }}" >> $GITHUB_OUTPUT
-          elif [ -n "${{ matrix.registry_username_secret }}" ]; then
-            echo "username=${{ secrets[matrix.registry_username_secret] }}" >> $GITHUB_OUTPUT
-          else
-            echo "username=" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Get registry password
-        if: matrix.scanner == 'grype'
-        id: registry-password
-        run: |
-          if [ -n "${{ matrix.registry_password_secret }}" ]; then
-            echo "password=${{ secrets[matrix.registry_password_secret] }}" >> $GITHUB_OUTPUT
-          else
-            echo "password=" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Call Grype Scanner Workflow
-        if: matrix.scanner == 'grype'
-        uses: ./.github/workflows/scanner-grype.yml
+        id: grype
+        uses: anchore/scan-action@v5
         with:
           image: ${{ matrix.image }}
-          registry-username: ${{ steps.registry-username.outputs.username }}
-          registry-password: ${{ steps.registry-password.outputs.password }}
-          fail-on-severity: ${{ matrix.fail_on_severity }}
-          enable-code-security: ${{ matrix.enable_code_security }}
-          post-pr-comment: ${{ matrix.post_pr_comment }}
+          fail-build: false
+          output-format: 'sarif'
+        env:
+          GRYPE_REGISTRY_AUTH_USERNAME: ${{ matrix.registry_username }}
+          GRYPE_REGISTRY_AUTH_PASSWORD: ${{ matrix.registry_password }}
 
-  scan-syft:
-    name: Syft - ${{ matrix.name }}
-    needs: parse-config
-    if: ${{ needs.parse-config.outputs.matrix != '{}' }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.parse-config.outputs.matrix) }}
-    steps:
-      - name: Filter for Syft scanner
-        if: matrix.scanner == 'syft'
-        run: echo "Running Syft scan for ${{ matrix.name }}"
+      - name: Upload Grype SARIF
+        if: matrix.scanner == 'grype' && matrix.enable_code_security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.grype.outputs.sarif }}
+          category: grype-container-${{ matrix.name }}
 
-      - name: Checkout repository
+      - name: Run Syft SBOM Generator
         if: matrix.scanner == 'syft'
-        uses: actions/checkout@v4
-
-      - name: Get registry username
-        if: matrix.scanner == 'syft'
-        id: registry-username
-        run: |
-          if [ -n "${{ matrix.registry_username }}" ]; then
-            echo "username=${{ matrix.registry_username }}" >> $GITHUB_OUTPUT
-          elif [ -n "${{ matrix.registry_username_secret }}" ]; then
-            echo "username=${{ secrets[matrix.registry_username_secret] }}" >> $GITHUB_OUTPUT
-          else
-            echo "username=" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Get registry password
-        if: matrix.scanner == 'syft'
-        id: registry-password
-        run: |
-          if [ -n "${{ matrix.registry_password_secret }}" ]; then
-            echo "password=${{ secrets[matrix.registry_password_secret] }}" >> $GITHUB_OUTPUT
-          else
-            echo "password=" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Call Syft Scanner Workflow
-        if: matrix.scanner == 'syft'
-        uses: ./.github/workflows/scanner-syft.yml
+        uses: anchore/sbom-action@v0
         with:
           image: ${{ matrix.image }}
-          registry-username: ${{ steps.registry-username.outputs.username }}
-          registry-password: ${{ steps.registry-password.outputs.password }}
-          output-format: 'spdx-json'
-          post-pr-comment: ${{ matrix.post_pr_comment }}
+          format: 'spdx-json'
+          output-file: 'sbom-${{ matrix.name }}.spdx.json'
+        env:
+          SYFT_REGISTRY_AUTH_USERNAME: ${{ matrix.registry_username }}
+          SYFT_REGISTRY_AUTH_PASSWORD: ${{ matrix.registry_password }}
+
+      - name: Upload SBOM Artifact
+        if: matrix.scanner == 'syft'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.name }}
+          path: 'sbom-${{ matrix.name }}.spdx.json'
