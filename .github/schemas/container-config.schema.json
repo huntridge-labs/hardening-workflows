@@ -1,0 +1,120 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Container Registry Configuration",
+  "description": "Configuration schema for matrix container scanning across multiple registries",
+  "type": "object",
+  "required": [
+    "containers"
+  ],
+  "properties": {
+    "containers": {
+      "type": "array",
+      "description": "List of container images to scan",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "image"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Unique identifier for this container (used in scan artifacts)",
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "image": {
+            "type": "string",
+            "description": "Full container image reference (e.g., nginx:latest, ghcr.io/owner/image:tag, 123456.dkr.ecr.region.amazonaws.com/image:tag)",
+            "minLength": 1
+          },
+          "registry_username": {
+            "type": "string",
+            "description": "Username for registry authentication (can be literal value or reference to secrets)",
+            "default": ""
+          },
+          "registry_username_secret": {
+            "type": "string",
+            "description": "Name of the GitHub secret containing registry username",
+            "pattern": "^[A-Z0-9_]+$"
+          },
+          "registry_password_secret": {
+            "type": "string",
+            "description": "Name of the GitHub secret containing registry password/token (required for private registries)",
+            "pattern": "^[A-Z0-9_]+$"
+          },
+          "scanners": {
+            "type": "array",
+            "description": "List of scanners to run for this container",
+            "items": {
+              "type": "string",
+              "enum": [
+                "trivy",
+                "grype",
+                "syft"
+              ]
+            },
+            "uniqueItems": true,
+            "minItems": 1,
+            "default": [
+              "trivy",
+              "grype"
+            ]
+          },
+          "enable_code_security": {
+            "type": "boolean",
+            "description": "Whether to upload SARIF to GitHub Security tab",
+            "default": false
+          },
+          "fail_on_severity": {
+            "type": "string",
+            "description": "Fail the scan if vulnerabilities at or above this severity are found",
+            "enum": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ],
+            "default": "none"
+          },
+          "post_pr_comment": {
+            "type": "boolean",
+            "description": "Whether to post PR comments for this scan",
+            "default": false
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "registry_username"
+            ]
+          },
+          {
+            "required": [
+              "registry_username_secret"
+            ]
+          },
+          {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "registry_username"
+                  ]
+                },
+                {
+                  "required": [
+                    "registry_username_secret"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

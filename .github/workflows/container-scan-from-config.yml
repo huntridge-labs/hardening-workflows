@@ -1,0 +1,216 @@
+name: Matrix Container Scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      config_file:
+        description: 'Path to container config file (YAML, JSON, or JS)'
+        required: false
+        default: 'examples/container-config.example.yml'
+        type: string
+  workflow_call:
+    inputs:
+      config_file:
+        description: 'Path to container config file (YAML, JSON, or JS)'
+        required: false
+        default: 'examples/container-config.example.yml'
+        type: string
+    secrets:
+      GHCR_USERNAME:
+        required: false
+      GITHUB_TOKEN:
+        required: false
+      ECR_PASSWORD:
+        required: false
+      DOCKERHUB_USERNAME:
+        required: false
+      DOCKERHUB_TOKEN:
+        required: false
+      GCR_JSON_KEY:
+        required: false
+      ACR_USERNAME:
+        required: false
+      ACR_PASSWORD:
+        required: false
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+
+jobs:
+  parse-config:
+    name: Parse Container Config
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.parse.outputs.matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          npm install --no-save js-yaml ajv
+
+      - name: Parse and validate config
+        id: parse
+        env:
+          CONFIG_FILE: ${{ inputs.config_file }}
+        run: |
+          node .github/scripts/parse-container-config.js
+
+  scan-trivy:
+    name: Trivy - ${{ matrix.name }}
+    needs: parse-config
+    if: ${{ needs.parse-config.outputs.matrix != '{}' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.parse-config.outputs.matrix) }}
+    steps:
+      - name: Filter for Trivy scanner
+        if: matrix.scanner == 'trivy'
+        run: echo "Running Trivy scan for ${{ matrix.name }}"
+
+      - name: Checkout repository
+        if: matrix.scanner == 'trivy'
+        uses: actions/checkout@v4
+
+      - name: Get registry username
+        if: matrix.scanner == 'trivy'
+        id: registry-username
+        run: |
+          if [ -n "${{ matrix.registry_username }}" ]; then
+            echo "username=${{ matrix.registry_username }}" >> $GITHUB_OUTPUT
+          elif [ -n "${{ matrix.registry_username_secret }}" ]; then
+            echo "username=${{ secrets[matrix.registry_username_secret] }}" >> $GITHUB_OUTPUT
+          else
+            echo "username=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get registry password
+        if: matrix.scanner == 'trivy'
+        id: registry-password
+        run: |
+          if [ -n "${{ matrix.registry_password_secret }}" ]; then
+            echo "password=${{ secrets[matrix.registry_password_secret] }}" >> $GITHUB_OUTPUT
+          else
+            echo "password=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Call Trivy Scanner Workflow
+        if: matrix.scanner == 'trivy'
+        uses: ./.github/workflows/scanner-trivy-container.yml
+        with:
+          image: ${{ matrix.image }}
+          fail-on-severity: ${{ matrix.fail_on_severity }}
+          enable-code-security: ${{ matrix.enable_code_security }}
+          post-pr-comment: ${{ matrix.post_pr_comment }}
+        env:
+          TRIVY_USERNAME: ${{ steps.registry-username.outputs.username }}
+          TRIVY_PASSWORD: ${{ steps.registry-password.outputs.password }}
+
+  scan-grype:
+    name: Grype - ${{ matrix.name }}
+    needs: parse-config
+    if: ${{ needs.parse-config.outputs.matrix != '{}' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.parse-config.outputs.matrix) }}
+    steps:
+      - name: Filter for Grype scanner
+        if: matrix.scanner == 'grype'
+        run: echo "Running Grype scan for ${{ matrix.name }}"
+
+      - name: Checkout repository
+        if: matrix.scanner == 'grype'
+        uses: actions/checkout@v4
+
+      - name: Get registry username
+        if: matrix.scanner == 'grype'
+        id: registry-username
+        run: |
+          if [ -n "${{ matrix.registry_username }}" ]; then
+            echo "username=${{ matrix.registry_username }}" >> $GITHUB_OUTPUT
+          elif [ -n "${{ matrix.registry_username_secret }}" ]; then
+            echo "username=${{ secrets[matrix.registry_username_secret] }}" >> $GITHUB_OUTPUT
+          else
+            echo "username=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get registry password
+        if: matrix.scanner == 'grype'
+        id: registry-password
+        run: |
+          if [ -n "${{ matrix.registry_password_secret }}" ]; then
+            echo "password=${{ secrets[matrix.registry_password_secret] }}" >> $GITHUB_OUTPUT
+          else
+            echo "password=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Call Grype Scanner Workflow
+        if: matrix.scanner == 'grype'
+        uses: ./.github/workflows/scanner-grype.yml
+        with:
+          image: ${{ matrix.image }}
+          registry-username: ${{ steps.registry-username.outputs.username }}
+          registry-password: ${{ steps.registry-password.outputs.password }}
+          fail-on-severity: ${{ matrix.fail_on_severity }}
+          enable-code-security: ${{ matrix.enable_code_security }}
+          post-pr-comment: ${{ matrix.post_pr_comment }}
+
+  scan-syft:
+    name: Syft - ${{ matrix.name }}
+    needs: parse-config
+    if: ${{ needs.parse-config.outputs.matrix != '{}' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.parse-config.outputs.matrix) }}
+    steps:
+      - name: Filter for Syft scanner
+        if: matrix.scanner == 'syft'
+        run: echo "Running Syft scan for ${{ matrix.name }}"
+
+      - name: Checkout repository
+        if: matrix.scanner == 'syft'
+        uses: actions/checkout@v4
+
+      - name: Get registry username
+        if: matrix.scanner == 'syft'
+        id: registry-username
+        run: |
+          if [ -n "${{ matrix.registry_username }}" ]; then
+            echo "username=${{ matrix.registry_username }}" >> $GITHUB_OUTPUT
+          elif [ -n "${{ matrix.registry_username_secret }}" ]; then
+            echo "username=${{ secrets[matrix.registry_username_secret] }}" >> $GITHUB_OUTPUT
+          else
+            echo "username=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get registry password
+        if: matrix.scanner == 'syft'
+        id: registry-password
+        run: |
+          if [ -n "${{ matrix.registry_password_secret }}" ]; then
+            echo "password=${{ secrets[matrix.registry_password_secret] }}" >> $GITHUB_OUTPUT
+          else
+            echo "password=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Call Syft Scanner Workflow
+        if: matrix.scanner == 'syft'
+        uses: ./.github/workflows/scanner-syft.yml
+        with:
+          image: ${{ matrix.image }}
+          registry-username: ${{ steps.registry-username.outputs.username }}
+          registry-password: ${{ steps.registry-password.outputs.password }}
+          output-format: 'spdx-json'
+          post-pr-comment: ${{ matrix.post_pr_comment }}

@@ -1,0 +1,23 @@
+# Container Registry Configuration
+# This file defines containers to scan across multiple registries
+# Use real, publicly available images for testing
+
+containers:
+  # Public images - no authentication needed
+  - name: nginx-alpine
+    image: nginx:alpine
+    scanners: [trivy, grype, syft]
+    fail_on_severity: high
+
+  - name: ubuntu-latest
+    image: ubuntu:latest
+    scanners: [trivy, grype]
+    fail_on_severity: medium
+
+  # GitHub Container Registry (GHCR) - requires authentication
+  - name: ghcr-runner
+    image: ghcr.io/actions/actions-runner:latest
+    registry_username_secret: GHCR_USERNAME
+    registry_password_secret: GITHUB_TOKEN
+    scanners: [trivy]
+    fail_on_severity: high
