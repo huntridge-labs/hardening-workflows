@@ -58,6 +58,31 @@ on:
         required: false
         default: 'high'
         type: string
+      gitleaks_enable_comments:
+        description: 'Enable GitLeaks inline PR comments (requires GITLEAKS_LICENSE)'
+        required: false
+        default: true
+        type: boolean
+      gitleaks_notify_user_list:
+        description: 'Comma-separated list of GitHub usernames to notify on secret detection (e.g., "@user1,@user2")'
+        required: false
+        default: ''
+        type: string
+      gitleaks_enable_summary:
+        description: 'Enable GitLeaks job summary'
+        required: false
+        default: true
+        type: boolean
+      gitleaks_enable_upload_artifact:
+        description: 'Enable uploading SARIF artifact when secrets are detected'
+        required: false
+        default: true
+        type: boolean
+      gitleaks_config:
+        description: 'Path to a gitleaks configuration file (e.g., "path/to/gitleaks.toml")'
+        required: false
+        default: ''
+        type: string
     secrets:
       AWS_ACCOUNT_ID:
         description: 'AWS Account ID for infrastructure scans'
@@ -375,6 +400,11 @@ jobs:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
       fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
+      gitleaks_enable_comments: ${{ inputs.gitleaks_enable_comments }}
+      gitleaks_notify_user_list: ${{ inputs.gitleaks_notify_user_list }}
+      gitleaks_enable_summary: ${{ inputs.gitleaks_enable_summary }}
+      gitleaks_enable_upload_artifact: ${{ inputs.gitleaks_enable_upload_artifact }}
+      gitleaks_config: ${{ inputs.gitleaks_config }}
     permissions:
       contents: read
       security-events: write

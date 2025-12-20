@@ -19,6 +19,31 @@ on:
         required: false
         type: string
         default: 'none'
+      gitleaks_enable_comments:
+        description: 'Enable GitLeaks inline PR comments (requires GITLEAKS_LICENSE)'
+        required: false
+        type: boolean
+        default: true
+      gitleaks_notify_user_list:
+        description: 'Comma-separated list of GitHub usernames to notify on secret detection (e.g., "@user1,@user2")'
+        required: false
+        type: string
+        default: ''
+      gitleaks_enable_summary:
+        description: 'Enable GitLeaks job summary'
+        required: false
+        type: boolean
+        default: true
+      gitleaks_enable_upload_artifact:
+        description: 'Enable uploading SARIF artifact when secrets are detected'
+        required: false
+        type: boolean
+        default: true
+      gitleaks_config:
+        description: 'Path to a gitleaks configuration file (e.g., "path/to/gitleaks.toml")'
+        required: false
+        type: string
+        default: ''
     secrets:
       GITLEAKS_LICENSE:
         description: 'License key for GitLeaks scans within a Github Organization. Obtain from https://gitleaks.io'
@@ -48,6 +73,11 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+        GITLEAKS_ENABLE_COMMENTS: ${{ inputs.gitleaks_enable_comments }}
+        GITLEAKS_NOTIFY_USER_LIST: ${{ inputs.gitleaks_notify_user_list }}
+        GITLEAKS_ENABLE_SUMMARY: ${{ inputs.gitleaks_enable_summary }}
+        GITLEAKS_ENABLE_UPLOAD_ARTIFACT: ${{ inputs.gitleaks_enable_upload_artifact }}
+        GITLEAKS_CONFIG: ${{ inputs.gitleaks_config }}
       continue-on-error: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
 
     - name: Organize Gitleaks results
