@@ -50,7 +50,8 @@ jobs:
       pull-requests: write
       checks: write
       id-token: write
-    secrets: inherit
+    secrets:
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Required for org repos
 
   # ============================================================================
   # OPTION 2: COMBINED WITH enable_linting FLAG (Simpler)
@@ -77,4 +78,5 @@ jobs:
       pull-requests: write
       checks: write
       id-token: write
-    secrets: inherit
+    secrets:
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Required for org repos
