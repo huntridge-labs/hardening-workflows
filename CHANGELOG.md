@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.9.0](///compare/2.8.1...2.9.0) (2025-12-21)
+
+### Features
+
+* **gitleaks:** add organization license and configuration support b17e00a
+
+### Bug Fixes
+
+* **reusable-security-hardening:** reusable workflow not passing GITLEAKS_LICENSE from org secrets a60715b
+
+
+### Documentation
+
+* update reusable workflow example and README w/detailed scanner options and descriptions 5e65c1d
+
 ## [2.8.1](///compare/2.8.0...2.8.1) (2025-12-16)
 
 ### Security Tools
