@@ -140,6 +140,15 @@
             "flags": "g"
           },
           "replace": "repository: huntridge-labs/hardening-workflows\n        ref: {{version}}"
+        },
+        {
+          "files": [
+            ".github/schemas/container-config.schema.json"
+          ],
+          "search": {
+            "pattern": "(\"\\$id\": \"https://raw\\.githubusercontent\\.com/huntridge-labs/hardening-workflows/)([^/]+)(/.github/schemas/container-config\\.schema\\.json\")"
+          },
+          "replace": "$1{{version}}$3"
         }
       ]
     }
