@@ -4,26 +4,26 @@
 name: Security Pipeline
 
 on:  # yamllint disable-line rule:truthy
+  # Trigger on push to main branch
   push:
     branches: [ main ]
+
+  # Trigger on pull requests to main
   pull_request:
     branches: [ main ]
+
+  # Optional: Run weekly full scans on Mondays at 2 AM UTC
   schedule:
-    - cron: '0 2 * * 1'  # Run weekly on Mondays at 2 AM UTC
+    - cron: '0 2 * * 1'
+
+  # Allow manual workflow runs for on-demand full scans
   workflow_dispatch:
     inputs:
       scanners:
-        description: 'Comma-separated scanner tokens'
-        required: true
+        description: 'Comma-separated list of scanners to run (codeql, opengrep, bandit, gitleaks, container, infrastructure, trivy-iac, checkov, trivy-container, grype, lint, clamav, sbom, all, sast, secrets, etc.). Use "all" to run ALL available scanners.'
+        required: false
         default: 'all'
-        type: choice
-        options:
-          - all
-          - sast
-          - container
-          - infrastructure
-          - codeql
-          - secrets
+        type: string
       allow_failure:
         description: 'Allow workflow to continue on security findings'
         required: false
@@ -35,6 +35,7 @@ on:  # yamllint disable-line rule:truthy
         default: 'high'
         type: choice
         options:
+          - none
           - low
           - medium
           - high
