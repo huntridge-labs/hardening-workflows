@@ -18,26 +18,38 @@ const SCHEMA_FILE = process.env.SCHEMA_FILE || '.hardening-workflows/.github/sch
 /**
  * Expand environment variables in a string
  * Supports ${VAR_NAME} syntax
+ * @param {string} str - String to expand
+ * @param {boolean} preserveSecrets - If true, preserve secret references instead of expanding
  */
-function expandEnvVars(str) {
+function expandEnvVars(str, preserveSecrets = false) {
   if (typeof str !== 'string') return str;
   return str.replace(/\$\{([^}]+)\}/g, (match, varName) => {
+    // If preserveSecrets is true, return the variable name instead of the value
+    if (preserveSecrets) {
+      return varName;
+    }
     return process.env[varName] || match;
   });
 }
 
 /**
  * Recursively expand environment variables in an object
+ * @param {*} obj - Object to expand
+ * @param {string} currentKey - Current key being processed (for secret detection)
  */
-function expandEnvVarsInObject(obj) {
+function expandEnvVarsInObject(obj, currentKey = '') {
+  // Secret-related keys that should preserve variable names in matrix output
+  const secretKeys = ['registry_password', 'registry_token', 'password', 'token', 'secret', 'key'];
+  const isSecretField = secretKeys.some(k => currentKey.toLowerCase().includes(k));
+
   if (typeof obj === 'string') {
-    return expandEnvVars(obj);
+    return expandEnvVars(obj, isSecretField);
   } else if (Array.isArray(obj)) {
-    return obj.map(item => expandEnvVarsInObject(item));
+    return obj.map(item => expandEnvVarsInObject(item, currentKey));
   } else if (obj !== null && typeof obj === 'object') {
     const result = {};
     for (const [key, value] of Object.entries(obj)) {
-      result[key] = expandEnvVarsInObject(value);
+      result[key] = expandEnvVarsInObject(value, key);
     }
     return result;
   }
