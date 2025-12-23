@@ -13,7 +13,7 @@ const Ajv = require('ajv');
 
 // Configuration
 const CONFIG_FILE = process.env.CONFIG_FILE || 'examples/container-config.example.yml';
-const SCHEMA_FILE = '.github/schemas/container-config.schema.json'; // Fixed schema path
+const SCHEMA_FILE = process.env.SCHEMA_FILE || '.hardening-workflows/.github/schemas/container-config.schema.json'; // Fixed schema path
 
 /**
  * Expand environment variables in a string
