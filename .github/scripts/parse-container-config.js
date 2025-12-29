@@ -98,30 +98,37 @@ function validateConfig(config, schema) {
 
 /**
  * Generate matrix from validated config
+ * Creates one matrix entry per container (scanners as comma-separated string)
+ *
+ * NOTE: registry_password contains the SECRET NAME (e.g., "DOCKERHUB_TOKEN"),
+ * not the actual secret value. Since container-scan-from-config.yml is designed
+ * to be copied and customized, users can wire up per-registry secrets by:
+ * 1. Adding secrets to the env block in parse-config job
+ * 2. Referencing them in config: registry_password: ${DOCKERHUB_TOKEN}
+ * 3. Modifying their workflow copy to pass the appropriate secrets
  */
 function generateMatrix(config) {
   const matrix = {
     include: []
   };
 
-  // Generate matrix entries for each container and scanner combination
+  // Generate one matrix entry per container with scanners as comma-separated string
   config.containers.forEach(container => {
     const scanners = container.scanners || ['trivy']; // Default to trivy if not specified
 
-    scanners.forEach(scanner => {
-      const entry = {
-        name: container.name,
-        scanner: scanner,
-        image: container.image,
-        fail_on_severity: container.fail_on_severity || 'high',
-        enable_code_security: container.enable_code_security !== false,
-        post_pr_comment: container.post_pr_comment === true,
-        registry_username: container.registry_username || '',
-        registry_password: container.registry_password || ''
-      };
+    const entry = {
+      name: container.name,
+      scanners: scanners.join(','),  // Convert to comma-separated string for container-scan.yml
+      image: container.image,
+      fail_on_severity: container.fail_on_severity || 'high',
+      enable_code_security: container.enable_code_security !== false,
+      post_pr_comment: container.post_pr_comment === true,
+      registry_username: container.registry_username || '',
+      // Contains the SECRET NAME from config (e.g., "DOCKERHUB_TOKEN"), not the value
+      registry_password: container.registry_password || ''
+    };
 
-      matrix.include.push(entry);
-    });
+    matrix.include.push(entry);
   });
 
   return matrix;

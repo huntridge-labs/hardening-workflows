@@ -120,7 +120,8 @@
         },
         {
           "files": [
-            ".github/workflows/reusable-security-hardening.yml"
+            ".github/workflows/reusable-security-hardening.yml",
+            ".github/workflows/container-scan-from-config.yml"
           ],
           "search": {
             "pattern": "\\.yml@[^\\s]+",

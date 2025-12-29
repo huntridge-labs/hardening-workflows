@@ -1,0 +1,483 @@
+name: 'Container Security Scanners'
+description: 'Run security scanners (Trivy, Grype, Syft) on a container image'
+
+inputs:
+  image_ref:
+    description: 'Container image reference to scan (must be available locally or pullable)'
+    required: true
+  container_name:
+    description: 'Name identifier for the container (used for artifact naming)'
+    required: true
+  scanners:
+    description: 'Comma-separated list of scanners to run: trivy,grype,syft'
+    required: false
+    default: 'trivy,grype,syft'
+  fail_on_severity:
+    description: 'Fail if vulnerabilities at or above this severity are found: none, low, medium, high, critical'
+    required: false
+    default: 'none'
+  enable_code_security:
+    description: 'Upload results to GitHub Security tab'
+    required: false
+    default: 'false'
+  registry_username:
+    description: 'Username for container registry authentication (for scanners that re-pull)'
+    required: false
+    default: ''
+  registry_password:
+    description: 'Password for container registry authentication (for scanners that re-pull)'
+    required: false
+    default: ''
+  scan_mode:
+    description: 'Scan mode for summary display: discover or remote'
+    required: false
+    default: 'discover'
+  dockerfile:
+    description: 'Path to Dockerfile (for summary, only used in discover mode)'
+    required: false
+    default: ''
+  context:
+    description: 'Build context path (for summary, only used in discover mode)'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    # ========================================
+    # SBOM Generation (Syft)
+    # ========================================
+    - name: Generate SBOM (Syft)
+      if: contains(inputs.scanners, 'syft')
+      uses: anchore/sbom-action@v0.20.11
+      with:
+        image: ${{ inputs.image_ref }}
+        format: cyclonedx-json
+        output-file: container-scan-results-sbom-${{ inputs.container_name }}.json
+      env:
+        SYFT_REGISTRY_AUTH_USERNAME: ${{ inputs.registry_username }}
+        SYFT_REGISTRY_AUTH_PASSWORD: ${{ inputs.registry_password }}
+
+    - name: Upload SBOM Artifact
+      if: contains(inputs.scanners, 'syft')
+      uses: actions/upload-artifact@v6
+      with:
+        name: container-scan-results-sbom-${{ inputs.container_name }}
+        path: container-scan-results-sbom-${{ inputs.container_name }}.json
+
+    - name: Generate human-readable SBOM (table)
+      if: contains(inputs.scanners, 'syft')
+      shell: bash
+      run: |
+        syft "${{ inputs.image_ref }}" -o table > container-scan-results-sbom-${{ inputs.container_name }}.txt
+      env:
+        SYFT_REGISTRY_AUTH_USERNAME: ${{ inputs.registry_username }}
+        SYFT_REGISTRY_AUTH_PASSWORD: ${{ inputs.registry_password }}
+
+    - name: Upload human-readable SBOM Artifact
+      if: contains(inputs.scanners, 'syft')
+      uses: actions/upload-artifact@v6
+      with:
+        name: container-scan-results-sbom-table-${{ inputs.container_name }}
+        path: container-scan-results-sbom-${{ inputs.container_name }}.txt
+
+    # ========================================
+    # Trivy Vulnerability Scanner
+    # ========================================
+    - name: Run Trivy vulnerability scanner (SARIF)
+      if: contains(inputs.scanners, 'trivy')
+      uses: aquasecurity/trivy-action@0.33.1
+      continue-on-error: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
+      with:
+        image-ref: ${{ inputs.image_ref }}
+        format: 'sarif'
+        output: 'trivy-${{ inputs.container_name }}-results.sarif'
+        exit-code: ${{ inputs.fail_on_severity != 'none' && inputs.fail_on_severity != '' && '1' || '0' }}
+        severity: ${{ inputs.fail_on_severity == 'critical' && 'CRITICAL' || inputs.fail_on_severity == 'high' && 'HIGH,CRITICAL' || inputs.fail_on_severity == 'medium' && 'MEDIUM,HIGH,CRITICAL' || inputs.fail_on_severity == 'low' && 'LOW,MEDIUM,HIGH,CRITICAL' || 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL' }}
+      env:
+        TRIVY_USERNAME: ${{ inputs.registry_username }}
+        TRIVY_PASSWORD: ${{ inputs.registry_password }}
+
+    - name: Run Trivy vulnerability scanner (JSON)
+      if: contains(inputs.scanners, 'trivy')
+      uses: aquasecurity/trivy-action@0.33.1
+      continue-on-error: true
+      with:
+        image-ref: ${{ inputs.image_ref }}
+        format: 'json'
+        output: 'trivy-${{ inputs.container_name }}-results.json'
+      env:
+        TRIVY_USERNAME: ${{ inputs.registry_username }}
+        TRIVY_PASSWORD: ${{ inputs.registry_password }}
+
+    - name: Run Trivy vulnerability scanner (Table)
+      if: contains(inputs.scanners, 'trivy')
+      uses: aquasecurity/trivy-action@0.33.1
+      continue-on-error: true
+      with:
+        image-ref: ${{ inputs.image_ref }}
+        format: 'table'
+        output: 'trivy-${{ inputs.container_name }}-results.txt'
+      env:
+        TRIVY_USERNAME: ${{ inputs.registry_username }}
+        TRIVY_PASSWORD: ${{ inputs.registry_password }}
+
+    - name: Add vulnerability summary to job summary
+      if: contains(inputs.scanners, 'trivy')
+      shell: bash
+      run: |
+        CONTAINER_NAME="${{ inputs.container_name }}"
+        IMAGE_REF="${{ inputs.image_ref }}"
+        SCAN_MODE="${{ inputs.scan_mode }}"
+
+        echo "## 🐳 Container Security Scan - ${CONTAINER_NAME}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Image:** \`${IMAGE_REF}\`" >> $GITHUB_STEP_SUMMARY
+        if [ "$SCAN_MODE" == "remote" ]; then
+          echo "**Mode:** Remote Image Scan" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ -f "trivy-${CONTAINER_NAME}-results.json" ]; then
+          CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
+          HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
+          MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
+          LOW=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW")] | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
+          UNIQUE=$(jq '[.Results[]?.Vulnerabilities[]?.VulnerabilityID] | map(select(. != null)) | unique | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
+          TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
+
+          echo "### Vulnerability Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📊 Total | 🔢 Unique |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------|---------|-----------|---------|----------|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **$CRITICAL** | **$HIGH** | **$MEDIUM** | **$LOW** | **$TOTAL** | **$UNIQUE** |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Generate detailed vulnerability table by severity
+          if [ $TOTAL -gt 0 ]; then
+            echo "<details open>" >> $GITHUB_STEP_SUMMARY
+            echo "<summary>🔍 Vulnerability Details</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Show Critical vulnerabilities first
+            if [ $CRITICAL -gt 0 ]; then
+              echo "#### 🚨 Critical Vulnerabilities ($CRITICAL)" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "| CVE | Severity | Package | Installed Version | Fixed Version |" >> $GITHUB_STEP_SUMMARY
+              echo "|-----|----------|---------|-------------------|---------------|" >> $GITHUB_STEP_SUMMARY
+              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | "| \(.VulnerabilityID // "N/A") | 🚨 CRITICAL | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null | head -50 >> $GITHUB_STEP_SUMMARY || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
+              if [ $CRITICAL -gt 50 ]; then
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "_...and $((CRITICAL - 50)) more critical vulnerabilities_" >> $GITHUB_STEP_SUMMARY
+              fi
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            # Show High vulnerabilities
+            if [ $HIGH -gt 0 ]; then
+              echo "#### ⚠️ High Vulnerabilities ($HIGH)" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "| CVE | Severity | Package | Installed Version | Fixed Version |" >> $GITHUB_STEP_SUMMARY
+              echo "|-----|----------|---------|-------------------|---------------|" >> $GITHUB_STEP_SUMMARY
+              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | "| \(.VulnerabilityID // "N/A") | ⚠️ HIGH | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null | head -50 >> $GITHUB_STEP_SUMMARY || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
+              if [ $HIGH -gt 50 ]; then
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "_...and $((HIGH - 50)) more high vulnerabilities_" >> $GITHUB_STEP_SUMMARY
+              fi
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            # Show Medium vulnerabilities in collapsed section
+            if [ $MEDIUM -gt 0 ]; then
+              echo "<details>" >> $GITHUB_STEP_SUMMARY
+              echo "<summary>🟡 Medium Vulnerabilities ($MEDIUM)</summary>" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "| CVE | Severity | Package | Installed Version | Fixed Version |" >> $GITHUB_STEP_SUMMARY
+              echo "|-----|----------|---------|-------------------|---------------|" >> $GITHUB_STEP_SUMMARY
+              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM") | "| \(.VulnerabilityID // "N/A") | 🟡 MEDIUM | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null | head -50 >> $GITHUB_STEP_SUMMARY || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
+              if [ $MEDIUM -gt 50 ]; then
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "_...and $((MEDIUM - 50)) more medium vulnerabilities_" >> $GITHUB_STEP_SUMMARY
+              fi
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "</details>" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            # Show Low vulnerabilities in collapsed section
+            if [ $LOW -gt 0 ]; then
+              echo "<details>" >> $GITHUB_STEP_SUMMARY
+              echo "<summary>🔵 Low Vulnerabilities ($LOW)</summary>" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "| CVE | Severity | Package | Installed Version | Fixed Version |" >> $GITHUB_STEP_SUMMARY
+              echo "|-----|----------|---------|-------------------|---------------|" >> $GITHUB_STEP_SUMMARY
+              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW") | "| \(.VulnerabilityID // "N/A") | 🔵 LOW | \(.PkgName // "N/A") | \(.InstalledVersion // "N/A") | \(.FixedVersion // "Not Fixed") |"' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null | head -50 >> $GITHUB_STEP_SUMMARY || echo "| Error parsing | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
+              if [ $LOW -gt 50 ]; then
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "_...and $((LOW - 50)) more low vulnerabilities_" >> $GITHUB_STEP_SUMMARY
+              fi
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "</details>" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **No vulnerabilities detected!**" >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "⚠️ No vulnerability data available" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+      continue-on-error: true
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      if: inputs.enable_code_security == 'true' && contains(inputs.scanners, 'trivy') && github.actor != 'nektos/act'
+      uses: github/codeql-action/upload-sarif@v4
+      continue-on-error: true
+      with:
+        sarif_file: 'trivy-${{ inputs.container_name }}-results.sarif'
+
+    # ========================================
+    # Grype Vulnerability Scanner
+    # ========================================
+    - name: Run Grype vulnerability scanner (SARIF)
+      if: contains(inputs.scanners, 'grype')
+      uses: anchore/scan-action@v7
+      id: grype-scan
+      continue-on-error: true
+      with:
+        image: ${{ inputs.image_ref }}
+        fail-build: false
+        output-format: sarif
+        output-file: grype-${{ inputs.container_name }}-results.sarif
+        severity-cutoff: ${{ inputs.fail_on_severity == 'none' && 'medium' || inputs.fail_on_severity }}
+      env:
+        GRYPE_REGISTRY_AUTH_USERNAME: ${{ inputs.registry_username }}
+        GRYPE_REGISTRY_AUTH_PASSWORD: ${{ inputs.registry_password }}
+
+    - name: Run Grype vulnerability scanner (JSON)
+      if: contains(inputs.scanners, 'grype')
+      uses: anchore/scan-action@v7
+      id: grype-json
+      continue-on-error: true
+      with:
+        image: ${{ inputs.image_ref }}
+        fail-build: false
+        output-format: json
+        output-file: grype-${{ inputs.container_name }}-results.json
+        severity-cutoff: ${{ inputs.fail_on_severity == 'none' && 'medium' || inputs.fail_on_severity }}
+      env:
+        GRYPE_REGISTRY_AUTH_USERNAME: ${{ inputs.registry_username }}
+        GRYPE_REGISTRY_AUTH_PASSWORD: ${{ inputs.registry_password }}
+
+    - name: Run Grype vulnerability scanner (Table)
+      if: contains(inputs.scanners, 'grype')
+      uses: anchore/scan-action@v7
+      id: grype-table
+      continue-on-error: true
+      with:
+        image: ${{ inputs.image_ref }}
+        fail-build: false
+        output-format: table
+        output-file: grype-${{ inputs.container_name }}-results.txt
+        severity-cutoff: ${{ inputs.fail_on_severity == 'none' && 'medium' || inputs.fail_on_severity }}
+      env:
+        GRYPE_REGISTRY_AUTH_USERNAME: ${{ inputs.registry_username }}
+        GRYPE_REGISTRY_AUTH_PASSWORD: ${{ inputs.registry_password }}
+
+    - name: Upload Grype scan results to GitHub Security tab
+      if: inputs.enable_code_security == 'true' && contains(inputs.scanners, 'grype') && github.actor != 'nektos/act'
+      uses: github/codeql-action/upload-sarif@v4
+      continue-on-error: true
+      with:
+        sarif_file: grype-${{ inputs.container_name }}-results.sarif
+
+    # ========================================
+    # Severity Threshold Check
+    # ========================================
+    - name: Check severity threshold
+      if: inputs.fail_on_severity != 'none' && inputs.fail_on_severity != ''
+      shell: bash
+      run: |
+        FAIL_ON="${{ inputs.fail_on_severity }}"
+        CONTAINER_NAME="${{ inputs.container_name }}"
+
+        echo "🔍 Checking for vulnerabilities at or above severity: $FAIL_ON"
+
+        TRIVY_JSON="trivy-${CONTAINER_NAME}-results.json"
+        GRYPE_JSON="grype-${CONTAINER_NAME}-results.json"
+
+        # Extract CVE IDs from Trivy
+        if [ -f "$TRIVY_JSON" ]; then
+          jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | .VulnerabilityID' "$TRIVY_JSON" 2>/dev/null | sort -u > /tmp/trivy_critical.txt || true
+          jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | .VulnerabilityID' "$TRIVY_JSON" 2>/dev/null | sort -u > /tmp/trivy_high.txt || true
+          jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM") | .VulnerabilityID' "$TRIVY_JSON" 2>/dev/null | sort -u > /tmp/trivy_medium.txt || true
+          jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW") | .VulnerabilityID' "$TRIVY_JSON" 2>/dev/null | sort -u > /tmp/trivy_low.txt || true
+          echo "📊 Trivy found: $(wc -l < /tmp/trivy_critical.txt | tr -d ' ') critical, $(wc -l < /tmp/trivy_high.txt | tr -d ' ') high, $(wc -l < /tmp/trivy_medium.txt | tr -d ' ') medium, $(wc -l < /tmp/trivy_low.txt | tr -d ' ') low"
+        else
+          touch /tmp/trivy_critical.txt /tmp/trivy_high.txt /tmp/trivy_medium.txt /tmp/trivy_low.txt
+        fi
+
+        # Extract CVE IDs from Grype (note: Grype uses Title Case for severity)
+        if [ -f "$GRYPE_JSON" ]; then
+          jq -r '.matches[]? | select(.vulnerability.severity == "Critical") | .vulnerability.id' "$GRYPE_JSON" 2>/dev/null | sort -u > /tmp/grype_critical.txt || true
+          jq -r '.matches[]? | select(.vulnerability.severity == "High") | .vulnerability.id' "$GRYPE_JSON" 2>/dev/null | sort -u > /tmp/grype_high.txt || true
+          jq -r '.matches[]? | select(.vulnerability.severity == "Medium") | .vulnerability.id' "$GRYPE_JSON" 2>/dev/null | sort -u > /tmp/grype_medium.txt || true
+          jq -r '.matches[]? | select(.vulnerability.severity == "Low") | .vulnerability.id' "$GRYPE_JSON" 2>/dev/null | sort -u > /tmp/grype_low.txt || true
+          echo "📊 Grype found: $(wc -l < /tmp/grype_critical.txt | tr -d ' ') critical, $(wc -l < /tmp/grype_high.txt | tr -d ' ') high, $(wc -l < /tmp/grype_medium.txt | tr -d ' ') medium, $(wc -l < /tmp/grype_low.txt | tr -d ' ') low"
+        else
+          touch /tmp/grype_critical.txt /tmp/grype_high.txt /tmp/grype_medium.txt /tmp/grype_low.txt
+        fi
+
+        # Merge and deduplicate CVE IDs by severity
+        CRITICAL=$(cat /tmp/trivy_critical.txt /tmp/grype_critical.txt | sort -u | grep -c . || echo "0")
+        HIGH=$(cat /tmp/trivy_high.txt /tmp/grype_high.txt | sort -u | grep -c . || echo "0")
+        MEDIUM=$(cat /tmp/trivy_medium.txt /tmp/grype_medium.txt | sort -u | grep -c . || echo "0")
+        LOW=$(cat /tmp/trivy_low.txt /tmp/grype_low.txt | sort -u | grep -c . || echo "0")
+
+        echo "📊 Combined (deduplicated): Critical=$CRITICAL, High=$HIGH, Medium=$MEDIUM, Low=$LOW"
+
+        SHOULD_FAIL=false
+        case "$FAIL_ON" in
+          low)
+            if [ "$LOW" -gt 0 ] || [ "$MEDIUM" -gt 0 ] || [ "$HIGH" -gt 0 ] || [ "$CRITICAL" -gt 0 ]; then
+              SHOULD_FAIL=true
+            fi
+            ;;
+          medium)
+            if [ "$MEDIUM" -gt 0 ] || [ "$HIGH" -gt 0 ] || [ "$CRITICAL" -gt 0 ]; then
+              SHOULD_FAIL=true
+            fi
+            ;;
+          high)
+            if [ "$HIGH" -gt 0 ] || [ "$CRITICAL" -gt 0 ]; then
+              SHOULD_FAIL=true
+            fi
+            ;;
+          critical)
+            if [ "$CRITICAL" -gt 0 ]; then
+              SHOULD_FAIL=true
+            fi
+            ;;
+        esac
+
+        if [ "$SHOULD_FAIL" = "true" ]; then
+          echo "❌ Found vulnerabilities at or above $FAIL_ON severity level in $CONTAINER_NAME"
+          exit 1
+        else
+          echo "✅ No vulnerabilities at or above $FAIL_ON severity level in $CONTAINER_NAME"
+        fi
+
+    # ========================================
+    # Analysis and Summary
+    # ========================================
+    - name: Analyze scan results
+      if: always()
+      shell: bash
+      run: |
+        CONTAINER_NAME="${{ inputs.container_name }}"
+
+        echo "📊 Container Security Analysis for ${CONTAINER_NAME}"
+        echo "=========================================="
+
+        # Count vulnerabilities from Trivy JSON if available
+        if [ -f "trivy-${CONTAINER_NAME}-results.json" ]; then
+          CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
+          HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
+          MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
+          LOW=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW")] | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
+
+          echo "🔍 Vulnerability Summary:"
+          echo "  Critical: $CRITICAL"
+          echo "  High: $HIGH"
+          echo "  Medium: $MEDIUM"
+          echo "  Low: $LOW"
+
+          TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
+
+          if [ "$TOTAL" -gt 0 ]; then
+            echo "⚠️  Found $TOTAL total vulnerabilities"
+            if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+              echo "::warning title=High Severity Vulnerabilities::Found $CRITICAL critical and $HIGH high severity vulnerabilities in ${CONTAINER_NAME}"
+            fi
+          else
+            echo "✅ No vulnerabilities found"
+          fi
+        fi
+
+        # Display sample of results if available
+        if [ -f "trivy-${CONTAINER_NAME}-results.txt" ]; then
+          echo ""
+          echo "📋 Sample Trivy Results:"
+          head -20 "trivy-${CONTAINER_NAME}-results.txt" || echo "Could not display results"
+        fi
+
+    - name: Create container scan summary
+      if: always()
+      shell: bash
+      run: |
+        CONTAINER_NAME="${{ inputs.container_name }}"
+        IMAGE_REF="${{ inputs.image_ref }}"
+        SCAN_MODE="${{ inputs.scan_mode }}"
+        DOCKERFILE="${{ inputs.dockerfile }}"
+        CONTEXT="${{ inputs.context }}"
+
+        echo "# Container Scan Summary - ${CONTAINER_NAME}" > "container-summary-${CONTAINER_NAME}.md"
+        echo "" >> "container-summary-${CONTAINER_NAME}.md"
+
+        if [ "$SCAN_MODE" == "remote" ]; then
+          echo "**Image:** ${IMAGE_REF}" >> "container-summary-${CONTAINER_NAME}.md"
+          echo "**Mode:** Remote Image Scan" >> "container-summary-${CONTAINER_NAME}.md"
+        else
+          echo "**Image:** ${IMAGE_REF}" >> "container-summary-${CONTAINER_NAME}.md"
+          if [ -n "$DOCKERFILE" ]; then
+            echo "**Dockerfile:** ${DOCKERFILE}" >> "container-summary-${CONTAINER_NAME}.md"
+          fi
+          if [ -n "$CONTEXT" ]; then
+            echo "**Context:** ${CONTEXT}" >> "container-summary-${CONTAINER_NAME}.md"
+          fi
+        fi
+
+        echo "" >> "container-summary-${CONTAINER_NAME}.md"
+
+        if [ -f "trivy-${CONTAINER_NAME}-results.json" ]; then
+          CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
+          HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
+          MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
+          LOW=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW")] | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
+
+          echo "## Vulnerability Summary" >> "container-summary-${CONTAINER_NAME}.md"
+          echo "" >> "container-summary-${CONTAINER_NAME}.md"
+          echo "| Severity | Count |" >> "container-summary-${CONTAINER_NAME}.md"
+          echo "|----------|-------|" >> "container-summary-${CONTAINER_NAME}.md"
+          echo "| Critical | $CRITICAL |" >> "container-summary-${CONTAINER_NAME}.md"
+          echo "| High | $HIGH |" >> "container-summary-${CONTAINER_NAME}.md"
+          echo "| Medium | $MEDIUM |" >> "container-summary-${CONTAINER_NAME}.md"
+          echo "| Low | $LOW |" >> "container-summary-${CONTAINER_NAME}.md"
+          echo "" >> "container-summary-${CONTAINER_NAME}.md"
+
+          if [ -f "trivy-${CONTAINER_NAME}-results.txt" ]; then
+            echo "## Detailed Results" >> "container-summary-${CONTAINER_NAME}.md"
+            echo "\`\`\`" >> "container-summary-${CONTAINER_NAME}.md"
+            head -50 "trivy-${CONTAINER_NAME}-results.txt" >> "container-summary-${CONTAINER_NAME}.md"
+            echo "\`\`\`" >> "container-summary-${CONTAINER_NAME}.md"
+          fi
+        else
+          echo "## No Scan Results" >> "container-summary-${CONTAINER_NAME}.md"
+          echo "No security scan results available." >> "container-summary-${CONTAINER_NAME}.md"
+        fi
+
+        echo "" >> "container-summary-${CONTAINER_NAME}.md"
+        echo "**Scan completed:** $(date)" >> "container-summary-${CONTAINER_NAME}.md"
+
+    - name: Archive vulnerability scan results
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: container-scan-results-${{ inputs.container_name }}
+        path: |
+          trivy-${{ inputs.container_name }}-results.*
+          grype-${{ inputs.container_name }}-results.*
+          container-summary-${{ inputs.container_name }}.md
+        retention-days: 30
