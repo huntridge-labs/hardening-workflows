@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.9.1](https://github.com/huntridge-labs/hardening-workflows/compare/2.9.0...2.9.1) (2025-12-29)
+
+### Security Tools
+
+* **deps:** bump anchore/sbom-action from 0.20.11 to 0.21.0 ([68fc8b8](https://github.com/huntridge-labs/hardening-workflows/commit/68fc8b8f511ed928d9e5484dfcb22db726214ced))
+* **deps:** bump bridgecrewio/checkov-action ([625294b](https://github.com/huntridge-labs/hardening-workflows/commit/625294b33eeba2eef6b43a43b4dbdb9c6e4eab60))
+
+### Dependencies
+
+* **deps:** bump @release-it/conventional-changelog ([2915436](https://github.com/huntridge-labs/hardening-workflows/commit/2915436dacbc1b6ba49234637c7a1a5ee92b6ecd))
+* **deps:** bump release-it from 19.1.0 to 19.2.2 ([22a15dd](https://github.com/huntridge-labs/hardening-workflows/commit/22a15dde11cb78a94f82fd56547d6ec1258a3d96))
+
+
 ## [2.9.0](///compare/2.8.1...2.9.0) (2025-12-21)
 
 ### Features
