@@ -11,18 +11,6 @@ on:
       - '.github/schemas/container-config.schema.json'
       - 'examples/container-config.example.yml'
       - '.github/workflows/test-container-scan-from-config.yml'
-  push:
-    branches:
-      - main
-      - 'feat/**'
-    paths:
-      - '.github/workflows/container-scan-from-config.yml'
-      - '.github/workflows/container-scan.yml'
-      - '.github/actions/container-scanners/**'
-      - '.github/scripts/parse-container-config.js'
-      - '.github/schemas/container-config.schema.json'
-      - 'examples/container-config.example.yml'
-      - '.github/workflows/test-container-scan-from-config.yml'
 
 permissions:
   contents: read
@@ -56,6 +44,7 @@ jobs:
           CONFIG_FILE: 'examples/container-config.example.yml'
           SCHEMA_FILE: '.github/schemas/container-config.schema.json'
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TRIGGERING_ACTOR: ${{ github.actor }}
         run: |
           node .github/scripts/parse-container-config.js
 
@@ -88,10 +77,12 @@ jobs:
       container_name: ${{ matrix.name }}
       registry_username: ${{ matrix.registry_username }}
       scanners: ${{ matrix.scanners }}
-      fail_on_severity: ${{ matrix.fail_on_severity }}
+      allow_failure: ${{ matrix.allow_failure || false }}
+      fail_on_severity: ${{ matrix.fail_on_severity || 'none' }}
       enable_code_security: false
       post_pr_comment: false
-    secrets: inherit
+    secrets:
+      registry_password: ${{ secrets[matrix.registry_auth_secret] }}
 
   # Test 3: Validate results
   test-summary:

@@ -35,9 +35,21 @@
             "type": "string",
             "description": "Registry username - supports literal values or ${VAR_NAME} syntax for environment variable expansion (e.g., 'AWS', '_json_key', '${GHCR_USERNAME}')"
           },
-          "registry_password": {
-            "type": "string",
-            "description": "Registry password/token - use ${SECRET_NAME} syntax for secrets (e.g., '${GITHUB_TOKEN}', '${DOCKERHUB_TOKEN}')"
+          "registry": {
+            "type": "object",
+            "description": "Registry authentication configuration",
+            "properties": {
+              "auth_secret": {
+                "type": "string",
+                "description": "Name of the GitHub repository secret containing the registry password/token (e.g., 'GITHUB_TOKEN', 'DOCKERHUB_TOKEN', 'ECR_PASSWORD')",
+                "pattern": "^[A-Z0-9_]+$",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "auth_secret"
+            ],
+            "additionalProperties": false
           },
           "scanners": {
             "type": "array",
@@ -73,6 +85,11 @@
               "critical"
             ],
             "default": "none"
+          },
+          "allow_failure": {
+            "type": "boolean",
+            "description": "Allow the workflow to continue even if scanning or validation fails",
+            "default": false
           },
           "post_pr_comment": {
             "type": "boolean",

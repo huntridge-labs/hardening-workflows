@@ -40,6 +40,10 @@ inputs:
     description: 'Build context path (for summary, only used in discover mode)'
     required: false
     default: ''
+  allow_failure:
+    description: 'Allow the job to continue if the scan step fails (do not fail the job)'
+    required: false
+    default: 'false'
 
 runs:
   using: 'composite'
@@ -49,7 +53,7 @@ runs:
     # ========================================
     - name: Generate SBOM (Syft)
       if: contains(inputs.scanners, 'syft')
-      uses: anchore/sbom-action@v0.20.11
+      uses: anchore/sbom-action@v0.21.0
       with:
         image: ${{ inputs.image_ref }}
         format: cyclonedx-json
@@ -87,7 +91,7 @@ runs:
     - name: Run Trivy vulnerability scanner (SARIF)
       if: contains(inputs.scanners, 'trivy')
       uses: aquasecurity/trivy-action@0.33.1
-      continue-on-error: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
+      continue-on-error: ${{ inputs.allow_failure == 'true' || inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
       with:
         image-ref: ${{ inputs.image_ref }}
         format: 'sarif'
@@ -298,6 +302,7 @@ runs:
     # ========================================
     - name: Check severity threshold
       if: inputs.fail_on_severity != 'none' && inputs.fail_on_severity != ''
+      continue-on-error: ${{ inputs.allow_failure == 'true' }}
       shell: bash
       run: |
         FAIL_ON="${{ inputs.fail_on_severity }}"

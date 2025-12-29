@@ -7,12 +7,14 @@ module.exports = {
       name: "nginx-alpine",
       image: "nginx:alpine",
       scanners: ["trivy", "grype", "syft"],
+      allow_failure: false,
       fail_on_severity: "high",
     },
     {
       name: "ubuntu-latest",
       image: "ubuntu:latest",
       scanners: ["trivy", "grype"],
+      allow_failure: true,
       fail_on_severity: "medium",
     },
     {
@@ -21,7 +23,8 @@ module.exports = {
       registry_username_secret: "GHCR_USERNAME",
       registry_password_secret: "GITHUB_TOKEN",
       scanners: ["trivy"],
-      fail_on_severity: "high",
+      allow_failure: false,
+      fail_on_severity: "critical",
     }
   ],
 };

@@ -8,7 +8,8 @@
         "grype",
         "syft"
       ],
-      "fail_on_severity": "high"
+      "allow_failure": false,
+      "fail_on_severity": "critical"
     },
     {
       "name": "ubuntu-latest",
@@ -17,6 +18,7 @@
         "trivy",
         "grype"
       ],
+      "allow_failure": true,
       "fail_on_severity": "medium"
     },
     {
@@ -27,6 +29,7 @@
       "scanners": [
         "trivy"
       ],
+      "allow_failure": true,
       "fail_on_severity": "high"
     }
   ]

@@ -7,28 +7,35 @@ containers:
   - name: nginx-alpine
     image: nginx:alpine
     scanners: [trivy, grype, syft]
-    fail_on_severity: high
+    allow_failure: true
+    fail_on_severity: critical
+    enable_code_security: false
 
   - name: ubuntu-latest
     image: ubuntu:latest
     scanners: [trivy, grype]
+    allow_failure: true
     fail_on_severity: medium
 
   # Private registry examples (uncomment to use)
   # Use ${VAR_NAME} syntax to reference environment variables/secrets
 
   # GitHub Container Registry (GHCR)
-  # - name: ghcr-runner
-  #   image: ghcr.io/actions/actions-runner:latest
-  #   registry_username: ${GHCR_USERNAME}
-  #   registry_password: ${GITHUB_TOKEN}
-  #   scanners: [trivy]
-  #   fail_on_severity: high
+  - name: ghcr-runner
+    image: ghcr.io/actions/actions-runner:latest
+    registry_username: ${GITHUB_TRIGGERING_ACTOR}
+    registry:
+      auth_secret: GITHUB_TOKEN
+    scanners: [trivy]
+    allow_failure: false
+    fail_on_severity: none
+    enable_code_security: false
 
   # AWS ECR (username is always literal "AWS")
   # - name: my-ecr-app
   #   image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/myapp:latest
   #   registry_username: AWS
-  #   registry_password: ${ECR_PASSWORD}
+  #   registry:
+  #     auth_secret: ECR_PASSWORD
   #   scanners: [trivy, grype]
   #   fail_on_severity: critical

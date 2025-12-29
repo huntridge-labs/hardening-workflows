@@ -35,21 +35,16 @@ function expandEnvVars(str, preserveSecrets = false) {
 /**
  * Recursively expand environment variables in an object
  * @param {*} obj - Object to expand
- * @param {string} currentKey - Current key being processed (for secret detection)
  */
-function expandEnvVarsInObject(obj, currentKey = '') {
-  // Secret-related keys that should preserve variable names in matrix output
-  const secretKeys = ['registry_password', 'registry_token', 'password', 'token', 'secret', 'key'];
-  const isSecretField = secretKeys.some(k => currentKey.toLowerCase().includes(k));
-
+function expandEnvVarsInObject(obj) {
   if (typeof obj === 'string') {
-    return expandEnvVars(obj, isSecretField);
+    return expandEnvVars(obj, false);
   } else if (Array.isArray(obj)) {
-    return obj.map(item => expandEnvVarsInObject(item, currentKey));
+    return obj.map(item => expandEnvVarsInObject(item));
   } else if (obj !== null && typeof obj === 'object') {
     const result = {};
     for (const [key, value] of Object.entries(obj)) {
-      result[key] = expandEnvVarsInObject(value, key);
+      result[key] = expandEnvVarsInObject(value);
     }
     return result;
   }
@@ -93,6 +88,17 @@ function validateConfig(config, schema) {
     throw new Error(`Config validation failed:\n${errors}`);
   }
 
+  // Enforce container name uniqueness
+  if (config.containers && Array.isArray(config.containers)) {
+    const names = config.containers.map(c => c.name);
+    const duplicates = names.filter((name, index) => names.indexOf(name) !== index);
+
+    if (duplicates.length > 0) {
+      const uniqueDuplicates = [...new Set(duplicates)];
+      throw new Error(`Config validation failed:\n  - containers: Duplicate container names found: ${uniqueDuplicates.join(', ')}. Each container must have a unique name.`);
+    }
+  }
+
   return true;
 }
 
@@ -100,12 +106,9 @@ function validateConfig(config, schema) {
  * Generate matrix from validated config
  * Creates one matrix entry per container (scanners as comma-separated string)
  *
- * NOTE: registry_password contains the SECRET NAME (e.g., "DOCKERHUB_TOKEN"),
- * not the actual secret value. Since container-scan-from-config.yml is designed
- * to be copied and customized, users can wire up per-registry secrets by:
- * 1. Adding secrets to the env block in parse-config job
- * 2. Referencing them in config: registry_password: ${DOCKERHUB_TOKEN}
- * 3. Modifying their workflow copy to pass the appropriate secrets
+ * NOTE: registry.auth_secret contains the NAME of the GitHub repository secret
+ * that should be passed to the container-scan workflow. The workflow will use
+ * this to dynamically access secrets via: ${{ secrets[matrix.registry_auth_secret] }}
  */
 function generateMatrix(config) {
   const matrix = {
@@ -121,11 +124,12 @@ function generateMatrix(config) {
       scanners: scanners.join(','),  // Convert to comma-separated string for container-scan.yml
       image: container.image,
       fail_on_severity: container.fail_on_severity || 'high',
-      enable_code_security: container.enable_code_security !== false,
+      allow_failure: container.allow_failure !== undefined ? container.allow_failure : false,
+      enable_code_security: container.enable_code_security === true,
       post_pr_comment: container.post_pr_comment === true,
       registry_username: container.registry_username || '',
-      // Contains the SECRET NAME from config (e.g., "DOCKERHUB_TOKEN"), not the value
-      registry_password: container.registry_password || ''
+      // Extract the secret name from registry config (if present)
+      registry_auth_secret: container.registry?.auth_secret || ''
     };
 
     matrix.include.push(entry);

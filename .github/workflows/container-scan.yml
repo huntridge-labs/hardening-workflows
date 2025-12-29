@@ -75,9 +75,17 @@ on:
         required: false
         type: string
         default: 'trivy,grype,syft'
+      allow_failure:
+        description: 'Allow the workflow to continue even if scanning or validation fails'
+        required: false
+        type: boolean
+        default: false
     secrets:
       registry_password:
         description: 'Password or token for authenticating to private container registry'
+        required: false
+      HARDENING_WORKFLOWS_CHECKOUT_TOKEN:
+        description: 'Token for checking out hardening-workflows repo (required for private GHE servers)'
         required: false
 
 permissions:
@@ -164,6 +172,7 @@ jobs:
       fail-fast: false
       matrix:
         container: ${{ fromJson(needs.discover-containers.outputs.containers) }}
+        allow_failure: ${{ fromJson(format('[{0}]', inputs.allow_failure)) }}
 
     steps:
     - name: Checkout repository
@@ -225,6 +234,7 @@ jobs:
         scan_mode: 'discover'
         dockerfile: ${{ matrix.container.dockerfile }}
         context: ${{ matrix.container.context }}
+        allow_failure: ${{ matrix.allow_failure || false }} # actionlint-ignore=expression
 
     - name: Run security scanners (external)
       if: steps.build.outputs.build_success == 'true' && github.repository != 'huntridge-labs/hardening-workflows'
@@ -235,6 +245,7 @@ jobs:
         scanners: 'trivy,grype,syft'
         fail_on_severity: ${{ inputs.fail_on_severity }}
         enable_code_security: ${{ inputs.enable_code_security }}
+        allow_failure: ${{ matrix.allow_failure || false }} # actionlint-ignore=expression
         scan_mode: 'discover'
         dockerfile: ${{ matrix.container.dockerfile }}
         context: ${{ matrix.container.context }}
@@ -295,9 +306,6 @@ jobs:
         sparse-checkout: |
           .github/actions/container-scanners
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
     - name: Authenticate to container registry
       # Only attempt auth when username is provided (password checked in script)
       if: inputs.registry_username != ''
@@ -351,6 +359,7 @@ jobs:
         registry_username: ${{ inputs.registry_username }}
         registry_password: ${{ secrets.registry_password }}
         scan_mode: 'remote'
+        allow_failure: ${{ inputs.allow_failure }}
 
     - name: Run security scanners (external)
       if: steps.pull.outputs.pull_success == 'true' && github.repository != 'huntridge-labs/hardening-workflows'
@@ -372,11 +381,55 @@ jobs:
     if: always()
 
     steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+
+    - name: Checkout hardening-workflows for actions
+      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: actions/checkout@v6
+      with:
+        repository: huntridge-labs/hardening-workflows
+        ref: 2.9.1
+        path: .hardening-workflows
+        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
+        sparse-checkout: |
+          .github/actions/get-job-id/action.yml
+
+    - name: Get job ID (external)
+      id: job_id_ext
+      if: github.repository != 'huntridge-labs/hardening-workflows'
+      uses: ./.hardening-workflows/.github/actions/get-job-id
+      with:
+        job-name-pattern: 'Container Scan Summary'
+        fallback-suffix: 'container-summary'
+
+    - name: Get job ID (local)
+      id: job_id_local
+      if: github.repository == 'huntridge-labs/hardening-workflows'
+      uses: ./.github/actions/get-job-id
+      with:
+        job-name-pattern: 'Container Scan Summary'
+        fallback-suffix: 'container-summary'
+
+    - name: Set job ID output
+      id: job_id
+      run: |
+        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
+          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
+        else
+          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
+        fi
+
     - name: Download all scan artifacts
       # Download artifacts in both modes - remote mode produces artifacts too
+      # In remote mode (when called with specific container_name), only download that container's artifacts
+      # In discover mode, download all container artifacts
       if: needs.discover-containers.outputs.has_containers == 'true' || inputs.scan_mode == 'remote'
       uses: actions/download-artifact@v7
       continue-on-error: true
+      with:
+        pattern: ${{ inputs.scan_mode == 'remote' && inputs.container_name != '' && format('container-scan-results-{0}*', inputs.container_name) || 'container-scan-results-*' }}
 
     - name: Create comprehensive container security report
       run: |
@@ -608,7 +661,7 @@ jobs:
     - name: Upload container security report
       uses: actions/upload-artifact@v6
       with:
-        name: container-security-summary
+        name: container-security-summary-${{ steps.job_id.outputs.job-id }}
         path: container-security-report.md
         retention-days: 30
 
@@ -616,6 +669,22 @@ jobs:
       if: always()
       run: |
         mkdir -p scanner-summaries
+        shopt -s nullglob
+
+        # Reorganize artifacts into expected directory structure (handles both discover and remote modes)
+        echo "🔄 Reorganizing artifacts into expected directory structure..."
+        for trivy_file in ./trivy-*-results.json; do
+          [ -f "$trivy_file" ] || continue
+          filename=$(basename "$trivy_file")
+          container_name=$(echo "$filename" | sed 's/trivy-//; s/-results\.json//')
+          echo "  ➜ Processing container: $container_name"
+          mkdir -p "container-scan-results-${container_name}"
+          mv ./trivy-"${container_name}"-results.* "container-scan-results-${container_name}/" 2>/dev/null
+          mv ./grype-"${container_name}"-results.* "container-scan-results-${container_name}/" 2>/dev/null
+          mv ./container-summary-"${container_name}".md "container-scan-results-${container_name}/" 2>/dev/null
+        done
+        echo "✅ Artifact reorganization complete"
+        echo ""
 
         # Function to parse Trivy JSON results (returns: crit high med low)
         parse_trivy() {
@@ -668,6 +737,9 @@ jobs:
         generate_summary() {
           # Check if we have container scan results
           if compgen -G "container-scan-results-*" > /dev/null 2>&1; then
+            echo "📊 Generating container security summary..."
+            echo ""
+
             # Initialize totals
             TOTAL_CRITICAL=0
             TOTAL_HIGH=0
@@ -682,6 +754,7 @@ jobs:
             > /tmp/all_cves.txt
 
             # Parse results for each container
+            echo "🔍 Parsing container scan results..."
             for container_dir in container-scan-results-*; do
               if [ -d "$container_dir" ]; then
                 container_name=$(echo "$container_dir" | sed 's/container-scan-results-//')
@@ -691,6 +764,7 @@ jobs:
                   continue
                 fi
 
+                echo "  ➜ Analyzing: $container_name"
                 trivy_json="$container_dir/trivy-${container_name}-results.json"
                 grype_json="$container_dir/grype-${container_name}-results.json"
 
@@ -699,14 +773,18 @@ jobs:
                   # Parse Trivy results
                   trivy_counts=$(parse_trivy "$trivy_json")
                   read t_crit t_high t_med t_low <<< "$trivy_counts"
-                  trivy_total=$((t_crit + t_high + t_med + t_low))
+                  [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: Trivy counts for $container: crit=$t_crit high=$t_high med=$t_med low=$t_low"
+                  trivy_total=$((${t_crit:-0} + ${t_high:-0} + ${t_med:-0} + ${t_low:-0}))
                   trivy_unique=$(get_unique_cves_trivy "$trivy_json")
+                  [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: Trivy total=$trivy_total unique=$trivy_unique"
 
                   # Parse Grype results
                   grype_counts=$(parse_grype "$grype_json")
                   read g_crit g_high g_med g_low <<< "$grype_counts"
-                  grype_total=$((g_crit + g_high + g_med + g_low))
+                  [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: Grype counts for $container: crit=$g_crit high=$g_high med=$g_med low=$g_low"
+                  grype_total=$((${g_crit:-0} + ${g_high:-0} + ${g_med:-0} + ${g_low:-0}))
                   grype_unique=$(get_unique_cves_grype "$grype_json")
+                  [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: Grype total=$grype_total unique=$grype_unique"
 
                   # Combine and deduplicate CVEs for this container
                   > /tmp/container_cves.txt
@@ -720,24 +798,34 @@ jobs:
 
                   # Get deduplicated counts by severity
                   : > /tmp/crit_cves.txt; : > /tmp/high_cves.txt; : > /tmp/med_cves.txt; : > /tmp/low_cves.txt
+                  [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: Counting CVEs by severity..."
                   if [ -f "$trivy_json" ]; then
+                    [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: Processing trivy_json: $trivy_json"
                     jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | .VulnerabilityID' "$trivy_json" 2>/dev/null >> /tmp/crit_cves.txt
                     jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | .VulnerabilityID' "$trivy_json" 2>/dev/null >> /tmp/high_cves.txt
                     jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM") | .VulnerabilityID' "$trivy_json" 2>/dev/null >> /tmp/med_cves.txt
                     jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW") | .VulnerabilityID' "$trivy_json" 2>/dev/null >> /tmp/low_cves.txt
                   fi
                   if [ -f "$grype_json" ]; then
+                    [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: Processing grype_json: $grype_json"
                     jq -r '.matches[]? | select(.vulnerability.severity == "Critical") | .vulnerability.id' "$grype_json" 2>/dev/null >> /tmp/crit_cves.txt
                     jq -r '.matches[]? | select(.vulnerability.severity == "High") | .vulnerability.id' "$grype_json" 2>/dev/null >> /tmp/high_cves.txt
                     jq -r '.matches[]? | select(.vulnerability.severity == "Medium") | .vulnerability.id' "$grype_json" 2>/dev/null >> /tmp/med_cves.txt
                     jq -r '.matches[]? | select(.vulnerability.severity == "Low") | .vulnerability.id' "$grype_json" 2>/dev/null >> /tmp/low_cves.txt
                   fi
 
-                  crit=$(sort -u /tmp/crit_cves.txt | grep -c . || echo 0)
-                  high=$(sort -u /tmp/high_cves.txt | grep -c . || echo 0)
-                  med=$(sort -u /tmp/med_cves.txt | grep -c . || echo 0)
-                  low=$(sort -u /tmp/low_cves.txt | grep -c . || echo 0)
-                  combined_total=$((crit + high + med + low))
+                  [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: /tmp/crit_cves.txt has $(wc -l < /tmp/crit_cves.txt) lines"
+                  [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: /tmp/high_cves.txt has $(wc -l < /tmp/high_cves.txt) lines"
+                  [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: /tmp/med_cves.txt has $(wc -l < /tmp/med_cves.txt) lines"
+                  [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: /tmp/low_cves.txt has $(wc -l < /tmp/low_cves.txt) lines"
+
+                  crit=$(sort -u /tmp/crit_cves.txt 2>/dev/null | grep -c . || true)
+                  high=$(sort -u /tmp/high_cves.txt 2>/dev/null | grep -c . || true)
+                  med=$(sort -u /tmp/med_cves.txt 2>/dev/null | grep -c . || true)
+                  low=$(sort -u /tmp/low_cves.txt 2>/dev/null | grep -c . || true)
+                  [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: After sort/grep: crit='$crit' high='$high' med='$med' low='$low'"
+                  [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: crit (quoted): '$crit' (length: ${#crit})"
+                  [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: high (quoted): '$high' (length: ${#high})"
 
                   # Store container data: name|crit|high|med|low|total|unique|t_crit|t_high|t_med|t_low|t_total|t_unique|g_crit|g_high|g_med|g_low|g_total|g_unique|status
                   CONTAINER_DATA+=("$container_name|$crit|$high|$med|$low|$combined_total|$combined_unique|$t_crit|$t_high|$t_med|$t_low|$trivy_total|$trivy_unique|$g_crit|$g_high|$g_med|$g_low|$grype_total|$grype_unique|success")
@@ -746,20 +834,32 @@ jobs:
                   cat /tmp/container_cves.txt >> /tmp/all_cves.txt
 
                   # Add to totals (deduplicated)
-                  TOTAL_CRITICAL=$((TOTAL_CRITICAL + crit))
-                  TOTAL_HIGH=$((TOTAL_HIGH + high))
-                  TOTAL_MEDIUM=$((TOTAL_MEDIUM + med))
-                  TOTAL_LOW=$((TOTAL_LOW + low))
+                  TOTAL_CRITICAL=$((TOTAL_CRITICAL + ${crit:-0}))
+                  TOTAL_HIGH=$((TOTAL_HIGH + ${high:-0}))
+                  TOTAL_MEDIUM=$((TOTAL_MEDIUM + ${med:-0}))
+                  TOTAL_LOW=$((TOTAL_LOW + ${low:-0}))
                   SCANNED_CONTAINERS=$((SCANNED_CONTAINERS + 1))
+
+                  echo "     ✅ Found: $combined_total vulns ($crit crit, $high high, $med med, $low low, $combined_unique unique)"
                 else
                   CONTAINER_DATA+=("$container_name|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|failed")
                   FAILED_BUILDS=$((FAILED_BUILDS + 1))
+                  echo "     ❌ Build failed"
                 fi
               fi
             done
 
             TOTAL_VULN=$((TOTAL_CRITICAL + TOTAL_HIGH + TOTAL_MEDIUM + TOTAL_LOW))
             TOTAL_UNIQUE=$(sort -u /tmp/all_cves.txt | grep -c . || echo 0)
+
+            echo ""
+            echo "📈 Summary Results:"
+            echo "  • Containers scanned: $SCANNED_CONTAINERS"
+            echo "  • Build failures: $FAILED_BUILDS"
+            echo "  • Total vulnerabilities: $TOTAL_VULN ($TOTAL_CRITICAL critical, $TOTAL_HIGH high, $TOTAL_MEDIUM medium, $TOTAL_LOW low)"
+            echo "  • Unique CVEs: $TOTAL_UNIQUE"
+            echo ""
+            echo "📝 Generating reports..."
 
             # Write to both PR artifact and job summary
             for output in "scanner-summaries/container.md" "$GITHUB_STEP_SUMMARY"; do
@@ -894,8 +994,19 @@ jobs:
               fi
               echo "" >> "$output"
             done
+
+            echo "✅ Reports generated successfully"
+            echo "  • PR artifact: scanner-summaries/container.md"
+            echo "  • Job summary: Updated"
+            echo ""
           else
             # No containers found
+            echo "⏭️  No container scan results found"
+            echo ""
+            # Output any scanner json files found
+            echo "🔍 Double checking for any scanner result json files..."
+            find . -name "*-results.json" -type f -exec echo "Found: {}" \;
+
             echo "<details>" >> scanner-summaries/container.md
             echo "<summary>🐳 Container Security</summary>" >> scanner-summaries/container.md
             echo "" >> scanner-summaries/container.md
@@ -908,6 +1019,8 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Status:** ⏭️ No containers found to scan" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
+
+            echo "✅ Report generated (no containers)"
           fi
         }
 
@@ -919,7 +1032,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v6
       with:
-        name: scanner-summary-container
+        name: scanner-summary-container-${{ steps.job_id.outputs.job-id }}
         path: scanner-summaries/container.md
         retention-days: 7
       continue-on-error: true

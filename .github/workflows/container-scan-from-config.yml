@@ -16,13 +16,20 @@ name: Container Scan from Config
 # - scan-containers job: uses: ...container-scan.yml@<ref> (line ~115)
 # When updating, change BOTH refs to the same version tag (e.g., 'v3.0.0')
 #
-# Per-Registry Authentication:
-# By default, all containers use REGISTRY_PASSWORD. For per-registry passwords:
-# 1. Add each secret to the env block (e.g., DOCKERHUB_TOKEN, ECR_PASSWORD)
-# 2. In your config, set registry_password: ${DOCKERHUB_TOKEN} per container
-# 3. The matrix outputs the SECRET NAME - customize the secrets: block below
-#    to map matrix.registry_password to the appropriate secret, or use
-#    'secrets: inherit' and access secrets directly if inlining scan logic.
+# Registry Authentication Flow:
+# 1. Users specify which secret to use in config file via 'registry.auth_secret'
+#    Example:
+#      registry:
+#        auth_secret: GITHUB_TOKEN
+# 2. parse-container-config.js extracts the secret name into the matrix
+# 3. Matrix output contains: registry_auth_secret: "GITHUB_TOKEN"
+# 4. scan-containers maps it dynamically: secrets: registry_password: ${{ secrets[matrix.registry_auth_secret] }}
+# 5. container-scan.yml receives the actual secret value from GitHub's secrets context
+#
+# This approach:
+# - Keeps secret names (not values) in matrix output (safe from redaction)
+# - Allows per-container secret mapping (different containers can use different secrets)
+# - Works with any GitHub repository secret name
 
 on:
   workflow_dispatch:
@@ -185,10 +192,7 @@ jobs:
       enable_code_security: ${{ matrix.enable_code_security }}
       post_pr_comment: ${{ matrix.post_pr_comment }}
     secrets:
-      # Default: all containers use REGISTRY_PASSWORD
-      # For per-registry auth, customize this section or use 'secrets: inherit'
-      # The matrix.registry_password contains the SECRET NAME from your config
-      registry_password: ${{ secrets.REGISTRY_PASSWORD }}
+      registry_password: ${{ secrets[matrix.registry_auth_secret] }}
 
   # Summary job collects all results
   scan-summary:
