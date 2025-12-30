@@ -103,6 +103,43 @@ function validateConfig(config, schema) {
 }
 
 /**
+ * Convert structured image format to string
+ * Supports both simple string format and structured object format
+ *
+ * String format: "nginx:alpine"
+ * Structured format: { registry: "docker.io", repository: "library", name: "nginx", tag: "alpine", digest: "sha256:..." }
+ *
+ * @param {string|object} image - Image reference in string or structured format
+ * @returns {string} Full image reference string
+ */
+function buildImageReference(image) {
+  // If image is already a string, return as-is
+  if (typeof image === 'string') {
+    return image;
+  }
+
+  // If image is a structured object, build the reference
+  if (typeof image === 'object' && image !== null) {
+    const registry = image.registry || 'docker.io';
+    const repository = image.repository ? `${image.repository}/` : '';
+    const name = image.name;
+    const tag = image.tag || 'latest';
+    const digest = image.digest ? `@${image.digest}` : '';
+
+    // Construct: registry/repository/name:tag@digest
+    let reference = `${registry}/${repository}${name}:${tag}${digest}`;
+
+    // Clean up double slashes (for docker.io/library/ cases)
+    reference = reference.replace(/([^:]\/)\/+/g, '$1');
+
+    return reference;
+  }
+
+  // Fallback to original value if neither string nor object
+  return image;
+}
+
+/**
  * Generate matrix from validated config
  * Creates one matrix entry per container (scanners as comma-separated string)
  *
@@ -119,10 +156,13 @@ function generateMatrix(config) {
   config.containers.forEach(container => {
     const scanners = container.scanners || ['trivy']; // Default to trivy if not specified
 
+    // Convert structured image format to string if needed
+    const imageRef = buildImageReference(container.image);
+
     const entry = {
       name: container.name,
       scanners: scanners.join(','),  // Convert to comma-separated string for container-scan.yml
-      image: container.image,
+      image: imageRef,
       fail_on_severity: container.fail_on_severity || 'high',
       allow_failure: container.allow_failure !== undefined ? container.allow_failure : false,
       enable_code_security: container.enable_code_security === true,
@@ -184,4 +224,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { loadConfig, validateConfig, generateMatrix };
+module.exports = { loadConfig, validateConfig, generateMatrix, buildImageReference };

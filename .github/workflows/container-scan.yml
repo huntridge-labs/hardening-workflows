@@ -235,6 +235,7 @@ jobs:
         dockerfile: ${{ matrix.container.dockerfile }}
         context: ${{ matrix.container.context }}
         allow_failure: ${{ matrix.allow_failure || false }} # actionlint-ignore=expression
+        skip_summary: 'true'
 
     - name: Run security scanners (external)
       if: steps.build.outputs.build_success == 'true' && github.repository != 'huntridge-labs/hardening-workflows'
@@ -249,9 +250,11 @@ jobs:
         scan_mode: 'discover'
         dockerfile: ${{ matrix.container.dockerfile }}
         context: ${{ matrix.container.context }}
+        skip_summary: 'true'
 
     - name: Handle build failure
       if: steps.build.outputs.build_success != 'true'
+      shell: bash
       run: |
         echo "⚠️  Container build failed - skipping security analysis"
         echo "This may be expected for intentionally vulnerable test containers"
@@ -360,6 +363,7 @@ jobs:
         registry_password: ${{ secrets.registry_password }}
         scan_mode: 'remote'
         allow_failure: ${{ inputs.allow_failure }}
+        skip_summary: 'true'
 
     - name: Run security scanners (external)
       if: steps.pull.outputs.pull_success == 'true' && github.repository != 'huntridge-labs/hardening-workflows'
@@ -373,6 +377,7 @@ jobs:
         registry_username: ${{ inputs.registry_username }}
         registry_password: ${{ secrets.registry_password }}
         scan_mode: 'remote'
+        skip_summary: 'true'
 
   container-scan-summary:
     name: Container Scan Summary
@@ -661,7 +666,7 @@ jobs:
     - name: Upload container security report
       uses: actions/upload-artifact@v6
       with:
-        name: container-security-summary-${{ steps.job_id.outputs.job-id }}
+        name: container-security-summary-${{ steps.job_id.outputs.job-id }}-${{ inputs.scan_mode == 'remote' && inputs.container_name || 'discover' }}
         path: container-security-report.md
         retention-days: 30
 
@@ -679,11 +684,18 @@ jobs:
           container_name=$(echo "$filename" | sed 's/trivy-//; s/-results\.json//')
           echo "  ➜ Processing container: $container_name"
           mkdir -p "container-scan-results-${container_name}"
-          mv ./trivy-"${container_name}"-results.* "container-scan-results-${container_name}/" 2>/dev/null
-          mv ./grype-"${container_name}"-results.* "container-scan-results-${container_name}/" 2>/dev/null
-          mv ./container-summary-"${container_name}".md "container-scan-results-${container_name}/" 2>/dev/null
+          mv ./trivy-"${container_name}"-results.* "container-scan-results-${container_name}/" 2>/dev/null || true
+          mv ./grype-"${container_name}"-results.* "container-scan-results-${container_name}/" 2>/dev/null || true
+          mv ./container-summary-"${container_name}".md "container-scan-results-${container_name}/" 2>/dev/null || true
         done
         echo "✅ Artifact reorganization complete"
+        echo ""
+        echo "📁 Scan result files present:"
+        for dir in container-scan-results-*; do
+          [ -d "$dir" ] || continue
+          echo "  $dir/"
+          ls -1 "$dir" 2>/dev/null | sed 's/^/    /'
+        done
         echo ""
 
         # Function to parse Trivy JSON results (returns: crit high med low)
@@ -768,6 +780,10 @@ jobs:
                 trivy_json="$container_dir/trivy-${container_name}-results.json"
                 grype_json="$container_dir/grype-${container_name}-results.json"
 
+                # Debug: Show file paths and existence
+                echo "     📄 trivy_json: $trivy_json (exists: $([ -f "$trivy_json" ] && echo "yes" || echo "no"))"
+                echo "     📄 grype_json: $grype_json (exists: $([ -f "$grype_json" ] && echo "yes" || echo "no"))"
+
                 # Check if container built successfully
                 if [ -f "$trivy_json" ] || [ -f "$grype_json" ]; then
                   # Parse Trivy results
@@ -781,10 +797,10 @@ jobs:
                   # Parse Grype results
                   grype_counts=$(parse_grype "$grype_json")
                   read g_crit g_high g_med g_low <<< "$grype_counts"
-                  [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: Grype counts for $container: crit=$g_crit high=$g_high med=$g_med low=$g_low"
+                  echo "     🔍 Grype counts: crit=$g_crit high=$g_high med=$g_med low=$g_low"
                   grype_total=$((${g_crit:-0} + ${g_high:-0} + ${g_med:-0} + ${g_low:-0}))
                   grype_unique=$(get_unique_cves_grype "$grype_json")
-                  [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: Grype total=$grype_total unique=$grype_unique"
+                  echo "     🔍 Grype total=$grype_total unique=$grype_unique"
 
                   # Combine and deduplicate CVEs for this container
                   > /tmp/container_cves.txt
@@ -819,30 +835,41 @@ jobs:
                   [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: /tmp/med_cves.txt has $(wc -l < /tmp/med_cves.txt) lines"
                   [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: /tmp/low_cves.txt has $(wc -l < /tmp/low_cves.txt) lines"
 
-                  crit=$(sort -u /tmp/crit_cves.txt 2>/dev/null | grep -c . || true)
-                  high=$(sort -u /tmp/high_cves.txt 2>/dev/null | grep -c . || true)
-                  med=$(sort -u /tmp/med_cves.txt 2>/dev/null | grep -c . || true)
-                  low=$(sort -u /tmp/low_cves.txt 2>/dev/null | grep -c . || true)
+                  crit=$(sort -u /tmp/crit_cves.txt 2>/dev/null | grep -c . || true); crit=${crit:-0}
+                  high=$(sort -u /tmp/high_cves.txt 2>/dev/null | grep -c . || true); high=${high:-0}
+                  med=$(sort -u /tmp/med_cves.txt 2>/dev/null | grep -c . || true); med=${med:-0}
+                  low=$(sort -u /tmp/low_cves.txt 2>/dev/null | grep -c . || true); low=${low:-0}
+                  combined_total=$((crit + high + med + low))
                   [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: After sort/grep: crit='$crit' high='$high' med='$med' low='$low'"
                   [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: crit (quoted): '$crit' (length: ${#crit})"
                   [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: high (quoted): '$high' (length: ${#high})"
 
-                  # Store container data: name|crit|high|med|low|total|unique|t_crit|t_high|t_med|t_low|t_total|t_unique|g_crit|g_high|g_med|g_low|g_total|g_unique|status
-                  CONTAINER_DATA+=("$container_name|$crit|$high|$med|$low|$combined_total|$combined_unique|$t_crit|$t_high|$t_med|$t_low|$trivy_total|$trivy_unique|$g_crit|$g_high|$g_med|$g_low|$grype_total|$grype_unique|success")
+                  # Extract image digest from scanner results
+                  IMAGE_DIGEST=$(jq -r '.Metadata.RepoDigests[0] // .Metadata.ImageID // "unknown"' "$trivy_json" 2>/dev/null || echo "unknown")
+                  # Clean up the digest format and sanitize (remove newlines/pipes that would corrupt CONTAINER_DATA)
+                  IMAGE_DIGEST=$(echo "$IMAGE_DIGEST" | tr -d '\n\r|' | head -c 100)
+                  if [[ "$IMAGE_DIGEST" == *"@"* ]]; then
+                    IMAGE_DIGEST="${IMAGE_DIGEST##*@}"
+                  fi
+                  [ "$RUNNER_DEBUG" = "1" ] && echo "DEBUG: Extracted image digest: $IMAGE_DIGEST"
+
+                  # Store container data: name|image_digest|crit|high|med|low|total|unique|t_crit|t_high|t_med|t_low|t_total|t_unique|g_crit|g_high|g_med|g_low|g_total|g_unique|status
+                  # Ensure all numeric values are sanitized (no newlines)
+                  CONTAINER_DATA+=("$container_name|${IMAGE_DIGEST:-unknown}|${crit:-0}|${high:-0}|${med:-0}|${low:-0}|${combined_total:-0}|${combined_unique:-0}|${t_crit:-0}|${t_high:-0}|${t_med:-0}|${t_low:-0}|${trivy_total:-0}|${trivy_unique:-0}|${g_crit:-0}|${g_high:-0}|${g_med:-0}|${g_low:-0}|${grype_total:-0}|${grype_unique:-0}|success")
 
                   # Collect CVEs for global deduplication
                   cat /tmp/container_cves.txt >> /tmp/all_cves.txt
 
                   # Add to totals (deduplicated)
-                  TOTAL_CRITICAL=$((TOTAL_CRITICAL + ${crit:-0}))
-                  TOTAL_HIGH=$((TOTAL_HIGH + ${high:-0}))
-                  TOTAL_MEDIUM=$((TOTAL_MEDIUM + ${med:-0}))
-                  TOTAL_LOW=$((TOTAL_LOW + ${low:-0}))
+                  TOTAL_CRITICAL=$((TOTAL_CRITICAL + crit))
+                  TOTAL_HIGH=$((TOTAL_HIGH + high))
+                  TOTAL_MEDIUM=$((TOTAL_MEDIUM + med))
+                  TOTAL_LOW=$((TOTAL_LOW + low))
                   SCANNED_CONTAINERS=$((SCANNED_CONTAINERS + 1))
 
                   echo "     ✅ Found: $combined_total vulns ($crit crit, $high high, $med med, $low low, $combined_unique unique)"
                 else
-                  CONTAINER_DATA+=("$container_name|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|failed")
+                  CONTAINER_DATA+=("$container_name|unknown|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|failed")
                   FAILED_BUILDS=$((FAILED_BUILDS + 1))
                   echo "     ❌ Build failed"
                 fi
@@ -883,28 +910,43 @@ jobs:
               echo "**Scanned:** $SCANNED_CONTAINERS containers | **Build Failures:** $FAILED_BUILDS" >> "$output"
               echo "" >> "$output"
 
-              # Per-container breakdown table
-              echo "### 📦 Container Breakdown" >> "$output"
-              echo "" >> "$output"
-              echo "| Container | 🚨 Crit | ⚠️ High | 🟡 Med | 🔵 Low | Total | Unique | Status |" >> "$output"
-              echo "|-----------|---------|---------|--------|--------|-------|--------|--------|" >> "$output"
+              # Only show detailed breakdowns for multiple containers
+              if [ "$SCANNED_CONTAINERS" -ne 1 ]; then
+                # Per-container breakdown table
+                echo "### 📦 Container Breakdown" >> "$output"
+                echo "" >> "$output"
+                echo "| Container | Image | 🚨 Crit | ⚠️ High | 🟡 Med | 🔵 Low | Total | Unique | Status |" >> "$output"
+                echo "|-----------|-------|---------|---------|--------|--------|-------|--------|--------|" >> "$output"
 
-              for container_data in "${CONTAINER_DATA[@]}"; do
-                IFS='|' read -r name crit high med low total unique t_crit t_high t_med t_low t_total t_unique g_crit g_high g_med g_low g_total g_unique status <<< "$container_data"
-                if [ "$status" = "failed" ]; then
-                  echo "| $name | - | - | - | - | - | - | ❌ Build Failed |" >> "$output"
-                else
-                  echo "| $name | $crit | $high | $med | $low | $total | $unique | ✅ |" >> "$output"
-                fi
-              done
-              echo "" >> "$output"
+                for container_data in "${CONTAINER_DATA[@]}"; do
+                  IFS='|' read -r name image_digest crit high med low total unique t_crit t_high t_med t_low t_total t_unique g_crit g_high g_med g_low g_total g_unique status <<< "$container_data"
+                  # Ensure numeric defaults
+                  crit=${crit:-0}; high=${high:-0}; med=${med:-0}; low=${low:-0}; total=${total:-0}; unique=${unique:-0}
+                  if [ "$status" = "failed" ]; then
+                    echo "| $name | - | - | - | - | - | - | - | ❌ Build Failed |" >> "$output"
+                  else
+                    # Format image reference with digest if available
+                    if [ "$image_digest" != "unknown" ] && [ -n "$image_digest" ]; then
+                      # For discover mode, show just the digest; for remote mode would need ref too
+                      image_display="\`@${image_digest}\`"
+                    else
+                      image_display="-"
+                    fi
+                    echo "| $name | $image_display | $crit | $high | $med | $low | $total | $unique | ✅ |" >> "$output"
+                  fi
+                done
+                echo "" >> "$output"
+              fi  # End of detailed breakdown check (multiple containers only)
 
               # Individual container details with scanner breakdown
               echo "### 🔍 Detailed Findings by Container" >> "$output"
               echo "" >> "$output"
 
               for container_data in "${CONTAINER_DATA[@]}"; do
-                IFS='|' read -r name crit high med low total unique t_crit t_high t_med t_low t_total t_unique g_crit g_high g_med g_low g_total g_unique status <<< "$container_data"
+                IFS='|' read -r name image_digest crit high med low total unique t_crit t_high t_med t_low t_total t_unique g_crit g_high g_med g_low g_total g_unique status <<< "$container_data"
+                # Ensure numeric defaults for all counts
+                crit=${crit:-0}; high=${high:-0}; med=${med:-0}; low=${low:-0}; total=${total:-0}; unique=${unique:-0}
+                t_total=${t_total:-0}; t_unique=${t_unique:-0}; g_total=${g_total:-0}; g_unique=${g_unique:-0}
 
                 if [ "$status" = "failed" ]; then
                   echo "<details>" >> "$output"
@@ -915,12 +957,19 @@ jobs:
                   echo "</details>" >> "$output"
                   echo "" >> "$output"
                 else
+                  # Format image digest with reference if available
+                  if [ "$image_digest" != "unknown" ] && [ -n "$image_digest" ]; then
+                    image_display="@${image_digest}"
+                  else
+                    image_display="(digest unavailable)"
+                  fi
+
                   # Determine risk emoji
-                  if [ $crit -gt 0 ]; then
+                  if [ "${crit:-0}" -gt 0 ]; then
                     risk_emoji="🚨"
-                  elif [ $high -gt 0 ]; then
+                  elif [ "${high:-0}" -gt 0 ]; then
                     risk_emoji="⚠️"
-                  elif [ $total -gt 0 ]; then
+                  elif [ "${total:-0}" -gt 0 ]; then
                     risk_emoji="🟡"
                   else
                     risk_emoji="✅"
@@ -928,6 +977,10 @@ jobs:
 
                   echo "<details>" >> "$output"
                   echo "<summary>$risk_emoji <strong>$name</strong> - $total vulnerabilities ($unique unique)</summary>" >> "$output"
+                  echo "" >> "$output"
+
+                  # Display image reference with pinned digest
+                  echo "**Image:** \`$image_display\`" >> "$output"
                   echo "" >> "$output"
 
                   # Combined summary for this container

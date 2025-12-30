@@ -27,9 +27,52 @@
             "maxLength": 50
           },
           "image": {
-            "type": "string",
-            "description": "Full container image reference (e.g., nginx:latest, ghcr.io/owner/image:tag, 123456.dkr.ecr.region.amazonaws.com/image:tag)",
-            "minLength": 1
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Full container image reference string (e.g., nginx:latest, ghcr.io/owner/image:tag, 123456.dkr.ecr.region.amazonaws.com/image:tag, nginx:latest@sha256:abc123)",
+                "minLength": 1
+              },
+              {
+                "type": "object",
+                "description": "Structured container image reference with individual components",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "registry": {
+                    "type": "string",
+                    "description": "Container registry host (e.g., docker.io, ghcr.io, 123456.dkr.ecr.us-east-1.amazonaws.com). Defaults to docker.io if omitted.",
+                    "minLength": 1
+                  },
+                  "repository": {
+                    "type": "string",
+                    "description": "Repository/organization path within the registry (e.g., library, myorg/myteam). Optional - used to construct full image path.",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Image name (e.g., nginx, ubuntu, myapp). Required.",
+                    "pattern": "^[a-z0-9]+(?:[._/-][a-z0-9]+)*$",
+                    "minLength": 1
+                  },
+                  "tag": {
+                    "type": "string",
+                    "description": "Image tag/version (e.g., latest, v1.0, 1.2.3). Defaults to 'latest' if omitted.",
+                    "pattern": "^[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$",
+                    "minLength": 1,
+                    "default": "latest"
+                  },
+                  "digest": {
+                    "type": "string",
+                    "description": "Image digest for pinned versions (e.g., sha256:abc123def456). When specified, the image is pinned to this exact digest regardless of tag.",
+                    "pattern": "^[a-z0-9]+:[a-f0-9]{64}$",
+                    "minLength": 71
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
           },
           "registry_username": {
             "type": "string",

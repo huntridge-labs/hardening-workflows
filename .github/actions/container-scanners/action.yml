@@ -44,6 +44,10 @@ inputs:
     description: 'Allow the job to continue if the scan step fails (do not fail the job)'
     required: false
     default: 'false'
+  skip_summary:
+    description: 'Skip job summary generation (use when called from container-scan.yml to avoid duplication)'
+    required: false
+    default: 'false'
 
 runs:
   using: 'composite'
@@ -127,7 +131,7 @@ runs:
         TRIVY_PASSWORD: ${{ inputs.registry_password }}
 
     - name: Add vulnerability summary to job summary
-      if: contains(inputs.scanners, 'trivy')
+      if: contains(inputs.scanners, 'trivy') && inputs.skip_summary != 'true'
       shell: bash
       run: |
         CONTAINER_NAME="${{ inputs.container_name }}"
@@ -143,10 +147,11 @@ runs:
         echo "" >> $GITHUB_STEP_SUMMARY
 
         if [ -f "trivy-${CONTAINER_NAME}-results.json" ]; then
-          CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
-          HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
-          MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
-          LOW=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW")] | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
+          # Count unique CVE IDs by severity (deduplicated, matching container-scan-summary logic)
+          CRITICAL=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | .VulnerabilityID' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null | sort -u | grep -c . || echo "0")
+          HIGH=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | .VulnerabilityID' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null | sort -u | grep -c . || echo "0")
+          MEDIUM=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM") | .VulnerabilityID' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null | sort -u | grep -c . || echo "0")
+          LOW=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW") | .VulnerabilityID' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null | sort -u | grep -c . || echo "0")
           UNIQUE=$(jq '[.Results[]?.Vulnerabilities[]?.VulnerabilityID] | map(select(. != null)) | unique | length' "trivy-${CONTAINER_NAME}-results.json" 2>/dev/null || echo "0")
           TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
 

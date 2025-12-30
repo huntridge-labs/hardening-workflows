@@ -691,9 +691,9 @@ Create a config file (YAML, JSON, or JavaScript) defining your containers. See [
 
 ### Config file format
 
-Config files support three formats: YAML, JSON, or JavaScript (CommonJS).
+Config files support three formats: YAML, JSON, or JavaScript (CommonJS). The `image` field supports both simple string references and structured format with registry/repo breakdown.
 
-**YAML example:**
+**YAML example (simple format):**
 
 ```yaml
 containers:
@@ -720,6 +720,35 @@ containers:
     post_pr_comment: false
 ```
 
+**YAML example (simple format with digest pinning):**
+
+```yaml
+containers:
+  - name: alpine-pinned
+    image: docker.io/library/alpine:3.23.2@sha256:865b95f46d98cf867a156fe4a135ad3fe50d2056aa3f25ed31662dff6da4eb62
+    scanners: [trivy, grype]
+    fail_on_severity: high
+    enable_code_security: true
+    post_pr_comment: true
+```
+
+**YAML example (structured format with digest pinning):**
+
+```yaml
+containers:
+  - name: alpine-structured
+    image:
+      registry: docker.io
+      repository: library
+      name: alpine
+      tag: "3.23.2"
+      digest: sha256:865b95f46d98cf867a156fe4a135ad3fe50d2056aa3f25ed31662dff6da4eb62
+    scanners: [trivy, grype]
+    fail_on_severity: high
+    enable_code_security: true
+    post_pr_comment: true
+```
+
 **JSON example:**
 
 ```json
@@ -732,6 +761,18 @@ containers:
       "fail_on_severity": "high",
       "enable_code_security": true,
       "post_pr_comment": true
+    },
+    {
+      "name": "app-pinned",
+      "image": {
+        "registry": "ghcr.io",
+        "repository": "myorg",
+        "name": "myapp",
+        "tag": "v1.2.3",
+        "digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+      },
+      "scanners": ["trivy"],
+      "fail_on_severity": "critical"
     }
   ]
 }
@@ -744,24 +785,69 @@ module.exports = {
   containers: [
     {
       name: 'my-app',
-      image: 'myapp:latest',
+      image: 'myapp:latest',  // Can use simple string format
       registry_username: process.env.DOCKERHUB_USERNAME,
       registry_password: process.env.DOCKERHUB_TOKEN,
       scanners: ['trivy', 'syft'],
       fail_on_severity: 'medium',
       enable_code_security: true,
       post_pr_comment: true
+    },
+    {
+      name: 'prod-app',
+      image: {  // Or structured format
+        registry: 'ghcr.io',
+        repository: 'myorg/myteam',
+        name: 'prod-app',
+        tag: 'v2.0.0',
+        digest: 'sha256:fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321'
+      },
+      scanners: ['trivy'],
+      fail_on_severity: 'critical'
     }
   ]
 };
 ```
+
+### Image reference formats
+
+The `image` field supports two formats:
+
+**String format (simple, backward compatible):**
+```yaml
+image: "nginx:latest"                                    # Docker Hub
+image: "ghcr.io/owner/image:tag"                        # GHCR
+image: "registry.example.com/repo/image:tag"            # Custom registry
+image: "docker.io/library/alpine:3.23.2@sha256:865b95f46d98cf867a156fe4a135ad3fe50d2056aa3f25ed31662dff6da4eb62" # With digest pinning
+```
+
+The string format is the simplest approach and works for all use cases, including digest pinning.
+
+**Object format (structured, useful for dynamic generation):**
+```yaml
+image:
+  registry: docker.io          # Container registry (optional, default: docker.io)
+  repository: library          # Repo/org path (optional)
+  name: alpine                 # Image name (required)
+  tag: "3.23.2"                # Tag/version (optional, default: latest)
+  digest: sha256:865b95f46d98cf867a156fe4a135ad3fe50d2056aa3f25ed31662dff6da4eb62  # Content hash for pinning (optional)
+```
+
+Both formats are equivalent and supported. Choose based on your preference:
+- **String format**: Simplest, best for static configs, direct copy-paste of full image references
+- **Object format**: Better for programmatic generation (JavaScript configs), multi-registry management, or when you need to compose the reference dynamically
 
 ### Config file properties
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
 | `name` | string | Yes | Unique identifier (alphanumeric, dashes, underscores) |
-| `image` | string | Yes | Full container image reference (registry/repo:tag) |
+| `image` | string \| object | Yes | Container image reference. Can be simple string (`nginx:latest`) or structured object with `registry`, `repository`, `name`, `tag`, `digest` fields |
+| `image.registry` | string | No | Container registry host (e.g., `docker.io`, `ghcr.io`). Default: `docker.io` |
+| `image.repository` | string | No | Repo/org path within registry (e.g., `library`, `myorg/myteam`) |
+| `image.name` | string | Yes (if structured) | Image name (e.g., `postgres`, `ubuntu`, `myapp`) |
+| `image.tag` | string | No | Image tag/version (e.g., `latest`, `v1.0`). Default: `latest` |
+| `image.digest` | string | No | Image digest for pinning (e.g., `sha256:abc123...`). Ensures exact image is scanned |
 | `registry_username` | string | No | Username for authentication (use `${SECRET_NAME}` syntax) |
 | `registry_password` | string | No | Password/token for authentication (use `${SECRET_NAME}` syntax) |
 | `scanners` | array | Yes | List of scanners to run: `trivy`, `grype`, `syft` |
