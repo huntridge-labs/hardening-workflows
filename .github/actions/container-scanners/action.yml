@@ -62,6 +62,7 @@ runs:
         image: ${{ inputs.image_ref }}
         format: cyclonedx-json
         output-file: container-scan-results-sbom-${{ inputs.container_name }}.json
+        upload-artifact: false  # Disable automatic upload - we upload manually below with proper naming
       env:
         SYFT_REGISTRY_AUTH_USERNAME: ${{ inputs.registry_username }}
         SYFT_REGISTRY_AUTH_PASSWORD: ${{ inputs.registry_password }}

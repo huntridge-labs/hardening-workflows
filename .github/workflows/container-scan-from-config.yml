@@ -1,35 +1,37 @@
 name: Container Scan from Config
 
-# This workflow is designed to be COPIED to your repository, not called remotely.
-# Why? To add custom secrets to the env block, you need to edit this file.
+# Reusable workflow for scanning multiple container images defined in a config file.
+# Call this workflow from your repository - no need to copy it.
 #
-# Setup Instructions:
-# 1. Copy this workflow to .github/workflows/ in your repository
-# 2. Add your custom secrets to the env block in the parse-config job
-#    Example: MY_CUSTOM_SECRET: ${{ secrets.MY_CUSTOM_SECRET }}
-# 3. Create your container config file (YAML/JSON/JS) using examples/ as reference
-# 4. Config files use ${SECRET_NAME} syntax to reference secrets
+# Usage Example:
+#   jobs:
+#     scan:
+#       uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan-from-config.yml@main
+#       with:
+#         config_file: 'containers.yml'
+#       secrets: inherit  # Required for dynamic secret resolution
 #
-# IMPORTANT: Version Synchronization
-# The 'ref' values below MUST match to avoid version skew issues:
-# - parse-config job: Checkout hardening-workflows ref (line ~60)
-# - scan-containers job: uses: ...container-scan.yml@<ref> (line ~115)
-# When updating, change BOTH refs to the same version tag (e.g., 'v3.0.0')
+# Config File Format (YAML example):
+#   containers:
+#     - name: my-app
+#       image: myregistry.io/my-app:latest
+#       registry:
+#         auth_secret: MY_REGISTRY_TOKEN  # Any secret name from your repo
+#       scanners: [trivy, grype]
 #
-# Registry Authentication Flow:
-# 1. Users specify which secret to use in config file via 'registry.auth_secret'
-#    Example:
-#      registry:
-#        auth_secret: GITHUB_TOKEN
-# 2. parse-container-config.js extracts the secret name into the matrix
-# 3. Matrix output contains: registry_auth_secret: "GITHUB_TOKEN"
-# 4. scan-containers maps it dynamically: secrets: registry_password: ${{ secrets[matrix.registry_auth_secret] }}
-# 5. container-scan.yml receives the actual secret value from GitHub's secrets context
+# How Secret Resolution Works:
+# 1. Your config specifies auth_secret: "MY_REGISTRY_TOKEN" (any secret name)
+# 2. You use secrets: inherit to pass ALL your repo secrets to this workflow
+# 3. This workflow uses secrets[matrix.registry_auth_secret] to resolve dynamically
+# 4. The secret value is passed to container-scan.yml as registry_password
 #
-# This approach:
-# - Keeps secret names (not values) in matrix output (safe from redaction)
-# - Allows per-container secret mapping (different containers can use different secrets)
-# - Works with any GitHub repository secret name
+# IMPORTANT: You MUST use 'secrets: inherit' for this to work.
+# This allows the workflow to dynamically access whichever secret your config references.
+#
+# For GHE/forked repos:
+# - Update HARDENING_WORKFLOWS_REPO_PATH env var to your fork
+# - Update HARDENING_WORKFLOWS_REF to your desired version
+# - Update the 'uses:' line in scan-containers job (can't use env vars there)
 
 on:
   workflow_dispatch:
@@ -46,15 +48,12 @@ on:
         required: false
         default: 'examples/container-config.example.yml'
         type: string
-    secrets:
-      HARDENING_WORKFLOWS_CHECKOUT_TOKEN:
-        description: 'Token for checking out hardening-workflows repo (required for private GHE)'
+      hardening_workflows_ref:
+        description: 'Git ref for hardening-workflows repo (for testing PRs)'
         required: false
-      # Registry authentication secrets - add your custom secrets here
-      # These are passed through to the container-scan.yml workflow
-      REGISTRY_PASSWORD:
-        description: 'Password or token for container registry authentication'
-        required: false
+        type: string
+    # No explicit secrets declared - callers MUST use 'secrets: inherit'
+    # This allows dynamic secret resolution via secrets[matrix.registry_auth_secret]
 
 permissions:
   contents: read
@@ -91,70 +90,19 @@ jobs:
             .github/scripts/parse-container-config.js
             .github/schemas/container-config.schema.json
 
-      - name: Check for updates to this template
-        run: |
-          echo "🔍 Checking for updates to container-scan-from-config.yml template..."
-          TEMPLATE_URL="https://raw.githubusercontent.com/${{ env.HARDENING_WORKFLOWS_REPO_PATH }}/${{ env.HARDENING_WORKFLOWS_REF }}/.github/workflows/container-scan-from-config.yml"
-          curl -sSL "$TEMPLATE_URL" -o latest-template.yml
-
-          # Strip user-customizable sections before comparing:
-          # - env: block contents (secrets mappings)
-          # - secrets: block under workflow_call
-          # - secrets: block under scan-containers
-          strip_customizable() {
-            sed -E '
-              # Remove env block contents (keep the env: line, remove until next non-indented line)
-              /^[[:space:]]+env:$/,/^[[:space:]]+[a-zA-Z_-]+:[[:space:]]*$|^[[:space:]]+run:/{
-                /^[[:space:]]+env:$/!{ /^[[:space:]]+run:/!d; }
-              }
-              # Remove comment lines that users might customize
-              /^[[:space:]]*#.*SECRET|^[[:space:]]*#.*[Ee]xample|^[[:space:]]*#.*uncomment/d
-            ' "$1"
-          }
-
-          strip_customizable .github/workflows/container-scan-from-config.yml > local-stripped.yml
-          strip_customizable latest-template.yml > template-stripped.yml
-
-          if diff -q local-stripped.yml template-stripped.yml > /dev/null 2>&1; then
-            echo "✅ Template is up to date (structural changes only checked, env/secrets ignored)"
-          else
-            echo "⚠️ Template has updates available. Differences (excluding env/secrets):"
-            echo ""
-            diff -u local-stripped.yml template-stripped.yml || true
-            echo ""
-            echo "📋 Review changes at: https://github.com/huntridge-labs/hardening-workflows/blob/main/.github/workflows/container-scan-from-config.yml"
-          fi
-
-          rm -f latest-template.yml local-stripped.yml template-stripped.yml
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Install dependencies
-        run: |
-          npm install --no-save js-yaml ajv
+        run: npm install --no-save js-yaml ajv
 
       - name: Parse and validate config
         id: parse
         env:
           CONFIG_FILE: ${{ inputs.config_file }}
           SCHEMA_FILE: .hardening-workflows/.github/schemas/container-config.schema.json
-          # ADD YOUR CUSTOM SECRETS HERE
-          # Any secret referenced in your config file using ${SECRET_NAME} syntax
-          # must be listed here as: SECRET_NAME: ${{ secrets.SECRET_NAME }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Example registry secrets (uncomment and add as needed):
-          # GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
-          # ECR_PASSWORD: ${{ secrets.ECR_PASSWORD }}
-          # DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          # DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-          # GCR_JSON_KEY: ${{ secrets.GCR_JSON_KEY }}
-          # ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
-          # ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
-          # MY_REGISTRY_USER: ${{ secrets.MY_REGISTRY_USER }}
-          # MY_REGISTRY_PASS: ${{ secrets.MY_REGISTRY_PASS }}
         run: |
           node .hardening-workflows/.github/scripts/parse-container-config.js
 
@@ -190,7 +138,11 @@ jobs:
       scanners: ${{ matrix.scanners }}
       fail_on_severity: ${{ matrix.fail_on_severity }}
       enable_code_security: ${{ matrix.enable_code_security }}
-      post_pr_comment: ${{ matrix.post_pr_comment }}
+      # Disable individual PR comments - the summary job posts a comprehensive comment for all containers
+      post_pr_comment: false
+      # Pass caller's ref or our ref so nested workflow can checkout the same version
+      # Note: github.action_ref doesn't work for nested reusable workflows - use hardcoded fallback
+      hardening_workflows_ref: ${{ inputs.hardening_workflows_ref || 'feat/remote-registries' }}  # RELEASE-IT-VERSION-PLACEHOLDER
     secrets:
       registry_password: ${{ secrets[matrix.registry_auth_secret] }}
 
@@ -208,52 +160,85 @@ jobs:
           pattern: container-scan-results-*
           merge-multiple: true
 
+      - name: Checkout hardening-workflows for scripts
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.HARDENING_WORKFLOWS_REPO_PATH }}
+          ref: ${{ env.HARDENING_WORKFLOWS_REF }}
+          path: .hardening-workflows
+          token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
+          sparse-checkout: |
+            .github/scripts/generate-container-summary.sh
+            .github/scripts/parse-trivy-results.sh
+            .github/scripts/parse-grype-results.sh
+
       - name: Generate scan summary
+        env:
+          TRIVY_PARSER: .hardening-workflows/.github/scripts/parse-trivy-results.sh
+          GRYPE_PARSER: .hardening-workflows/.github/scripts/parse-grype-results.sh
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
         run: |
-          echo "# Container Scan Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          set -euo pipefail
 
           if [ "${{ needs.parse-config.outputs.has_containers }}" != "true" ]; then
-            echo "⚠️ No containers found to scan." >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ No containers found to scan." > scanner-summaries/container.md
             exit 0
           fi
 
-          echo "## Scan Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          # Make scripts executable
+          chmod +x "$TRIVY_PARSER" "$GRYPE_PARSER" .hardening-workflows/.github/scripts/generate-container-summary.sh
 
-          # Initialize counters
-          total_crit=0
-          total_high=0
-          total_med=0
-          total_low=0
+          # Generate summary using existing script
+          .hardening-workflows/.github/scripts/generate-container-summary.sh
 
-          echo "| Container | Critical | High | Medium | Low | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|----------|------|--------|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          # Copy the generated report for PR comment
+          cp scanner-summaries/container.md container-scan-summary.md
 
-          # Process each container summary if available
-          for summary_file in container-summary-*.md; do
-            if [ -f "$summary_file" ]; then
-              container_name=$(echo "$summary_file" | sed 's/container-summary-//' | sed 's/\.md$//')
+      - name: Comment PR with scan results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v8
+        continue-on-error: true
+        with:
+          script: |
+                const fs = require('fs');
 
-              # Try to extract counts from JSON results
-              trivy_json="trivy-${container_name}-results.json"
-              if [ -f "$trivy_json" ]; then
-                crit=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' "$trivy_json" 2>/dev/null || echo "0")
-                high=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' "$trivy_json" 2>/dev/null || echo "0")
-                med=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length' "$trivy_json" 2>/dev/null || echo "0")
-                low=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW")] | length' "$trivy_json" 2>/dev/null || echo "0")
+                try {
+                  const MARKER = 'container-scan-from-config-file-comment-marker';
+                  const reportPath = 'container-scan-summary.md';
 
-                total_crit=$((total_crit + crit))
-                total_high=$((total_high + high))
-                total_med=$((total_med + med))
-                total_low=$((total_low + low))
+                  if (!fs.existsSync(reportPath)) {
+                    console.log('No summary file found:', reportPath);
+                    return;
+                  }
 
-                echo "| $container_name | $crit | $high | $med | $low | ✅ |" >> $GITHUB_STEP_SUMMARY
-              else
-                echo "| $container_name | - | - | - | - | ⚠️ No data |" >> $GITHUB_STEP_SUMMARY
-              fi
-            fi
-          done
+                  let report = fs.readFileSync(reportPath, 'utf8');
+                  const MAX_COMMENT_LENGTH = 262000;
+                  if (report.length > MAX_COMMENT_LENGTH) {
+                    report = report.slice(0, MAX_COMMENT_LENGTH - 200) + '\n\n*Truncated report due to size.*';
+                  }
 
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Total:** Critical: $total_crit, High: $total_high, Medium: $total_med, Low: $total_low" >> $GITHUB_STEP_SUMMARY
+                  const configFileUrl = `${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/${{ inputs.config_file }}`;
+                  const commentBody = `## 🐳 Container Scan From [Config File](${configFileUrl})\n\n<!-- ${MARKER} -->\n\n${report}`;
+
+                  const comments = await github.rest.issues.listComments({
+                    owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number
+                  });
+
+                  const existingComment = comments.data.find(c => c.body && c.body.includes(MARKER) && (c.user.login === 'github-actions[bot]' || c.user.type === 'Bot'));
+
+                  if (existingComment) {
+                    await github.rest.issues.updateComment({
+                      owner: context.repo.owner, repo: context.repo.repo, comment_id: existingComment.id,
+                      body: commentBody + `\n\n---\n*Updated: ${new Date().toLocaleString()} | [View Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`
+                    });
+                    console.log('✅ Updated existing comment');
+                  } else {
+                    await github.rest.issues.createComment({
+                      issue_number: context.issue.number, owner: context.repo.owner, repo: context.repo.repo, body: commentBody
+                    });
+                    console.log('✅ Created new comment');
+                  }
+                } catch (error) {
+                  console.log('❌ Failed to post comment:', error.message);
+                }

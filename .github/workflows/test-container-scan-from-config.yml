@@ -61,34 +61,22 @@ jobs:
             echo "has_containers=false" >> $GITHUB_OUTPUT
           fi
 
-  # Test 2: Test container-scan.yml with remote mode using local workflow
-  test-remote-scan:
-    name: Scan ${{ matrix.name }}
-    needs: test-parse-config
-    if: needs.test-parse-config.outputs.has_containers == 'true'
-    strategy:
-      fail-fast: false
-      max-parallel: 2
-      matrix: ${{ fromJson(needs.test-parse-config.outputs.matrix) }}
-    uses: ./.github/workflows/container-scan.yml
+  # Test 2: Test the full reusable workflow (container-scan-from-config.yml)
+  # This tests the entire flow: config parsing → matrix generation → container scanning
+  # Testing the reusable workflow implicitly tests container-scan.yml as well
+  test-reusable-workflow:
+    name: Test Reusable Workflow
+    uses: ./.github/workflows/container-scan-from-config.yml
     with:
-      scan_mode: 'remote'
-      image_ref: ${{ matrix.image }}
-      container_name: ${{ matrix.name }}
-      registry_username: ${{ matrix.registry_username }}
-      scanners: ${{ matrix.scanners }}
-      allow_failure: ${{ matrix.allow_failure || false }}
-      fail_on_severity: ${{ matrix.fail_on_severity || 'none' }}
-      enable_code_security: false
-      post_pr_comment: false
-    secrets:
-      registry_password: ${{ secrets[matrix.registry_auth_secret] }}
+      config_file: 'examples/container-config.example.yml'
+      hardening_workflows_ref: ${{ github.sha }}
+    secrets: inherit
 
   # Test 3: Validate results
   test-summary:
     name: Validate Test Results
     runs-on: ubuntu-latest
-    needs: [test-parse-config, test-remote-scan]
+    needs: [test-parse-config, test-reusable-workflow]
     if: always()
     steps:
       - name: Download scan artifacts
@@ -101,6 +89,12 @@ jobs:
       - name: Validate scan completed
         run: |
           echo "# Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Report on test jobs
+          echo "## Job Results" >> $GITHUB_STEP_SUMMARY
+          echo "- **test-parse-config**: Validates config file parsing and matrix generation" >> $GITHUB_STEP_SUMMARY
+          echo "- **test-reusable-workflow**: Tests full workflow (container-scan-from-config.yml → container-scan.yml)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Check for expected artifacts

@@ -144,6 +144,24 @@
         },
         {
           "files": [
+            ".github/workflows/container-scan.yml"
+          ],
+          "search": {
+            "pattern": "(hardening_workflows_ref:[\\s\\S]*?default: ')[^']+('.*# RELEASE-IT-VERSION-PLACEHOLDER)"
+          },
+          "replace": "$1{{version}}$2"
+        },
+        {
+          "files": [
+            ".github/workflows/container-scan-from-config.yml"
+          ],
+          "search": {
+            "pattern": "(hardening_workflows_ref: \\$\\{\\{ inputs\\.hardening_workflows_ref \\|\\| ')[^']+('.*# RELEASE-IT-VERSION-PLACEHOLDER)"
+          },
+          "replace": "$1{{version}}$2"
+        },
+        {
+          "files": [
             ".github/schemas/container-config.schema.json"
           ],
           "search": {
