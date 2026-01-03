@@ -1,6 +1,12 @@
 // Export container registry configuration
 // This file can be used for dynamic config generation with environment-specific values
 
+// DEPENDABOT MAINTENANCE:
+// For automated image updates with Dependabot, use simple string format for 'image' field.
+// Dependabot can update: image: "alpine:3.23.2@sha256:abc123..."
+// Dependabot CANNOT update structured format: image: { name: "alpine", tag: "3.23.2" }
+// See examples/dependabot.example.yml for configuration.
+
 module.exports = {
   containers: [
     {
@@ -12,8 +18,10 @@ module.exports = {
     },
     {
       name: "alpine-pinned",
+      registry: {
+        host: "docker.io",
+      },
       image: {
-        registry: "docker.io",
         repository: "library",
         name: "alpine",
         tag: "3.23.2",
@@ -25,15 +33,15 @@ module.exports = {
     },
     {
       name: "ghcr-runner",
+      registry: {
+        host: "ghcr.io",
+        username: process.env.GITHUB_TRIGGERING_ACTOR,
+        auth_secret: "GITHUB_TOKEN",
+      },
       image: {
-        registry: "ghcr.io",
         repository: "actions",
         name: "actions-runner",
         tag: "latest",
-      },
-      registry_username: process.env.GITHUB_TRIGGERING_ACTOR,
-      registry: {
-        auth_secret: "GITHUB_TOKEN",
       },
       scanners: ["trivy"],
       allow_failure: false,
@@ -42,8 +50,10 @@ module.exports = {
     // Minimal image with pinned digest example
     // {
     //   name: "alpine-app-pinned",
+    //   registry: {
+    //     host: "docker.io",
+    //   },
     //   image: {
-    //     registry: "docker.io",
     //     repository: "library",
     //     name: "alpine",
     //     tag: "3.18",

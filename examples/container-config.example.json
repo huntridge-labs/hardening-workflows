@@ -1,5 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/huntridge-labs/hardening-workflows/main/.github/schemas/container-config.schema.json",
+  "_comment": "For Dependabot automated updates, use simple string format for 'image' field. Dependabot cannot parse structured object format. See examples/dependabot.example.yml",
   "containers": [
     {
       "name": "busybox-latest",
@@ -14,8 +15,10 @@
     },
     {
       "name": "alpine-pinned",
+      "registry": {
+        "host": "docker.io"
+      },
       "image": {
-        "registry": "docker.io",
         "repository": "library",
         "name": "alpine",
         "tag": "3.263.2",
@@ -30,15 +33,15 @@
     },
     {
       "name": "ghcr-runner",
+      "registry": {
+        "host": "ghcr.io",
+        "username": "${GITHUB_TRIGGERING_ACTOR}",
+        "auth_secret": "GITHUB_TOKEN"
+      },
       "image": {
-        "registry": "ghcr.io",
         "repository": "actions",
         "name": "actions-runner",
         "tag": "latest"
-      },
-      "registry_username": "${GITHUB_TRIGGERING_ACTOR}",
-      "registry": {
-        "auth_secret": "GITHUB_TOKEN"
       },
       "scanners": [
         "trivy"

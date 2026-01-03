@@ -107,12 +107,13 @@ function validateConfig(config, schema) {
  * Supports both simple string format and structured object format
  *
  * String format: "nginx:alpine"
- * Structured format: { registry: "docker.io", repository: "library", name: "nginx", tag: "alpine", digest: "sha256:..." }
+ * Structured format: { repository: "library", name: "nginx", tag: "alpine", digest: "sha256:..." }
  *
  * @param {string|object} image - Image reference in string or structured format
+ * @param {string} registryHost - Registry host (e.g., docker.io, ghcr.io) from registry.host field
  * @returns {string} Full image reference string
  */
-function buildImageReference(image) {
+function buildImageReference(image, registryHost = 'docker.io') {
   // If image is already a string, return as-is
   if (typeof image === 'string') {
     return image;
@@ -120,7 +121,7 @@ function buildImageReference(image) {
 
   // If image is a structured object, build the reference
   if (typeof image === 'object' && image !== null) {
-    const registry = image.registry || 'docker.io';
+    const registry = registryHost || 'docker.io';
     const repository = image.repository ? `${image.repository}/` : '';
     const name = image.name;
     const tag = image.tag || 'latest';
@@ -157,7 +158,8 @@ function generateMatrix(config) {
     const scanners = container.scanners || ['trivy']; // Default to trivy if not specified
 
     // Convert structured image format to string if needed
-    const imageRef = buildImageReference(container.image);
+    // Pass registry.host from the new consolidated registry structure
+    const imageRef = buildImageReference(container.image, container.registry?.host);
 
     const entry = {
       name: container.name,
@@ -167,8 +169,8 @@ function generateMatrix(config) {
       allow_failure: container.allow_failure !== undefined ? container.allow_failure : false,
       enable_code_security: container.enable_code_security === true,
       post_pr_comment: container.post_pr_comment === true,
-      registry_username: container.registry_username || '',
-      // Extract the secret name from registry config (if present)
+      // Extract username and auth_secret from consolidated registry config
+      registry_username: container.registry?.username || '',
       registry_auth_secret: container.registry?.auth_secret || ''
     };
 

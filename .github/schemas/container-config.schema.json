@@ -35,16 +35,11 @@
               },
               {
                 "type": "object",
-                "description": "Structured container image reference with individual components",
+                "description": "Structured container image reference with individual components (registry host specified separately in registry.host)",
                 "required": [
                   "name"
                 ],
                 "properties": {
-                  "registry": {
-                    "type": "string",
-                    "description": "Container registry host (e.g., docker.io, ghcr.io, 123456.dkr.ecr.us-east-1.amazonaws.com). Defaults to docker.io if omitted.",
-                    "minLength": 1
-                  },
                   "repository": {
                     "type": "string",
                     "description": "Repository/organization path within the registry (e.g., library, myorg/myteam). Optional - used to construct full image path.",
@@ -74,24 +69,27 @@
               }
             ]
           },
-          "registry_username": {
-            "type": "string",
-            "description": "Registry username - supports literal values or ${VAR_NAME} syntax for environment variable expansion (e.g., 'AWS', '_json_key', '${GHCR_USERNAME}')"
-          },
           "registry": {
             "type": "object",
-            "description": "Registry authentication configuration",
+            "description": "Registry configuration including host and authentication",
             "properties": {
+              "host": {
+                "type": "string",
+                "description": "Container registry host (e.g., docker.io, ghcr.io, 123456.dkr.ecr.us-east-1.amazonaws.com)",
+                "minLength": 1
+              },
+              "username": {
+                "type": "string",
+                "description": "Registry username - supports literal values or ${VAR_NAME} syntax for environment variable expansion (e.g., 'AWS', '_json_key', '${GHCR_USERNAME}')",
+                "minLength": 1
+              },
               "auth_secret": {
                 "type": "string",
-                "description": "Name of the GitHub repository secret containing the registry password/token (e.g., 'GITHUB_TOKEN', 'DOCKERHUB_TOKEN', 'ECR_PASSWORD')",
+                "description": "Name of the GitHub repository secret containing the registry password/token (e.g., 'GITHUB_TOKEN', 'DOCKERHUB_TOKEN', 'ECR_PASSWORD'). Optional - omit for public registries.",
                 "pattern": "^[A-Z0-9_]+$",
                 "minLength": 1
               }
             },
-            "required": [
-              "auth_secret"
-            ],
             "additionalProperties": false
           },
           "scanners": {
