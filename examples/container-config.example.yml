@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/huntridge-labs/hardening-workflows/main/.github/schemas/container-config.schema.json
 # Container Registry Configuration
 # This file defines containers to scan across multiple registries
 # Use real, publicly available images for testing

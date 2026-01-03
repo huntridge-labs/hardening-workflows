@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/huntridge-labs/hardening-workflows/main/.github/schemas/container-config.schema.json",
   "containers": [
     {
       "name": "busybox-latest",
