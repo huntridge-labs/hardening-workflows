@@ -9,7 +9,8 @@ containers:
     image: busybox:latest
     scanners: [trivy, grype, syft]
     allow_failure: true
-    fail_on_severity: medium
+    fail_on_severity: critical
+    enable_code_security: false
 
   # Structured format with breakdown fields
   # Useful when you need to pin digests or control individual components
@@ -22,7 +23,8 @@ containers:
       digest: sha256:865b95f46d98cf867a156fe4a135ad3fe50d2056aa3f25ed31662dff6da4eb62
     scanners: [trivy, grype]
     allow_failure: true
-    fail_on_severity: high
+    fail_on_severity: none
+    enable_code_security: false
 
   # Private registry examples (uncomment to use)
   # Use ${VAR_NAME} syntax to reference environment variables/secrets
