@@ -66,7 +66,7 @@ env:
   #               You must also update the 'uses:' line in scan-containers job below
   HARDENING_WORKFLOWS_REPO_PATH: huntridge-labs/hardening-workflows
   # For GHE forks: Update this to your desired ref/tag
-  HARDENING_WORKFLOWS_REF: feat/remote-registries
+  HARDENING_WORKFLOWS_REF: feat/remote-registries # RELEASE-IT-VERSION-PLACEHOLDER
 
 jobs:
   parse-config:

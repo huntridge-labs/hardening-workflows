@@ -97,7 +97,6 @@
           "files": [
             "CONTRIBUTING.md",
             "QUICK-START.md",
-            "README.md",
             "examples/scanner-list-examples.yml",
             "examples/use-reusable-workflow.yml"
           ],
@@ -110,7 +109,10 @@
         {
           "files": [
             "QUICK-START.md",
-            "README.md"
+            "README.md",
+            "docs/container-scanning.md",
+            "docs/failure-control.md",
+            "docs/developer/pr-workflow-sync.md"
           ],
           "search": {
             "pattern": "hardening-workflows/\\.github/workflows/([\\w-]+)\\.yml@[^\\s]+",
@@ -133,8 +135,7 @@
           "files": [
             ".github/workflows/scanner-clamav.yml",
             ".github/workflows/linting.yml",
-            ".github/workflows/reusable-security-hardening.yml",
-            ".github/workflows/container-scan-from-config.yml"
+            ".github/workflows/reusable-security-hardening.yml"
           ],
           "search": {
             "pattern": "repository: huntridge-labs/hardening-workflows[\\s\\S]*?ref: ([^\\s\\n]+)",
@@ -149,7 +150,7 @@
           "search": {
             "pattern": "(hardening_workflows_ref:[\\s\\S]*?default: ')[^']+('.*# RELEASE-IT-VERSION-PLACEHOLDER)"
           },
-          "replace": "$1{{version}}$2"
+          "replace": "${1}{{version}}${2}"
         },
         {
           "files": [
@@ -158,7 +159,16 @@
           "search": {
             "pattern": "(hardening_workflows_ref: \\$\\{\\{ inputs\\.hardening_workflows_ref \\|\\| ')[^']+('.*# RELEASE-IT-VERSION-PLACEHOLDER)"
           },
-          "replace": "$1{{version}}$2"
+          "replace": "${1}{{version}}${2}"
+        },
+        {
+          "files": [
+            ".github/workflows/container-scan-from-config.yml"
+          ],
+          "search": {
+            "pattern": "(HARDENING_WORKFLOWS_REF: )[^\\s]+( # RELEASE-IT-VERSION-PLACEHOLDER)"
+          },
+          "replace": "${1}{{version}}${2}"
         },
         {
           "files": [
@@ -167,7 +177,7 @@
           "search": {
             "pattern": "(\"\\$id\": \"https://raw\\.githubusercontent\\.com/huntridge-labs/hardening-workflows/)([^/]+)(/.github/schemas/container-config\\.schema\\.json\")"
           },
-          "replace": "$1{{version}}$3"
+          "replace": "${1}{{version}}${3}"
         }
       ]
     }
