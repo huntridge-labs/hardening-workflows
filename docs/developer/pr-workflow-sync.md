@@ -1,4 +1,9 @@
+<div align=center>
+
 # PR Testing Workflow Synchronization
+
+To work around GitHub Actions' reusable workflow call limits while ensuring all scanners are tested in pull requests, we maintain two synchronized versions of the reusable security hardening workflow.
+</div>
 
 ## Problem
 GitHub Actions has a limit of 20 reusable workflow calls per workflow file. Testing all individual scanners plus the reusable workflow exceeded this limit.
@@ -35,23 +40,33 @@ The `validate-workflow-sync` job in `pr-verification.yml` runs when either reusa
 When modifying the reusable workflow logic:
 
 1. **Make changes to `reusable-security-hardening.yml`** first
-2. **Copy changes to `pr-reusable-security-hardening.yml`**
-3. **Update scanner references** in the PR version to use relative paths
-4. **Commit both files** together
+2. **Manually apply the same changes to `pr-reusable-security-hardening.yml`**
+3. **Ensure scanner references use the correct format**:
+   - Production: `huntridge-labs/hardening-workflows/.github/workflows/scanner-*.yml@<version>`
+   - PR Testing: `./.github/workflows/scanner-*.yml`
+4. **Validate synchronization** before committing
 
-### Quick Update Command
+### Validate Synchronization
+
+Use the sync validation script to check if workflows are in sync:
 
 ```bash
-# Copy the production workflow
-cp .github/workflows/reusable-security-hardening.yml .github/workflows/pr-reusable-security-hardening.yml
-
-# Update the name and comments
-sed -i '' '1s|^.*$|# PR Testing Version - Uses Relative Paths for Branch Testing\n# This workflow is identical to reusable-security-hardening.yml but uses relative paths\n# to test scanner changes in PRs. DO NOT use this for production - external consumers\n# should use reusable-security-hardening.yml with pinned tags.\n|' .github/workflows/pr-reusable-security-hardening.yml
-sed -i '' 's|name: Reusable Security Hardening Pipeline|name: PR Testing - Reusable Security Hardening Pipeline|' .github/workflows/pr-reusable-security-hardening.yml
-
-# Replace all pinned versions with relative paths
-sed -i '' 's|huntridge-labs/hardening-workflows/.github/workflows/scanner-\([^@]*\)@2.3.1|./.github/workflows/scanner-\1|g' .github/workflows/pr-reusable-security-hardening.yml
+bash .github/scripts/validate-reusable-workflow-sync.sh
 ```
+
+**If workflows are out of sync:**
+- The script will display structural differences
+- Review the diff output to identify what needs to be updated
+- Manually apply changes to keep workflows synchronized
+- Re-run validation to confirm sync
+
+**The validation script normalizes:**
+- Comments and workflow names
+- Scanner workflow paths and version tags
+- Repository-specific checkout logic
+- Job ID extraction differences
+
+This ensures only actual structural differences are reported.
 
 ## Benefits
 

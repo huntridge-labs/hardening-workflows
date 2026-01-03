@@ -1,6 +1,10 @@
+<div align=center>
+
 # Enhanced PR comments
 
 The reusable security workflow can post a single, trimmed summary comment on pull requests. This file captures how to toggle and extend that feature.
+
+</div>
 
 ## Enabling comments
 

@@ -1,6 +1,10 @@
+<div align=center>
+
 # Release Management with release-it
 
 This project uses [release-it](https://github.com/release-it/release-it) for automated releases with conventional changelog generation.
+
+</div>
 
 ## Overview
 
