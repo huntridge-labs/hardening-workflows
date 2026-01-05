@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.10.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.9.1...2.10.0) (2026-01-05)
+
+### Features
+
+* add digest to container scan summary ([53af4f6](https://github.com/huntridge-labs/hardening-workflows/commit/53af4f65fde61951d6744a7d25139630b5e6de94))
+* **container-scanners:** add composite action and remote registry scanning ([ab1c321](https://github.com/huntridge-labs/hardening-workflows/commit/ab1c32103d93365b6c28826eb6e7b0e20e568c47))
+* **container-scanners:** add config-driven matrix scanning ([127ae09](https://github.com/huntridge-labs/hardening-workflows/commit/127ae095908ae3c40c1c7415543957c8e3eb206b))
+* **container-scanners:** add remote registry authentication support ([bcb47ca](https://github.com/huntridge-labs/hardening-workflows/commit/bcb47cac8b6e636aa7d2d450d72fc692efd197a6))
+
+### Security Tools
+
+* **deps:** bump bridgecrewio/checkov-action ([81320bb](https://github.com/huntridge-labs/hardening-workflows/commit/81320bb2d81ca490db2cd9586e293a0832ae01d9))
+
+### Dependencies
+
+* **deps:** bump @commitlint/cli from 20.2.0 to 20.3.0 ([bc34f9d](https://github.com/huntridge-labs/hardening-workflows/commit/bc34f9dcfc886abb4688dbd71aa611c8d7e2f1dc))
+
+### Maintenance
+
+* **container-config-schema:** consolidate registry configuration ([49d4641](https://github.com/huntridge-labs/hardening-workflows/commit/49d46412f61afc9b524c85e7ea86e86a23d2a194))
+* **container-scan-from-config:** enhance registry authentication and environment variable support ([4ea3b81](https://github.com/huntridge-labs/hardening-workflows/commit/4ea3b81a3bee43f5429f8b88c22e65f0b6e2a5dc))
+
+
+### Documentation
+
+* restructure and consolidate to improve readability and flow ([342bbd0](https://github.com/huntridge-labs/hardening-workflows/commit/342bbd087d5e482382dfcc26e1fc8d33c9adbe7a))
+
+### Code Refactoring
+
+* **container-scan:** extract inline scripts to external files ([85a3191](https://github.com/huntridge-labs/hardening-workflows/commit/85a3191109f2e13139e0a54b987565b9f304df4c))
+
 ## [2.9.1](https://github.com/huntridge-labs/hardening-workflows/compare/2.9.0...2.9.1) (2025-12-29)
 
 ### Security Tools
