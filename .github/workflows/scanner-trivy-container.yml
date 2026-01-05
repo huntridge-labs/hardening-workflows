@@ -4,9 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       image_ref:
-        description: 'Container image reference to scan (e.g., nginx:latest or locally built image)'
+        description: 'Container image reference to scan (e.g., nginx:latest, ghcr.io/owner/image:tag, or 123456.dkr.ecr.region.amazonaws.com/image:tag)'
         required: true
         type: string
+      registry_username:
+        description: 'Username for registry authentication (leave empty for public images)'
+        required: false
+        type: string
+        default: ''
+      registry_password:
+        description: 'Password/token for registry authentication (use secrets)'
+        required: false
+        type: string
+        default: ''
       enable_code_security:
         description: 'Whether to upload SARIF to GitHub Security'
         required: false
@@ -20,7 +30,7 @@ on:
   workflow_call:
     inputs:
       image_ref:
-        description: 'Container image reference to scan'
+        description: 'Container image reference to scan (e.g., nginx:latest, ghcr.io/owner/image:tag)'
         required: true
         type: string
       scan_name:
@@ -28,6 +38,11 @@ on:
         required: false
         type: string
         default: 'container'
+      registry_username:
+        description: 'Username for registry authentication (leave empty for public images)'
+        required: false
+        type: string
+        default: ''
       enable_code_security:
         description: 'Whether to upload SARIF to GitHub Security'
         required: false
@@ -43,6 +58,10 @@ on:
         required: false
         type: string
         default: 'none'
+    secrets:
+      registry_password:
+        description: 'Password/token for registry authentication'
+        required: false
 
 permissions:
   contents: read
@@ -91,6 +110,9 @@ jobs:
         # Use native exit-code when severity threshold is set
         exit-code: ${{ inputs.fail_on_severity != 'none' && inputs.fail_on_severity != '' && '1' || '0' }}
         severity: ${{ inputs.fail_on_severity == 'critical' && 'CRITICAL' || inputs.fail_on_severity == 'high' && 'HIGH,CRITICAL' || inputs.fail_on_severity == 'medium' && 'MEDIUM,HIGH,CRITICAL' || inputs.fail_on_severity == 'low' && 'LOW,MEDIUM,HIGH,CRITICAL' || 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL' }}
+      env:
+        TRIVY_USERNAME: ${{ inputs.registry_username }}
+        TRIVY_PASSWORD: ${{ secrets.registry_password || inputs.registry_password }}
 
     - name: Run Trivy vulnerability scanner (JSON)
       uses: aquasecurity/trivy-action@0.33.1
@@ -99,6 +121,9 @@ jobs:
         image-ref: ${{ steps.validate.outputs.image_ref }}
         format: 'json'
         output: 'trivy-${{ steps.validate.outputs.scan_name }}-results.json'
+      env:
+        TRIVY_USERNAME: ${{ inputs.registry_username }}
+        TRIVY_PASSWORD: ${{ secrets.registry_password || inputs.registry_password }}
 
     - name: Run Trivy vulnerability scanner (Table)
       uses: aquasecurity/trivy-action@0.33.1
@@ -107,6 +132,9 @@ jobs:
         image-ref: ${{ steps.validate.outputs.image_ref }}
         format: 'table'
         output: 'trivy-${{ steps.validate.outputs.scan_name }}-results.txt'
+      env:
+        TRIVY_USERNAME: ${{ inputs.registry_username }}
+        TRIVY_PASSWORD: ${{ secrets.registry_password || inputs.registry_password }}
 
     - name: Upload Trivy scan results to GitHub Security tab
       if: inputs.enable_code_security == true && github.actor != 'nektos/act'

@@ -1,0 +1,51 @@
+name: Test Container Scanners
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/scanner-grype.yml'
+      - '.github/workflows/scanner-syft.yml'
+      - '.github/workflows/scanner-trivy-container.yml'
+      - '.github/workflows/test-container-scanners.yml'
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+
+jobs:
+  test-grype:
+    name: Test Grype Scanner
+    uses: ./.github/workflows/scanner-grype.yml
+    with:
+      image_ref: 'ghcr.io/actions/actions-runner:latest'
+      registry_username: ${{ github.actor }}
+      scan_name: 'test-grype-ghcr'
+      enable_code_security: false
+      fail_on_severity: 'none'
+    secrets:
+      registry_password: ${{ secrets.GITHUB_TOKEN }}
+
+  test-syft:
+    name: Test Syft Scanner
+    uses: ./.github/workflows/scanner-syft.yml
+    with:
+      scan-image: 'ghcr.io/actions/actions-runner:latest'
+      registry_username: ${{ github.actor }}
+      enable_code_security: false
+    secrets:
+      registry_password: ${{ secrets.GITHUB_TOKEN }}
+
+  test-trivy:
+    name: Test Trivy Scanner
+    uses: ./.github/workflows/scanner-trivy-container.yml
+    with:
+      image_ref: 'ghcr.io/actions/actions-runner:latest'
+      registry_username: ${{ github.actor }}
+      scan_name: 'test-trivy-ghcr'
+      enable_code_security: false
+      fail_on_severity: 'none'
+    secrets:
+      registry_password: ${{ secrets.GITHUB_TOKEN }}

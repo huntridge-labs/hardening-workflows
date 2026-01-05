@@ -440,7 +440,8 @@ jobs:
     if: needs.scan-coordinator.outputs.run_container == 'true'
     uses: ./.github/workflows/container-scan.yml
     with:
-      post_pr_comment: ${{ inputs.post_pr_comment }}
+      # Disable individual container PR comments - security-summary job provides comprehensive reporting
+      post_pr_comment: false
       enable_code_security: ${{ inputs.enable_code_security }}
     permissions:
       contents: read
