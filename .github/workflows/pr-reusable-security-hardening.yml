@@ -9,7 +9,7 @@ on:
   workflow_call:
     inputs:
       scanners:
-        description: 'Comma-separated list of scanners to run (codeql, opengrep, bandit, gitleaks, container, infrastructure, trivy-iac, checkov, trivy-container, grype, lint, clamav, sbom, all, sast, secrets, etc.). Use "all" to run ALL available scanners.'
+        description: 'Comma-separated list of scanners to run (codeql, opengrep, bandit, gitleaks, container, infrastructure, trivy-iac, checkov, trivy-container, grype, lint, clamav, sbom, zap, all, sast, secrets, etc.). Note: zap (DAST) is opt-in and is not included in "all" by default.'
         required: false
         default: 'all'
         type: string
@@ -88,6 +88,57 @@ on:
         required: false
         default: ''
         type: string
+
+      zap_scan_mode:
+        description: 'ZAP: how to obtain a running target: url (already running), docker-run (run a single container), compose (run docker compose)'
+        required: false
+        default: 'url'
+        type: string
+      zap_config_file:
+        description: 'ZAP: optional config file (YAML or JSON) to define targets, scan type, and options. When provided, it takes precedence over the other zap_* inputs.'
+        required: false
+        default: ''
+        type: string
+      zap_target_urls:
+        description: 'ZAP: comma-separated list of target URLs (required for baseline/full)'
+        required: false
+        default: ''
+        type: string
+      zap_healthcheck_url:
+        description: 'ZAP: optional URL to poll until ready (defaults to first target URL)'
+        required: false
+        default: ''
+        type: string
+      zap_app_image_ref:
+        description: 'ZAP: when scan_mode=docker-run, container image to start'
+        required: false
+        default: ''
+        type: string
+      zap_app_ports:
+        description: 'ZAP: when scan_mode=docker-run, comma-separated port mappings (e.g., 8080:8080,3000:3000)'
+        required: false
+        default: '8080:8080'
+        type: string
+      zap_compose_file:
+        description: 'ZAP: when scan_mode=compose, path to docker compose file'
+        required: false
+        default: 'docker-compose.yml'
+        type: string
+      zap_scan_type:
+        description: 'ZAP: scan type: baseline (passive), full (active), api (OpenAPI/Swagger)'
+        required: false
+        default: 'baseline'
+        type: string
+      zap_api_spec:
+        description: 'ZAP: when scan_type=api, URL or file path to OpenAPI/Swagger spec'
+        required: false
+        default: ''
+        type: string
+      zap_max_duration_minutes:
+        description: 'ZAP: max minutes per target for ZAP to run'
+        required: false
+        default: 10
+        type: number
     secrets:
       AWS_ACCOUNT_ID:
         description: 'AWS Account ID for infrastructure scans'
@@ -132,6 +183,7 @@ jobs:
       run_grype: ${{ steps.resolve.outputs.run_grype }}
       run_lint: ${{ steps.resolve.outputs.run_lint }}
       run_clamav: ${{ steps.resolve.outputs.run_clamav }}
+      run_zap: ${{ steps.resolve.outputs.run_zap }}
       run_any: ${{ steps.resolve.outputs.run_any }}
 
     steps:
@@ -155,6 +207,7 @@ jobs:
           [lint]=false
           [clamav]=false
           [sbom]=false
+          [zap]=false
         )
 
         DEFAULT_SCANNERS=(codeql opengrep bandit gitleaks container infrastructure sbom)
@@ -192,7 +245,8 @@ jobs:
               # since they duplicate what the aggregate scanners already run:
               # - container auto-discovers Dockerfiles and scans them
               # - infrastructure runs trivy-iac + checkov together
-              local -a exclude=(trivy-iac checkov sbom trivy-container grype)
+              # - zap is opt-in since it requires an application target
+              local -a exclude=(trivy-iac checkov sbom trivy-container grype zap)
               for key in "${!RUN[@]}"; do
                 if [[ ! " ${exclude[*]} " =~ " ${key} " ]]; then
                   add_scanner "$key"
@@ -243,6 +297,9 @@ jobs:
               ;;
             clamav|malware|antivirus)
               add_scanner clamav
+              ;;
+            zap|dast)
+              add_scanner zap
               ;;
             none|off)
               reset_selection
@@ -549,6 +606,31 @@ jobs:
       pull-requests: write
     secrets: inherit
 
+  scanner-zap:
+    name: ZAP (DAST) Scanner
+    needs: scan-coordinator
+    if: needs.scan-coordinator.outputs.run_zap == 'true'
+    uses: ./.github/workflows/scanner-zap.yml
+    with:
+      config_file: ${{ inputs.zap_config_file }}
+      scan_mode: ${{ inputs.zap_scan_mode }}
+      target_urls: ${{ inputs.zap_target_urls }}
+      healthcheck_url: ${{ inputs.zap_healthcheck_url }}
+      app_image_ref: ${{ inputs.zap_app_image_ref }}
+      app_ports: ${{ inputs.zap_app_ports }}
+      compose_file: ${{ inputs.zap_compose_file }}
+      zap_scan_type: ${{ inputs.zap_scan_type }}
+      zap_api_spec: ${{ inputs.zap_api_spec }}
+      zap_max_duration_minutes: ${{ inputs.zap_max_duration_minutes }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
+      post_pr_comment: false # PR comment would be redundant here; summary job covers it
+      enable_code_security: false # DAST findings are not integrated into GitHub Code Security
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    secrets: inherit
+
   security-summary:
     name: Security Hardening Summary
     runs-on: ubuntu-latest
@@ -567,6 +649,7 @@ jobs:
       - scanner-checkov
       - scanner-trivy-container
       - scanner-grype
+      - scanner-zap
     if: always()
 
     steps:
@@ -647,6 +730,13 @@ jobs:
         pattern: grype-*
       continue-on-error: true
 
+    - name: Download ZAP artifacts
+      if: needs.scan-coordinator.outputs.run_zap == 'true'
+      uses: actions/download-artifact@v7
+      with:
+        pattern: zap-reports-*
+      continue-on-error: true
+
     - name: Download Linting artifacts
       if: needs.scan-coordinator.outputs.run_lint == 'true'
       uses: actions/download-artifact@v7
@@ -683,7 +773,7 @@ jobs:
         echo ""
 
         # Combine all scanner summaries in a specific order
-        for scanner in codeql opengrep bandit gitleaks clamav container infrastructure sbom trivy-iac checkov trivy-container grype; do
+        for scanner in codeql opengrep bandit gitleaks clamav container infrastructure zap sbom trivy-iac checkov trivy-container grype; do
           if [ -f "${scanner}.md" ]; then
             echo "✅ Adding ${scanner} summary..."
             cat "${scanner}.md" >> security-hardening-report.md

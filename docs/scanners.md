@@ -22,6 +22,8 @@ Complete configuration reference for all available security scanners.
   - [Checkov](#checkov)
 - [Malware Scanner](#malware-scanner)
   - [ClamAV](#clamav)
+- [DAST Scanners](#dast-scanners)
+  - [ZAP](#zap)
 
 ## SAST Scanners
 
@@ -363,3 +365,127 @@ with:
 - Infrastructure only: `scanners: trivy-iac,checkov`
 - Container only: `scanners: trivy-container,grype,sbom`
 - Focused mix: `scanners: container,infrastructure,gitleaks`
+
+## DAST Scanners
+
+### ZAP
+
+ZAP provides Dynamic Application Security Testing (DAST) for running web applications and APIs.
+
+This integration supports:
+- **URL-only**: scan endpoints that are already running
+- **Single container**: start one container on the GitHub runner and scan its exposed port(s)
+- **Docker Compose**: start a multi-container stack and scan one or more published endpoints
+
+**Configuration (via the reusable workflow):**
+
+| Input | Description | Default | Required |
+|-------|-------------|---------|----------|
+| `scanners` | Include `zap` (opt-in; not included in `all`) | - | Yes (to run ZAP) |
+| `zap_config_file` | Path to a ZAP config file (YAML/JSON). When set, it drives targets/matrixing and overrides other `zap_*` inputs. | `''` | No |
+| `zap_scan_mode` | `url`, `docker-run`, or `compose` | `url` | No |
+| `zap_target_urls` | Comma-separated list of URLs to scan | `''` | Yes (unless `docker-run` derives targets) |
+| `zap_healthcheck_url` | Optional URL to wait on before scanning | `''` | No |
+| `zap_scan_type` | `baseline`, `full`, or `api` | `baseline` | No |
+| `zap_api_spec` | URL or file path to OpenAPI/Swagger spec | `''` | Yes (when `zap_scan_type=api`) |
+| `zap_max_duration_minutes` | Max minutes for ZAP per scan | `10` | No |
+| `zap_app_image_ref` | Image to run (when `zap_scan_mode=docker-run`) | `''` | Yes (when `docker-run`) |
+| `zap_app_ports` | Port mappings (when `zap_scan_mode=docker-run`) | `8080:8080` | No |
+| `zap_compose_file` | Compose file path (when `zap_scan_mode=compose`) | `docker-compose.yml` | Yes (when `compose`) |
+| `allow_failure` + `severity_threshold` | Controls failing the workflow on ZAP findings | `true` + `high` | No |
+
+**Recommended: config-file driven ZAP**
+
+Use a config file to avoid passing many inputs and to define multiple targets for matrix scanning.
+
+Example config file (YAML or JSON), e.g. `.zap/zap.yml`:
+
+```yaml
+zap:
+  scan_mode: url
+  # targets can be a list or a comma-separated string
+  target_urls:
+    - http://127.0.0.1:8080
+    - http://127.0.0.1:3000
+  healthcheck_url: http://127.0.0.1:8080/health
+  scan_type: baseline
+  zap_max_duration_minutes: 10
+  # Optional: pass-through to official zaproxy/action-* rules_file_name
+  rules_file_name: .zap/rules.tsv
+  # Optional: additional pass-through to ZAP scripts
+  cmd_options: "-a"
+```
+
+For `scan_mode: docker-run`, the config can build a local Dockerfile from the caller repo (no assumptions; you must point to it):
+
+```yaml
+zap:
+  scan_mode: docker-run
+  # Either set app_image_ref to a prebuilt image, OR set these two to build locally
+  app_build_context: .
+  app_dockerfile: ./Dockerfile
+  # Optional; defaults to local-dast-app:${GITHUB_SHA}
+  app_image_tag: my-app-dast:${GITHUB_SHA}
+  app_ports: "8080:8080"
+  target_urls:
+    - http://127.0.0.1:8080
+  scan_type: baseline
+```
+
+And call the workflow like:
+
+```yaml
+jobs:
+  security:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.10.0
+    with:
+      scanners: zap
+      zap_config_file: .zap/zap.yml
+      allow_failure: false
+      severity_threshold: medium
+```
+
+**Example: URL-only (caller starts containers/services)**
+
+```yaml
+jobs:
+  security:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.10.0
+    with:
+      scanners: zap
+      zap_scan_mode: url
+      zap_target_urls: http://127.0.0.1:8080
+      allow_failure: false
+      severity_threshold: medium
+```
+
+**Example: Single container (run and scan)**
+
+```yaml
+jobs:
+  security:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.10.0
+    with:
+      scanners: zap
+      zap_scan_mode: docker-run
+      zap_app_image_ref: ghcr.io/myorg/myapp:latest
+      zap_app_ports: 8080:8080
+      allow_failure: false
+      severity_threshold: high
+```
+
+**Example: Multi-container via docker compose**
+
+```yaml
+jobs:
+  security:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.10.0
+    with:
+      scanners: zap
+      zap_scan_mode: compose
+      zap_compose_file: docker-compose.yml
+      zap_target_urls: http://127.0.0.1:8080,http://127.0.0.1:3000
+      zap_healthcheck_url: http://127.0.0.1:8080/health
+      allow_failure: false
+      severity_threshold: medium
+```

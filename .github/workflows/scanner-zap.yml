@@ -1,0 +1,887 @@
+name: ZAP DAST Scanner
+
+on:
+  # workflow_dispatch limited to 10 inputs; use config_file for advanced options
+  workflow_dispatch:
+    inputs:
+      config_file:
+        description: 'ZAP config file (YAML/JSON) for advanced options. Overrides other inputs.'
+        required: false
+        type: string
+        default: ''
+      scan_mode:
+        description: 'Target acquisition: url, docker-run, or compose'
+        required: false
+        type: choice
+        options:
+          - url
+          - docker-run
+          - compose
+        default: url
+      target_urls:
+        description: 'Comma-separated target URLs (e.g., http://127.0.0.1:8080)'
+        required: false
+        type: string
+        default: ''
+      app_image_ref:
+        description: 'Container image (docker-run mode)'
+        required: false
+        type: string
+        default: ''
+      app_ports:
+        description: 'Port mappings (e.g., 8080:8080)'
+        required: false
+        type: string
+        default: '8080:8080'
+      compose_file:
+        description: 'Compose file path (compose mode)'
+        required: false
+        type: string
+        default: 'docker-compose.yml'
+      zap_scan_type:
+        description: 'Scan type: baseline, full, or api'
+        required: false
+        type: choice
+        options:
+          - baseline
+          - full
+          - api
+        default: baseline
+      zap_api_spec:
+        description: 'OpenAPI/Swagger spec URL (api scan type)'
+        required: false
+        type: string
+        default: ''
+      zap_max_duration_minutes:
+        description: 'Max minutes per target'
+        required: false
+        type: number
+        default: 10
+      fail_on_severity:
+        description: 'Fail threshold: none, low, medium, high, critical'
+        required: false
+        type: string
+        default: 'none'
+  workflow_call:
+    inputs:
+      config_file:
+        description: 'Optional ZAP config file (YAML or JSON). When provided, it takes precedence over other inputs and drives targets/matrixing and scan options.'
+        required: false
+        type: string
+        default: ''
+      scan_mode:
+        description: 'How to obtain a running target: url (assume already running), docker-run (run a single container), compose (run docker compose)'
+        required: false
+        type: string
+        default: url
+      target_urls:
+        description: 'Comma-separated list of target URLs (e.g., http://127.0.0.1:8080,http://127.0.0.1:3000)'
+        required: false
+        type: string
+        default: ''
+      healthcheck_url:
+        description: 'Optional URL to poll until ready (defaults to first target URL)'
+        required: false
+        type: string
+        default: ''
+      app_image_ref:
+        description: 'When scan_mode=docker-run: container image to start'
+        required: false
+        type: string
+        default: ''
+      app_build_context:
+        description: 'When scan_mode=docker-run and app_image_ref is not set: docker build context directory (e.g., .)'
+        required: false
+        type: string
+        default: ''
+      app_dockerfile:
+        description: 'When scan_mode=docker-run and app_image_ref is not set: Dockerfile path (e.g., ./Dockerfile)'
+        required: false
+        type: string
+        default: ''
+      app_image_tag:
+        description: 'When scan_mode=docker-run and building locally: tag to use for docker build (defaults to local-dast-app:${GITHUB_SHA})'
+        required: false
+        type: string
+        default: ''
+      app_ports:
+        description: 'When scan_mode=docker-run: comma-separated port mappings (e.g., 8080:8080,3000:3000)'
+        required: false
+        type: string
+        default: '8080:8080'
+      compose_file:
+        description: 'When scan_mode=compose: path to docker compose file (e.g., docker-compose.yml)'
+        required: false
+        type: string
+        default: 'docker-compose.yml'
+      compose_build:
+        description: 'When scan_mode=compose: run docker compose with --build'
+        required: false
+        type: boolean
+        default: true
+      zap_scan_type:
+        description: 'ZAP scan type: baseline (passive), full (active), api (OpenAPI/Swagger)'
+        required: false
+        type: string
+        default: baseline
+      zap_api_spec:
+        description: 'When zap_scan_type=api: URL or file path to OpenAPI/Swagger spec'
+        required: false
+        type: string
+        default: ''
+      zap_max_duration_minutes:
+        description: 'Max minutes per target for ZAP to run'
+        required: false
+        type: number
+        default: 10
+      rules_file_name:
+        description: 'Optional ZAP rules file (relative path) to ignore alerts (tsv). Passed to official zaproxy/action-* actions.'
+        required: false
+        type: string
+        default: ''
+      cmd_options:
+        description: 'Optional additional ZAP script options (passed through via official actions cmd_options). For example: "-c .zap/rules.conf" or "-z \"-config view.locale=fr_FR\""'
+        required: false
+        type: string
+        default: ''
+      post_pr_comment:
+        description: 'Reserved for future use (no PR commenting today)'
+        required: false
+        type: boolean
+        default: false
+      enable_code_security:
+        description: 'Reserved for future use (no SARIF upload today)'
+        required: false
+        type: boolean
+        default: false
+      fail_on_severity:
+        description: 'Fail the job if findings at or above this severity are found. Options: none, low, medium, high, critical. Set to "none" to never fail.'
+        required: false
+        type: string
+        default: 'none'
+      allow_failure:
+        description: 'Allow the workflow to continue even if scanning or validation fails'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+
+jobs:
+  prepare-targets:
+    name: Prepare ZAP Targets
+    runs-on: ubuntu-latest
+    outputs:
+      invocation_key: ${{ steps.targets.outputs.invocation_key }}
+      invocation_nonce: ${{ steps.targets.outputs.invocation_nonce }}
+      targets_json: ${{ steps.targets.outputs.targets_json }}
+      primary_url: ${{ steps.targets.outputs.primary_url }}
+      scan_mode: ${{ steps.targets.outputs.scan_mode }}
+      healthcheck_url: ${{ steps.targets.outputs.healthcheck_url }}
+      zap_scan_type: ${{ steps.targets.outputs.zap_scan_type }}
+      zap_api_spec: ${{ steps.targets.outputs.zap_api_spec }}
+      zap_max_duration_minutes: ${{ steps.targets.outputs.zap_max_duration_minutes }}
+      rules_file_name: ${{ steps.targets.outputs.rules_file_name }}
+      cmd_options: ${{ steps.targets.outputs.cmd_options }}
+      config_hash: ${{ steps.targets.outputs.config_hash }}
+      app_image_ref: ${{ steps.targets.outputs.app_image_ref }}
+      app_build_context: ${{ steps.targets.outputs.app_build_context }}
+      app_dockerfile: ${{ steps.targets.outputs.app_dockerfile }}
+      app_image_tag: ${{ steps.targets.outputs.app_image_tag }}
+      app_ports: ${{ steps.targets.outputs.app_ports }}
+      compose_file: ${{ steps.targets.outputs.compose_file }}
+      compose_build: ${{ steps.targets.outputs.compose_build }}
+    steps:
+      - name: Resolve targets
+        id: targets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CONFIG_FILE="${{ inputs.config_file }}"
+          if [[ -n "$CONFIG_FILE" ]]; then
+            if [[ ! -f "$CONFIG_FILE" ]]; then
+              echo "❌ Error: config_file '$CONFIG_FILE' not found"
+              ls -la
+              exit 1
+            fi
+
+            # Parse YAML or JSON (JSON is valid YAML) using Ruby stdlib.
+            # Accept either a top-level map or a { zap: { ... } } map.
+            parsed=$(ruby -ryaml -rjson -e '
+              cfg = YAML.load_file(ARGV[0]) || {}
+              zap = cfg.is_a?(Hash) && cfg.key?("zap") ? cfg["zap"] : cfg
+              zap = {} unless zap.is_a?(Hash)
+
+              def get(zap, *keys)
+                keys.each do |k|
+                  v = zap[k]
+                  return v unless v.nil?
+                end
+                nil
+              end
+
+              scan_mode = (get(zap, "scan_mode", "mode") || "url").to_s
+
+              targets = get(zap, "target_urls", "targets")
+              targets_raw = if targets.is_a?(Array)
+                targets.map(&:to_s).join(",")
+              else
+                (targets || "").to_s
+              end
+
+              healthcheck_url = (get(zap, "healthcheck_url") || "").to_s
+              app_image_ref = (get(zap, "app_image_ref") || "").to_s
+
+              app_build_context = (get(zap, "app_build_context", "build_context") || "").to_s
+              app_dockerfile = (get(zap, "app_dockerfile", "dockerfile") || "").to_s
+              app_image_tag = (get(zap, "app_image_tag", "image_tag") || "").to_s
+
+              app_ports = get(zap, "app_ports")
+              app_ports_raw = if app_ports.is_a?(Array)
+                app_ports.map(&:to_s).join(",")
+              else
+                (app_ports || "").to_s
+              end
+
+              compose_file = (get(zap, "compose_file") || "docker-compose.yml").to_s
+              compose_build = get(zap, "compose_build")
+              compose_build_raw = compose_build.nil? ? "true" : (compose_build ? "true" : "false")
+              zap_scan_type = (get(zap, "zap_scan_type", "scan_type") || "baseline").to_s
+              zap_api_spec = (get(zap, "zap_api_spec", "api_spec") || "").to_s
+              max_minutes = (get(zap, "zap_max_duration_minutes", "max_duration_minutes") || 10).to_s
+
+              rules_file_name = (get(zap, "rules_file_name", "rules_file") || "").to_s
+              extra_cmd = (get(zap, "cmd_options", "zap_cmd_options") || "").to_s
+
+              out = {
+                "scan_mode" => scan_mode,
+                "targets_raw" => targets_raw,
+                "healthcheck_url" => healthcheck_url,
+                "app_image_ref" => app_image_ref,
+                "app_build_context" => app_build_context,
+                "app_dockerfile" => app_dockerfile,
+                "app_image_tag" => app_image_tag,
+                "app_ports" => app_ports_raw,
+                "compose_file" => compose_file,
+                "compose_build" => compose_build_raw,
+                "zap_scan_type" => zap_scan_type,
+                "zap_api_spec" => zap_api_spec,
+                "zap_max_duration_minutes" => max_minutes,
+                "rules_file_name" => rules_file_name,
+                "extra_cmd_options" => extra_cmd,
+              }
+              puts JSON.generate(out)
+            ' "$CONFIG_FILE")
+
+            SCAN_MODE_RAW=$(echo "$parsed" | jq -r '.scan_mode // ""')
+            TARGETS_RAW=$(echo "$parsed" | jq -r '.targets_raw // ""')
+            HEALTHCHECK_URL=$(echo "$parsed" | jq -r '.healthcheck_url // ""')
+            APP_IMAGE_REF=$(echo "$parsed" | jq -r '.app_image_ref // ""')
+            APP_BUILD_CONTEXT=$(echo "$parsed" | jq -r '.app_build_context // ""')
+            APP_DOCKERFILE=$(echo "$parsed" | jq -r '.app_dockerfile // ""')
+            APP_IMAGE_TAG=$(echo "$parsed" | jq -r '.app_image_tag // ""')
+            APP_PORTS=$(echo "$parsed" | jq -r '.app_ports // ""')
+            COMPOSE_FILE=$(echo "$parsed" | jq -r '.compose_file // "docker-compose.yml"')
+            COMPOSE_BUILD=$(echo "$parsed" | jq -r '.compose_build // "true"')
+            ZAP_SCAN_TYPE_RAW=$(echo "$parsed" | jq -r '.zap_scan_type // "baseline"')
+            ZAP_API_SPEC=$(echo "$parsed" | jq -r '.zap_api_spec // ""')
+            ZAP_MAX_DURATION_MINUTES=$(echo "$parsed" | jq -r '.zap_max_duration_minutes // "10"')
+            RULES_FILE_NAME=$(echo "$parsed" | jq -r '.rules_file_name // ""')
+            EXTRA_CMD_OPTIONS=$(echo "$parsed" | jq -r '.extra_cmd_options // ""')
+          else
+            # Fall back to explicit workflow inputs.
+            SCAN_MODE_RAW="${{ inputs.scan_mode }}"
+            TARGETS_RAW="${{ inputs.target_urls }}"
+            HEALTHCHECK_URL="${{ inputs.healthcheck_url }}"
+            APP_IMAGE_REF="${{ inputs.app_image_ref }}"
+            APP_BUILD_CONTEXT="${{ inputs.app_build_context }}"
+            APP_DOCKERFILE="${{ inputs.app_dockerfile }}"
+            APP_IMAGE_TAG="${{ inputs.app_image_tag }}"
+            APP_PORTS="${{ inputs.app_ports }}"
+            COMPOSE_FILE="${{ inputs.compose_file }}"
+            COMPOSE_BUILD="${{ inputs.compose_build }}"
+            ZAP_SCAN_TYPE_RAW="${{ inputs.zap_scan_type }}"
+            ZAP_API_SPEC="${{ inputs.zap_api_spec }}"
+            ZAP_MAX_DURATION_MINUTES="${{ inputs.zap_max_duration_minutes }}"
+            RULES_FILE_NAME="${{ inputs.rules_file_name }}"
+            EXTRA_CMD_OPTIONS="${{ inputs.cmd_options }}"
+          fi
+
+          normalize() {
+            echo "$1" | tr '[:upper:]' '[:lower:]' | tr -d ' \t'
+          }
+
+          SCAN_MODE="$(normalize "$SCAN_MODE_RAW")"
+          if [[ -z "$SCAN_MODE" ]]; then
+            SCAN_MODE="url"
+          fi
+
+          TARGETS_RAW="${TARGETS_RAW//$'\n'/,}"
+
+          # If no targets were provided and we're running a single container, derive from ports.
+          if [[ -z "${TARGETS_RAW//,/}" && "$SCAN_MODE" == "docker-run" ]]; then
+            PORTS_RAW="$APP_PORTS"
+            PORTS_RAW="${PORTS_RAW//$'\n'/,}"
+            if [[ -z "${PORTS_RAW//,/}" ]]; then
+              PORTS_RAW="8080:8080"
+            fi
+
+            # Build URLs using the host port from each mapping.
+            derived=""
+            IFS=',' read -ra mappings <<< "$PORTS_RAW"
+            for m in "${mappings[@]}"; do
+              m="${m// /}"
+              [[ -z "$m" ]] && continue
+              host_port="${m%%:*}"
+              if [[ -n "$derived" ]]; then
+                derived+=",";
+              fi
+              derived+="http://127.0.0.1:${host_port}"
+            done
+            TARGETS_RAW="$derived"
+          fi
+
+          # API scan uses zap_api_spec as the target. We still want a human URL list for reporting.
+          ZAP_SCAN_TYPE="$(normalize "$ZAP_SCAN_TYPE_RAW")"
+          if [[ "$ZAP_SCAN_TYPE" == "api" && -z "$ZAP_API_SPEC" ]]; then
+            echo "❌ Error: zap_api_spec is required when zap_scan_type=api"
+            exit 1
+          fi
+
+          # Validate that we have some targets (URL list) for baseline/full.
+          if [[ "$ZAP_SCAN_TYPE" != "api" ]]; then
+            if [[ -z "${TARGETS_RAW//,/}" ]]; then
+              echo "❌ Error: target_urls is required (or use scan_mode=docker-run with app_ports to derive targets)."
+              exit 1
+            fi
+          fi
+
+          # Normalize into JSON array.
+          if [[ -z "${TARGETS_RAW//,/}" ]]; then
+            TARGETS_JSON='[]'
+            PRIMARY_URL=''
+          else
+            TARGETS_JSON=$(printf '%s' "$TARGETS_RAW" | jq -R -c 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length>0))')
+            PRIMARY_URL=$(echo "$TARGETS_JSON" | jq -r '.[0] // ""')
+          fi
+
+          # API scan should run exactly once; keep PRIMARY_URL only for readiness.
+          if [[ "$ZAP_SCAN_TYPE" == "api" ]]; then
+            TARGETS_JSON='["api"]'
+          fi
+
+          # Build cmd_options (always include time budget).
+          if [[ -z "${ZAP_MAX_DURATION_MINUTES// /}" ]]; then
+            ZAP_MAX_DURATION_MINUTES="10"
+          fi
+          cmd_opts="-T ${ZAP_MAX_DURATION_MINUTES}"
+          if [[ -n "${EXTRA_CMD_OPTIONS// /}" ]]; then
+            cmd_opts+=" ${EXTRA_CMD_OPTIONS}"
+          fi
+
+          # Derive an invocation key for human-readable job names
+          # This provides a friendly identifier in the GitHub Actions UI
+          safe() {
+            echo "$1" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9._-'
+          }
+
+          invocation_key=""
+          if [[ "$SCAN_MODE" == "docker-run" ]]; then
+            ref="$APP_IMAGE_REF"
+            if [[ -z "$ref" ]]; then
+              ref="$APP_IMAGE_TAG"
+            fi
+            # Use last path segment as a friendly name.
+            repo_part="$ref"
+            tag_part=""
+            if [[ "$ref" == *@* ]]; then
+              repo_part="${ref%%@*}"
+              tag_part="sha"
+            elif [[ "$ref" == *:* ]]; then
+              repo_part="${ref%%:*}"
+              tag_part="${ref##*:}"
+            else
+              tag_part="latest"
+            fi
+            img_name="${repo_part##*/}"
+            invocation_key="img-$(safe "$img_name")-$(safe "$tag_part")"
+          else
+            # For url/compose, derive from the primary URL when possible.
+            u="$PRIMARY_URL"
+            if [[ -z "$u" ]]; then
+              u="$HEALTHCHECK_URL"
+            fi
+            if [[ -n "$u" ]]; then
+              # Strip scheme and path, keep host:port.
+              hostport=$(echo "$u" | sed -E 's#^[a-zA-Z]+://##' | cut -d/ -f1)
+              invocation_key="url-$(safe "$hostport")"
+            else
+              invocation_key="zap"
+            fi
+          fi
+          if [[ -z "$invocation_key" ]]; then
+            invocation_key="zap"
+          fi
+
+          # Generate deterministic config hash for artifact naming and PR comment markers
+          # This hash is consistent across re-runs with the same config, enabling:
+          # 1. PR comment updates (same config = same marker)
+          # 2. Unique artifact identification without job IDs
+          # 3. Multiple ZAP workflows with different configs in same PR
+          config_string="${invocation_key}|${ZAP_SCAN_TYPE}|${TARGETS_JSON}|${APP_IMAGE_REF}|${SCAN_MODE}"
+          config_hash=$(echo -n "$config_string" | sha256sum | cut -c1-8)
+          if [[ -z "$config_hash" ]]; then
+            # Fallback if sha256sum unavailable
+            config_hash="${GITHUB_RUN_ID: -8}"
+          fi
+
+          echo "scan_mode=$SCAN_MODE" | tee -a "$GITHUB_OUTPUT"
+          echo "invocation_key=$invocation_key" | tee -a "$GITHUB_OUTPUT"
+          echo "invocation_nonce=$config_hash" | tee -a "$GITHUB_OUTPUT"
+          echo "config_hash=$config_hash" | tee -a "$GITHUB_OUTPUT"
+          echo "targets_json=$TARGETS_JSON" | tee -a "$GITHUB_OUTPUT"
+          echo "primary_url=$PRIMARY_URL" | tee -a "$GITHUB_OUTPUT"
+          echo "healthcheck_url=$HEALTHCHECK_URL" | tee -a "$GITHUB_OUTPUT"
+          echo "zap_scan_type=$ZAP_SCAN_TYPE" | tee -a "$GITHUB_OUTPUT"
+          echo "zap_api_spec=$ZAP_API_SPEC" | tee -a "$GITHUB_OUTPUT"
+          echo "zap_max_duration_minutes=$ZAP_MAX_DURATION_MINUTES" | tee -a "$GITHUB_OUTPUT"
+          echo "rules_file_name=$RULES_FILE_NAME" | tee -a "$GITHUB_OUTPUT"
+          echo "cmd_options=$cmd_opts" | tee -a "$GITHUB_OUTPUT"
+          echo "app_image_ref=$APP_IMAGE_REF" | tee -a "$GITHUB_OUTPUT"
+          echo "app_build_context=$APP_BUILD_CONTEXT" | tee -a "$GITHUB_OUTPUT"
+          echo "app_dockerfile=$APP_DOCKERFILE" | tee -a "$GITHUB_OUTPUT"
+          echo "app_image_tag=$APP_IMAGE_TAG" | tee -a "$GITHUB_OUTPUT"
+          echo "app_ports=$APP_PORTS" | tee -a "$GITHUB_OUTPUT"
+          echo "compose_file=$COMPOSE_FILE" | tee -a "$GITHUB_OUTPUT"
+          echo "compose_build=$COMPOSE_BUILD" | tee -a "$GITHUB_OUTPUT"
+
+  zap-scan:
+    name: ZAP Scan [${{ needs.prepare-targets.outputs.invocation_key }}|${{ needs.prepare-targets.outputs.invocation_nonce }}] (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    needs: prepare-targets
+    timeout-minutes: 60
+    continue-on-error: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJson(needs.prepare-targets.outputs.targets_json) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Start target (docker-run)
+        if: needs.prepare-targets.outputs.scan_mode == 'docker-run'
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE_REF="${{ needs.prepare-targets.outputs.app_image_ref }}"
+          BUILD_CONTEXT="${{ needs.prepare-targets.outputs.app_build_context }}"
+          DOCKERFILE="${{ needs.prepare-targets.outputs.app_dockerfile }}"
+          IMAGE_TAG_INPUT="${{ needs.prepare-targets.outputs.app_image_tag }}"
+
+          if [[ -z "$IMAGE_REF" ]]; then
+            if [[ -z "${BUILD_CONTEXT// /}" || -z "${DOCKERFILE// /}" ]]; then
+              echo "❌ Error: app_image_ref is required when scan_mode=docker-run (or set app_build_context + app_dockerfile to build locally)"
+              exit 1
+            fi
+
+            if [[ ! -f "$DOCKERFILE" ]]; then
+              echo "❌ Error: app_dockerfile '$DOCKERFILE' not found"
+              ls -la
+              exit 1
+            fi
+
+            IMAGE_TAG="$IMAGE_TAG_INPUT"
+            if [[ -z "${IMAGE_TAG// /}" ]]; then
+              IMAGE_TAG="local-dast-app:${GITHUB_SHA}"
+            fi
+
+            echo "Building image '$IMAGE_TAG' from Dockerfile '$DOCKERFILE' (context '$BUILD_CONTEXT')"
+            docker build -f "$DOCKERFILE" -t "$IMAGE_TAG" "$BUILD_CONTEXT"
+            IMAGE_REF="$IMAGE_TAG"
+          fi
+
+          echo "ZAP_TARGET_IMAGE_REF=$IMAGE_REF" >> "$GITHUB_ENV"
+
+          PORTS_RAW="${{ needs.prepare-targets.outputs.app_ports }}"
+          PORTS_RAW="${PORTS_RAW//$'\n'/,}"
+          if [[ -z "${PORTS_RAW//,/}" ]]; then
+            PORTS_RAW="8080:8080"
+          fi
+
+          name="zap-target-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "Starting container '$name' from '$IMAGE_REF'"
+
+          port_args=()
+          IFS=',' read -ra mappings <<< "$PORTS_RAW"
+          for m in "${mappings[@]}"; do
+            m="${m// /}"
+            [[ -z "$m" ]] && continue
+            port_args+=( -p "$m" )
+          done
+
+          docker run -d --rm --name "$name" "${port_args[@]}" "$IMAGE_REF"
+
+          echo "APP_CONTAINER_NAME=$name" >> "$GITHUB_ENV"
+
+      - name: Start target (compose)
+        if: needs.prepare-targets.outputs.scan_mode == 'compose'
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="${{ needs.prepare-targets.outputs.compose_file }}"
+          if [[ ! -f "$file" ]]; then
+            echo "❌ Error: compose_file '$file' not found"
+            ls -la
+            exit 1
+          fi
+
+          build_flag="${{ needs.prepare-targets.outputs.compose_build }}"
+          echo "Starting docker compose stack from $file (build=$build_flag)"
+          if [[ "$build_flag" == "false" ]]; then
+            docker compose -f "$file" up -d
+          else
+            docker compose -f "$file" up -d --build
+          fi
+
+      - name: Compute artifact prefix
+        id: artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Hash the target for unique per-target identification within matrix
+          target="${{ matrix.target }}"
+          target_hash=$(echo -n "$target" | sha256sum | cut -c1-6)
+
+          scan_type="${{ needs.prepare-targets.outputs.zap_scan_type }}"
+          config_hash="${{ needs.prepare-targets.outputs.config_hash }}"
+
+          # Format: zap-reports-{config_hash}-{scan_type}-{target_hash}
+          # config_hash: consistent per workflow configuration
+          # scan_type: baseline/full/api
+          # target_hash: unique per matrix target
+          prefix="${config_hash}-${scan_type}-${target_hash}"
+
+          echo "prefix=$prefix" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Wait for target readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          scan_type="${{ needs.prepare-targets.outputs.zap_scan_type }}"
+          scan_type=$(echo "$scan_type" | tr '[:upper:]' '[:lower:]' | tr -d ' \t')
+
+          url="${{ needs.prepare-targets.outputs.healthcheck_url }}"
+          if [[ -z "$url" ]]; then
+            if [[ "$scan_type" == "api" ]]; then
+              url="${{ needs.prepare-targets.outputs.primary_url }}"
+            else
+              url="${{ matrix.target }}"
+            fi
+          fi
+          if [[ -z "$url" ]]; then
+            echo "No readiness URL provided."
+            exit 0
+          fi
+
+          echo "Waiting for: $url"
+          end=$((SECONDS + 180))
+          while [[ $SECONDS -lt $end ]]; do
+            if curl -fsS --max-time 3 "$url" >/dev/null 2>&1; then
+              echo "✅ Ready"
+              exit 0
+            fi
+            sleep 3
+          done
+
+          echo "❌ Timed out waiting for $url"
+          exit 1
+
+      - name: Run ZAP (baseline)
+        if: needs.prepare-targets.outputs.zap_scan_type == 'baseline'
+        uses: zaproxy/action-baseline@v0.15.0
+        with:
+          allow_issue_writing: false
+          fail_action: false
+          artifact_name: zap-reports-${{ steps.artifact.outputs.prefix }}
+          target: ${{ matrix.target }}
+          rules_file_name: ${{ needs.prepare-targets.outputs.rules_file_name }}
+          cmd_options: ${{ needs.prepare-targets.outputs.cmd_options }}
+
+      - name: Run ZAP (full)
+        if: needs.prepare-targets.outputs.zap_scan_type == 'full'
+        uses: zaproxy/action-full-scan@v0.13.0
+        with:
+          allow_issue_writing: false
+          fail_action: false
+          artifact_name: zap-reports-${{ steps.artifact.outputs.prefix }}
+          target: ${{ matrix.target }}
+          rules_file_name: ${{ needs.prepare-targets.outputs.rules_file_name }}
+          cmd_options: ${{ needs.prepare-targets.outputs.cmd_options }}
+
+      - name: Run ZAP (api)
+        if: needs.prepare-targets.outputs.zap_scan_type == 'api'
+        uses: zaproxy/action-api-scan@v0.10.0
+        with:
+          allow_issue_writing: false
+          fail_action: false
+          artifact_name: zap-reports-${{ steps.artifact.outputs.prefix }}
+          format: openapi
+          target: ${{ needs.prepare-targets.outputs.zap_api_spec }}
+          rules_file_name: ${{ needs.prepare-targets.outputs.rules_file_name }}
+          cmd_options: ${{ needs.prepare-targets.outputs.cmd_options }}
+
+      - name: Enforce severity threshold
+        if: always() && inputs.fail_on_severity != 'none' && inputs.fail_on_severity != ''
+        continue-on-error: ${{ inputs.allow_failure == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          report="report_json.json"
+          if [[ -z "$report" || ! -f "$report" ]]; then
+            echo "⚠️  No ZAP JSON report found; cannot enforce threshold"
+            exit 0
+          fi
+
+          # ZAP JSON risk codes: 3=High, 2=Medium, 1=Low, 0=Informational.
+          # Map ZAP severities to threshold levels: High→Critical, Medium→High, Low→Medium, Informational→Low
+          zap_high=$(jq -r '[..|objects|select(has("riskcode"))|.riskcode|tonumber] | map(select(.==3)) | length' "$report" 2>/dev/null || echo "0")
+          zap_med=$(jq -r  '[..|objects|select(has("riskcode"))|.riskcode|tonumber] | map(select(.==2)) | length' "$report" 2>/dev/null || echo "0")
+          zap_low=$(jq -r  '[..|objects|select(has("riskcode"))|.riskcode|tonumber] | map(select(.==1)) | length' "$report" 2>/dev/null || echo "0")
+          zap_info=$(jq -r '[..|objects|select(has("riskcode"))|.riskcode|tonumber] | map(select(.==0)) | length' "$report" 2>/dev/null || echo "0")
+
+          # Fallback for reports that use string risks.
+          if [[ "$zap_high" == "0" && "$zap_med" == "0" && "$zap_low" == "0" && "$zap_info" == "0" ]]; then
+            zap_high=$(jq -r '[..|objects|select(has("risk"))|.risk] | map(select(.=="High")) | length' "$report" 2>/dev/null || echo "0")
+            zap_med=$(jq -r  '[..|objects|select(has("risk"))|.risk] | map(select(.=="Medium")) | length' "$report" 2>/dev/null || echo "0")
+            zap_low=$(jq -r  '[..|objects|select(has("risk"))|.risk] | map(select(.=="Low")) | length' "$report" 2>/dev/null || echo "0")
+            zap_info=$(jq -r '[..|objects|select(has("risk"))|.risk] | map(select(.=="Informational")) | length' "$report" 2>/dev/null || echo "0")
+          fi
+
+          # Map to our severity levels for reporting and thresholds
+          critical=$zap_high
+          high=$zap_med
+          medium=$zap_low
+          low=$zap_info
+
+          fail_on="${{ inputs.fail_on_severity }}"
+          fail_on=$(echo "$fail_on" | tr '[:upper:]' '[:lower:]' | tr -d ' \t')
+
+          echo "ZAP alerts: Critical=$critical High=$high Medium=$medium Low=$low"
+
+          should_fail=false
+          case "$fail_on" in
+            low)
+              [[ $((critical+high+medium+low)) -gt 0 ]] && should_fail=true
+              ;;
+            medium)
+              [[ $((critical+high+medium)) -gt 0 ]] && should_fail=true
+              ;;
+            high)
+              [[ $((critical+high)) -gt 0 ]] && should_fail=true
+              ;;
+            critical)
+              [[ $critical -gt 0 ]] && should_fail=true
+              ;;
+          esac
+
+          if [[ "$should_fail" == "true" ]]; then
+            echo "❌ ZAP findings at or above '$fail_on' detected"
+            exit 1
+          fi
+          echo "✅ No findings at or above '$fail_on'"
+
+      - name: Stop target (docker-run)
+        if: always() && needs.prepare-targets.outputs.scan_mode == 'docker-run'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${APP_CONTAINER_NAME:-}" ]]; then
+            docker stop "$APP_CONTAINER_NAME" || true
+          fi
+
+      - name: Stop target (compose)
+        if: always() && needs.prepare-targets.outputs.scan_mode == 'compose'
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="${{ needs.prepare-targets.outputs.compose_file }}"
+          if [[ -f "$file" ]]; then
+            docker compose -f "$file" down -v || true
+          fi
+
+  zap-summary:
+    name: ZAP Summary [${{ needs.prepare-targets.outputs.invocation_key }}|${{ needs.prepare-targets.outputs.invocation_nonce }}]
+    runs-on: ubuntu-latest
+    needs:
+      - prepare-targets
+      - zap-scan
+    if: always()
+    steps:
+      - name: Checkout repository (local)
+        if: github.repository == 'huntridge-labs/hardening-workflows'
+        uses: actions/checkout@v6
+
+      - name: Checkout hardening-workflows scripts
+        if: github.repository != 'huntridge-labs/hardening-workflows'
+        uses: actions/checkout@v6
+        with:
+          repository: huntridge-labs/hardening-workflows
+          ref: 2.10.0
+          path: .hardening-workflows
+          token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
+          sparse-checkout: |
+            .github/scripts/parse-zap-results.sh
+            .github/scripts/generate-zap-summary.sh
+
+      - name: Download ZAP artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: zap-reports-${{ needs.prepare-targets.outputs.config_hash }}-*
+          path: zap-downloads
+          merge-multiple: false
+
+      - name: Generate ZAP summary
+        shell: bash
+        env:
+          ZAP_PARSER: ${{ github.repository == 'huntridge-labs/hardening-workflows' && './.github/scripts/parse-zap-results.sh' || './.hardening-workflows/.github/scripts/parse-zap-results.sh' }}
+          ZAP_SCAN_TYPE: ${{ needs.prepare-targets.outputs.zap_scan_type }}
+        run: |
+          set -euo pipefail
+
+          # Get summary script path
+          if [[ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]]; then
+            SUMMARY_SCRIPT="./.github/scripts/generate-zap-summary.sh"
+          else
+            SUMMARY_SCRIPT="./.hardening-workflows/.github/scripts/generate-zap-summary.sh"
+          fi
+
+          chmod +x "$ZAP_PARSER" "$SUMMARY_SCRIPT"
+
+          # Run summary generation
+          "$SUMMARY_SCRIPT"
+
+      - name: Upload scanner summary section
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: scanner-summary-zap-${{ needs.prepare-targets.outputs.config_hash }}
+          path: scanner-summaries/zap.md
+          retention-days: 7
+
+      - name: Comment PR with ZAP summary
+        if: github.event_name == 'pull_request' && inputs.post_pr_comment == true
+        uses: actions/github-script@v8
+        continue-on-error: true
+        with:
+          script: |
+            const fs = require('fs');
+
+            console.log('Repository:', context.repo.owner + '/' + context.repo.repo);
+            console.log('Event name:', context.eventName);
+            console.log('PR number:', context.issue?.number);
+
+            try {
+              // Check if ZAP summary exists
+              if (!fs.existsSync('scanner-summaries/zap.md')) {
+                console.log('⚠️ scanner-summaries/zap.md not found, skipping PR comment');
+                return;
+              }
+
+              const zapSummary = fs.readFileSync('scanner-summaries/zap.md', 'utf8');
+              console.log('scanner-summaries/zap.md read successfully, length:', zapSummary.length);
+
+              // Strip the <details> wrapper for PR comment display
+              let cleanSummary = zapSummary
+                .replace(/<details><summary>.*?<\/summary>\n*/, '')
+                .replace(/<\/details>\s*$/, '')
+                .trim();
+
+              // GitHub PR comment limit is 262,144 bytes (65,536 4-byte unicode chars)
+              const MAX_COMMENT_LENGTH = 262000;
+              if (cleanSummary.length > MAX_COMMENT_LENGTH) {
+                cleanSummary = cleanSummary.substring(0, MAX_COMMENT_LENGTH) +
+                  '\n\n... (report truncated, download full ZAP reports from workflow artifacts)';
+              }
+
+              const scanType = '${{ needs.prepare-targets.outputs.zap_scan_type }}';
+              const scanTypeDisplay = scanType === 'baseline' ? 'Baseline' :
+                                       scanType === 'full' ? 'Full Scan' :
+                                       scanType === 'api' ? 'API Scan' :
+                                       scanType.charAt(0).toUpperCase() + scanType.slice(1);
+
+              // Use deterministic config hash for consistent PR comment markers
+              // Same configuration = same hash = same comment gets updated
+              const configHash = '${{ needs.prepare-targets.outputs.config_hash }}';
+              const commentMarker = `zap-dast-comment-marker-${configHash}`;
+
+              console.log('🔑 Config hash:', configHash);
+              console.log('🏷️  Comment marker:', commentMarker);
+
+              const commentBody = `## 🕷️ ZAP DAST Summary - ${scanTypeDisplay}\n\n<!-- ${commentMarker} -->\n\n${cleanSummary}`;
+
+              // Check for existing ZAP comments to update instead of creating new ones
+              const comments = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number
+              });
+
+              console.log('🔍 Found', comments.data.length, 'existing comments');
+
+              const existingComment = comments.data.find(comment => {
+                const hasMarker = comment.body.includes(commentMarker);
+                const isGitHubActions = comment.user.login === 'github-actions[bot]' || comment.user.type === 'Bot';
+                console.log('Comment from', comment.user.login, 'type:', comment.user.type, 'has marker:', commentMarker, ':', hasMarker);
+                return hasMarker && isGitHubActions;
+              });
+
+              if (existingComment) {
+                // Update existing comment with latest information
+                console.log('🔄 Updating existing ZAP DAST comment');
+                const timestamp = new Date().toLocaleString();
+                const commitSha = context.sha.substring(0, 8);
+                const updatedBody = commentBody + `\n\n---\n*Last updated: ${timestamp} | Commit: ${commitSha} | [View Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
+
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existingComment.id,
+                  body: updatedBody
+                });
+              } else {
+                // Create new comment
+                console.log('📝 Creating new ZAP DAST comment');
+                await github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: commentBody
+                });
+              }
+
+              console.log('✅ Successfully posted/updated ZAP DAST summary comment');
+            } catch (error) {
+              console.log('❌ Failed to post ZAP summary comment:', error.message);
+              console.log('Error status:', error.status);
+
+              if (error.status === 403) {
+                console.log('🔒 Permission denied - this can happen when:');
+                console.log('   • Running on a fork (security restriction)');
+                console.log('   • Missing pull-requests: write permission');
+                console.log('   • Repository settings restrict PR comments');
+              } else if (error.status === 404) {
+                console.log('🔍 Resource not found - check if PR exists');
+              }
+
+              console.log('📋 ZAP scan reports are still available in workflow artifacts');
+            }
