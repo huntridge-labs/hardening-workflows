@@ -137,7 +137,7 @@ on:
       enable_ato_reporting:
         description: 'Enable ATO compliance reporting with NIST 800-53 control mapping'
         required: false
-        default: true
+        default: false
         type: boolean
       ato_compliance_mapping_file:
         description: 'Path to NIST 800-53 mapping configuration file'
