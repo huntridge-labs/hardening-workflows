@@ -1,0 +1,115 @@
+# Example: ATO Compliance Workflow with OSCAL Reporting
+#
+# This workflow demonstrates how to enable ATO compliance reporting
+# for continuous authorization with NIST 800-53 Rev 5 control mapping.
+
+name: ATO Compliance Security Scanning
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly comprehensive scan for continuous monitoring
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+    inputs:
+      report_format:
+        description: 'Report format'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - oscal
+          - markdown
+          - json
+          - html
+          - all
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+
+jobs:
+  # Run comprehensive security scanning with ATO compliance reporting
+  security-with-ato:
+    name: Security Scan with ATO Compliance
+    uses: huntridge-labs/hardening-workflows/.github/workflows/security-scan.yml@2.10.0
+    with:
+      # Scanner Configuration
+      scanners: all  # Run all available scanners for maximum control coverage
+      enable_code_security: true  # Upload SARIF results to GitHub Security tab
+
+      # ATO Compliance Configuration
+      enable_ato_reporting: true  # Generate OSCAL compliance reports
+      ato_compliance_mapping_file: 'config/nist-800-53-mapping.json'
+      ato_report_format: ${{ inputs.report_format || 'oscal,markdown' }}
+      ato_evidence_retention_days: 365  # 1 year retention for audit
+
+      # Security Gates
+      fail_on_severity: high
+      allow_failure: false
+
+      # PR Feedback
+      post_pr_comment: true
+    secrets: inherit
+
+  # Optional: Additional validation of ATO readiness
+  validate-ato-readiness:
+    name: Validate ATO Readiness
+    needs: security-with-ato
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Check ATO Status
+        run: |
+          echo "## ATO Readiness Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          ATO_STATUS="${{ needs.security-with-ato.outputs.ato_status }}"
+          CRITICAL="${{ needs.security-with-ato.outputs.critical_findings }}"
+          HIGH="${{ needs.security-with-ato.outputs.high_findings }}"
+
+          echo "**Status:** $ATO_STATUS" >> $GITHUB_STEP_SUMMARY
+          echo "**Critical Findings:** $CRITICAL" >> $GITHUB_STEP_SUMMARY
+          echo "**High Findings:** $HIGH" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$ATO_STATUS" = "READY" ]; then
+            echo "::notice title=ATO Ready::System meets automated security requirements for ATO"
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ System is ready for ATO submission" >> $GITHUB_STEP_SUMMARY
+          elif [ "$ATO_STATUS" = "CONDITIONAL" ]; then
+            echo "::warning title=ATO Conditional::High severity findings require review and risk acceptance"
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ System requires risk acceptance for $HIGH high severity findings" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "::error title=ATO Not Ready::Critical findings must be remediated before ATO"
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ System is NOT ready for ATO - $CRITICAL critical findings must be remediated" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+  # Optional: Notify security team of ATO status changes
+  notify-security-team:
+    name: Notify Security Team
+    needs: [security-with-ato, validate-ato-readiness]
+    runs-on: ubuntu-latest
+    if: |
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      needs.security-with-ato.outputs.ato_status != 'READY'
+
+    steps:
+      - name: Send Notification
+        run: |
+          echo "Would send notification to security team"
+          echo "ATO Status: ${{ needs.security-with-ato.outputs.ato_status }}"
+          echo "Critical: ${{ needs.security-with-ato.outputs.critical_findings }}"
+          echo "High: ${{ needs.security-with-ato.outputs.high_findings }}"
+
+          # Example: Send to Slack, Teams, or email
+          # curl -X POST $SLACK_WEBHOOK_URL -d '{"text":"ATO Status: ${{ needs.security-with-ato.outputs.ato_status }}"}'

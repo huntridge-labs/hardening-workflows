@@ -1,0 +1,392 @@
+name: ATO Compliance Reporting
+
+on:
+  workflow_call:
+    inputs:
+      mapping_file:
+        description: 'Path to NIST 800-53 mapping configuration'
+        required: false
+        default: 'config/nist-800-53-mapping.json'
+        type: string
+      output_format:
+        description: 'Output format(s): oscal, markdown, json, csv, html, all (comma-separated)'
+        required: false
+        default: 'oscal,markdown'
+        type: string
+      sarif_pattern:
+        description: 'Glob pattern for finding SARIF files'
+        required: false
+        default: '**/*.sarif'
+        type: string
+      upload_to_security_tab:
+        description: 'Upload OSCAL results to GitHub Security tab'
+        required: false
+        default: false
+        type: boolean
+      retention_days:
+        description: 'Number of days to retain compliance artifacts'
+        required: false
+        default: 365
+        type: number
+  workflow_dispatch:
+    inputs:
+      output_format:
+        description: 'Output format(s): oscal, markdown, json, csv, html, all'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - oscal
+          - markdown
+          - json
+          - csv
+          - html
+          - all
+          - oscal,markdown
+          - oscal,markdown,json
+  schedule:
+    # Generate compliance reports weekly on Monday at 2 AM UTC
+    - cron: '0 2 * * 1'
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+jobs:
+  generate-ato-compliance-report:
+    name: Generate ATO Compliance Report
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Verify mapping configuration exists
+      run: |
+        if [ ! -f "${{ inputs.mapping_file }}" ]; then
+          echo "❌ Error: Mapping file not found: ${{ inputs.mapping_file }}"
+          echo "Please create a NIST 800-53 mapping configuration file."
+          echo "See config/nist-800-53-mapping.json for an example."
+          exit 1
+        fi
+        echo "✅ Mapping configuration found: ${{ inputs.mapping_file }}"
+
+    - name: Download all SARIF artifacts
+      uses: actions/download-artifact@v7
+      with:
+        pattern: '*sarif*'
+        path: ./sarif-results
+        merge-multiple: true
+      continue-on-error: true
+
+    - name: Download scanner summaries
+      uses: actions/download-artifact@v7
+      with:
+        pattern: 'scanner-summary-*'
+        path: ./scanner-summaries
+        merge-multiple: true
+      continue-on-error: true
+
+    - name: List downloaded artifacts
+      run: |
+        echo "📦 Downloaded SARIF files:"
+        find ./sarif-results -name "*.sarif" -type f 2>/dev/null | while read file; do
+          echo "  - $(basename $file) ($(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null) bytes)"
+        done || echo "  No SARIF files found"
+
+        echo ""
+        echo "📋 Downloaded summaries:"
+        find ./scanner-summaries -name "*.md" -type f 2>/dev/null | while read file; do
+          echo "  - $(basename $file)"
+        done || echo "  No summaries found"
+
+    - name: Generate ATO compliance reports
+      env:
+        COMPLIANCE_MAPPING_FILE: ${{ inputs.mapping_file }}
+        COMPLIANCE_REPORT_DIR: ./compliance-reports
+        COMPLIANCE_REPORT_FORMAT: ${{ inputs.output_format }}
+      run: |
+        echo "🚀 Generating ATO compliance reports..."
+        python3 .github/scripts/generate-ato-compliance-report.py \
+          --mapping-file "${{ inputs.mapping_file }}" \
+          --output-dir ./compliance-reports \
+          --format "${{ inputs.output_format }}" \
+          --sarif-pattern "${{ inputs.sarif_pattern }}"
+
+    - name: Display compliance summary in job summary
+      run: |
+        if [ -f ./compliance-reports/ato-compliance-report.md ]; then
+          echo "## 📋 ATO Compliance Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat ./compliance-reports/ato-compliance-report.md >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ No markdown report generated" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Check ATO readiness status
+      id: ato_status
+      run: |
+        if [ -f ./compliance-reports/ato-compliance-report.json ]; then
+          # Extract ATO recommendation from JSON report
+          ATO_STATUS=$(jq -r '.ato_recommendation.status' ./compliance-reports/ato-compliance-report.json)
+          ATO_REASON=$(jq -r '.ato_recommendation.reason' ./compliance-reports/ato-compliance-report.json)
+          CRITICAL=$(jq -r '.summary.critical_findings' ./compliance-reports/ato-compliance-report.json)
+          HIGH=$(jq -r '.summary.high_findings' ./compliance-reports/ato-compliance-report.json)
+
+          echo "ato_status=$ATO_STATUS" >> $GITHUB_OUTPUT
+          echo "ato_reason=$ATO_REASON" >> $GITHUB_OUTPUT
+          echo "critical_findings=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "high_findings=$HIGH" >> $GITHUB_OUTPUT
+
+          echo "## 🎯 ATO Assessment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** $ATO_STATUS" >> $GITHUB_STEP_SUMMARY
+          echo "**Reason:** $ATO_REASON" >> $GITHUB_STEP_SUMMARY
+          echo "**Critical Findings:** $CRITICAL" >> $GITHUB_STEP_SUMMARY
+          echo "**High Findings:** $HIGH" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$ATO_STATUS" = "NOT_READY" ]; then
+            echo "::error title=ATO Not Ready::$ATO_REASON"
+          elif [ "$ATO_STATUS" = "CONDITIONAL" ]; then
+            echo "::warning title=ATO Conditional::$ATO_REASON"
+          else
+            echo "::notice title=ATO Ready::$ATO_REASON"
+          fi
+        fi
+
+    - name: Upload compliance reports
+      uses: actions/upload-artifact@v6
+      with:
+        name: ato-compliance-reports-${{ github.run_id }}
+        path: ./compliance-reports/
+        retention-days: ${{ inputs.retention_days }}
+
+    - name: Generate evidence package
+      run: |
+        mkdir -p ./ato-evidence-package
+
+        # Copy compliance reports
+        cp -r ./compliance-reports/* ./ato-evidence-package/ 2>/dev/null || true
+
+        # Copy all SARIF files as evidence
+        if [ -d ./sarif-results ]; then
+          mkdir -p ./ato-evidence-package/security-scan-results
+          find ./sarif-results -name "*.sarif" -exec cp {} ./ato-evidence-package/security-scan-results/ \; 2>/dev/null || true
+        fi
+
+        # Copy scanner summaries
+        if [ -d ./scanner-summaries ]; then
+          mkdir -p ./ato-evidence-package/scanner-summaries
+          find ./scanner-summaries -name "*.md" -exec cp {} ./ato-evidence-package/scanner-summaries/ \; 2>/dev/null || true
+        fi
+
+        # Create evidence manifest using simple echo commands to avoid YAML parsing issues
+        TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+        {
+          echo "# ATO Evidence Package Manifest"
+          echo ""
+          echo "**Generated:** $TIMESTAMP"
+          echo "**Repository:** ${{ github.repository }}"
+          echo "**Branch:** ${{ github.ref_name }}"
+          echo "**Commit SHA:** ${{ github.sha }}"
+          echo "**Workflow Run:** ${{ github.run_id }}"
+          echo "**Triggered By:** ${{ github.event_name }}"
+          echo ""
+          echo "## Package Contents"
+          echo ""
+          echo "### Compliance Reports"
+          echo ""
+          echo "- OSCAL Assessment Results (FedRAMP/FISMA compatible)"
+          echo "- Human-readable compliance report (Markdown)"
+          echo "- Machine-readable compliance data (JSON)"
+          echo "- Spreadsheet-compatible format (CSV)"
+          echo "- Web-viewable compliance dashboard (HTML)"
+          echo ""
+          echo "### Security Scan Results"
+          echo ""
+          echo "The security-scan-results/ directory contains SARIF-formatted output from all security scanners:"
+          echo ""
+          echo "- CodeQL (SAST)"
+          echo "- Gitleaks (Secret Detection)"
+          echo "- Trivy (Container & IaC Scanning)"
+          echo "- Checkov (Policy as Code)"
+          echo "- Bandit (Python Security)"
+          echo "- Semgrep/OpenGrep (Multi-language SAST)"
+          echo "- ClamAV (Malware Detection)"
+          echo "- Grype (Vulnerability Scanning)"
+          echo ""
+          echo "### Scanner Summaries"
+          echo ""
+          echo "The scanner-summaries/ directory contains human-readable summaries from each scanner execution."
+          echo ""
+          echo "## NIST 800-53 Rev 5 Control Coverage"
+          echo ""
+          echo "This evidence package demonstrates automated continuous monitoring for:"
+          echo ""
+          echo "### Access Control (AC)"
+          echo "- AC-3: Access Enforcement"
+          echo "- AC-6: Least Privilege"
+          echo ""
+          echo "### Audit and Accountability (AU)"
+          echo "- AU-9: Protection of Audit Information"
+          echo ""
+          echo "### Configuration Management (CM)"
+          echo "- CM-2: Baseline Configuration"
+          echo "- CM-6: Configuration Settings"
+          echo "- CM-8: System Component Inventory"
+          echo ""
+          echo "### Identification and Authentication (IA)"
+          echo "- IA-5: Authenticator Management"
+          echo ""
+          echo "### Risk Assessment (RA)"
+          echo "- RA-5: Vulnerability Monitoring and Scanning"
+          echo ""
+          echo "### System and Services Acquisition (SA)"
+          echo "- SA-11: Developer Testing and Evaluation"
+          echo "- SA-15(9): Development Process Standards"
+          echo ""
+          echo "### System and Communications Protection (SC)"
+          echo "- SC-7: Boundary Protection"
+          echo "- SC-28: Protection of Information at Rest"
+          echo ""
+          echo "### System and Information Integrity (SI)"
+          echo "- SI-2: Flaw Remediation"
+          echo "- SI-3: Malicious Code Protection"
+          echo "- SI-4: System Monitoring"
+          echo "- SI-10: Information Input Validation"
+          echo "- SI-16: Memory Protection"
+          echo ""
+          echo "### Supply Chain Risk Management (SR)"
+          echo "- SR-4: Provenance"
+          echo "- SR-11: Component Authenticity"
+          echo ""
+          echo "## Evidence Retention"
+          echo ""
+          echo "This evidence package is retained for ${{ inputs.retention_days }} days from the date of generation."
+          echo ""
+          echo "For audit purposes, evidence packages are automatically generated:"
+          echo "- On every code commit (continuous monitoring)"
+          echo "- Weekly on scheduled assessments"
+          echo "- On-demand via workflow dispatch"
+          echo ""
+          echo "## Attestation"
+          echo ""
+          echo "All security scan results in this package represent the actual state of the system"
+          echo "at the time of assessment. Results are generated through automated CI/CD pipeline"
+          echo "execution and have not been manually modified."
+          echo ""
+          echo "**Assessment Method:** Automated Security Scanning"
+          echo "**Assessment Platform:** GitHub Actions"
+          echo "**OSCAL Version:** 1.0.4"
+          echo "**Framework:** NIST SP 800-53 Rev 5"
+          echo ""
+          echo "## Contact"
+          echo ""
+          echo "For questions regarding this evidence package or ATO compliance:"
+          echo "- Review the compliance reports in this package"
+          echo "- Contact your organization's security team"
+          echo "- Reference GitHub Actions workflow run: ${{ github.run_id }}"
+          echo ""
+          echo "---"
+          echo ""
+          echo "Generated by Hardening Workflows ATO Compliance Automation"
+          echo "Repository: https://github.com/huntridge-labs/hardening-workflows"
+        } > ./ato-evidence-package/EVIDENCE-MANIFEST.md
+
+        echo "✅ Evidence package manifest created"
+
+    - name: Upload ATO evidence package
+      uses: actions/upload-artifact@v6
+      with:
+        name: ato-evidence-package-${{ github.sha }}
+        path: ./ato-evidence-package/
+        retention-days: ${{ inputs.retention_days }}
+
+    - name: Upload OSCAL to GitHub Security (if enabled)
+      if: inputs.upload_to_security_tab && hashFiles('./compliance-reports/oscal-assessment-results.json') != ''
+      run: |
+        echo "📤 OSCAL upload to GitHub Security tab is configured but not yet supported by GitHub"
+        echo "   OSCAL file is available in artifacts: oscal-assessment-results.json"
+        echo "   This feature will be enabled when GitHub adds OSCAL support to Code Scanning API"
+
+    - name: Comment PR with ATO summary (if applicable)
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v8
+      continue-on-error: true
+      with:
+        script: |
+          const fs = require('fs');
+
+          if (!fs.existsSync('./compliance-reports/ato-compliance-report.md')) {
+            console.log('No compliance report found, skipping PR comment');
+            return;
+          }
+
+          const report = fs.readFileSync('./compliance-reports/ato-compliance-report.md', 'utf8');
+
+          // Extract just the executive summary for PR comment
+          const summaryMatch = report.match(/## Executive Summary([\s\S]*?)---/);
+          const summary = summaryMatch ? summaryMatch[0] : report.substring(0, 2000);
+
+          // Build comment body using string concatenation to avoid YAML parsing issues
+          let commentBody = '## 🛡️ ATO Compliance Assessment\n\n';
+          commentBody += '<!-- ato-compliance-comment-marker -->\n\n';
+          commentBody += summary + '\n\n';
+          commentBody += '<details>\n';
+          commentBody += '<summary>📋 View Full Compliance Report</summary>\n\n';
+          commentBody += 'Download the complete ATO compliance evidence package from workflow artifacts:\n';
+          commentBody += '- OSCAL Assessment Results (machine-readable)\n';
+          commentBody += '- Full compliance report (markdown, JSON, HTML)\n';
+          commentBody += '- All security scan SARIF files\n\n';
+          commentBody += '**Workflow Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n';
+          commentBody += '</details>\n\n';
+          commentBody += '---\n';
+          commentBody += '*ATO Compliance assessment generated by [Hardening Workflows](https://github.com/huntridge-labs/hardening-workflows)*';
+
+          // Look for existing comment to update
+          const comments = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number
+          });
+
+          const existingComment = comments.data.find(comment =>
+            comment.body.includes('ato-compliance-comment-marker') &&
+            (comment.user.login === 'github-actions[bot]' || comment.user.type === 'Bot')
+          );
+
+          if (existingComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existingComment.id,
+              body: commentBody
+            });
+            console.log('Updated existing ATO compliance comment');
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: commentBody
+            });
+            console.log('Created new ATO compliance comment');
+          }
+
+    outputs:
+      ato_status:
+        description: 'ATO readiness status: READY, CONDITIONAL, or NOT_READY'
+        value: ${{ steps.ato_status.outputs.ato_status }}
+      critical_findings:
+        description: 'Number of critical severity findings'
+        value: ${{ steps.ato_status.outputs.critical_findings }}
+      high_findings:
+        description: 'Number of high severity findings'
+        value: ${{ steps.ato_status.outputs.high_findings }}
