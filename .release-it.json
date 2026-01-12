@@ -123,7 +123,8 @@
         {
           "files": [
             ".github/workflows/reusable-security-hardening.yml",
-            ".github/workflows/container-scan-from-config.yml"
+            ".github/workflows/container-scan-from-config.yml",
+            "examples/example-zap-podinfo.yml"
           ],
           "search": {
             "pattern": "\\.yml@[^\\s]+",
@@ -134,6 +135,7 @@
         {
           "files": [
             ".github/workflows/scanner-clamav.yml",
+            ".github/workflows/scanner-zap.yml",
             ".github/workflows/linting.yml",
             ".github/workflows/reusable-security-hardening.yml"
           ],
