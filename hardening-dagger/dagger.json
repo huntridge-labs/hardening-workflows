@@ -1,0 +1,6 @@
+{
+  "name": "hardening",
+  "sdk": "python",
+  "source": "src/hardening",
+  "dependencies": []
+}

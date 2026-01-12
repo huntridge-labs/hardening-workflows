@@ -1,0 +1,102 @@
+# Example: Using hardening-dagger in GitHub Actions
+#
+# This workflow works on:
+# - github.com
+# - GitHub Enterprise Server (any version with Actions support)
+# - Self-hosted runners
+#
+# The hardening module is pulled as a container image, so no checkout
+# of the hardening-workflows repository is needed.
+
+name: Security Hardening
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+# Minimal permissions - only what's actually needed
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+env:
+  # Change this to your GHE container registry if not using ghcr.io
+  HARDENING_IMAGE: ghcr.io/huntridge-labs/hardening:latest
+  # For GHE, use your server's registry:
+  # HARDENING_IMAGE: ghe.yourcompany.com/huntridge-labs/hardening:latest
+
+jobs:
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Dagger CLI
+        run: |
+          curl -fsSL https://dl.dagger.io/dagger/install.sh | sh
+          sudo mv bin/dagger /usr/local/bin/
+
+      - name: Run security scan
+        id: scan
+        run: |
+          # Run the hardening scan
+          dagger call -m ${{ env.HARDENING_IMAGE }} \
+            scan \
+            --source . \
+            --scanners all \
+            --severity-threshold none \
+            --repository "${{ github.repository }}" \
+            --branch "${{ github.ref_name }}" \
+            --commit-sha "${{ github.sha }}" \
+            --output-format all \
+            export --path ./hardening-reports
+
+      - name: Upload scan artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hardening-reports
+          path: hardening-reports/
+          retention-days: 30
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        run: |
+          dagger call -m ${{ env.HARDENING_IMAGE }} \
+            github post-pr-comment \
+            --token env:GITHUB_TOKEN \
+            --repository "${{ github.repository }}" \
+            --pr-number ${{ github.event.pull_request.number }} \
+            --report ./hardening-reports/hardening-report.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload SARIF to Code Scanning
+        if: always()
+        run: |
+          dagger call -m ${{ env.HARDENING_IMAGE }} \
+            github upload-sarif \
+            --token env:GITHUB_TOKEN \
+            --repository "${{ github.repository }}" \
+            --sarif-file ./hardening-reports/hardening-report.sarif \
+            --ref "${{ github.ref }}" \
+            --commit-sha "${{ github.sha }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true  # Code Scanning may not be enabled
+
+      - name: Check severity threshold
+        run: |
+          if [ -f "hardening-reports/THRESHOLD_EXCEEDED" ]; then
+            echo "::error::Security scan found findings exceeding severity threshold"
+            cat hardening-reports/THRESHOLD_EXCEEDED
+            exit 1
+          fi
+          echo "Security scan passed"

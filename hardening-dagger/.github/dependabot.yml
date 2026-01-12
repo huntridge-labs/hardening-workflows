@@ -1,0 +1,69 @@
+# Dependabot configuration for hardening-dagger module
+#
+# This configuration:
+# - Checks for Python dependency updates weekly
+# - Creates PRs for updates (which trigger pr-dagger-module.yml tests)
+# - Groups minor/patch updates to reduce PR noise
+# - Keeps major updates separate for careful review
+
+version: 2
+updates:
+  # Python dependencies (pip)
+  - package-ecosystem: "pip"
+    directory: "/hardening-dagger"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+
+    # Limit open PRs
+    open-pull-requests-limit: 10
+
+    # Labels for PRs
+    labels:
+      - "dependencies"
+      - "python"
+      - "dagger-module"
+
+    # Commit message format
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+    # Group minor and patch updates
+    groups:
+      # Group all minor/patch updates for core dependencies
+      python-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+    # Reviewers for dependency PRs
+    reviewers:
+      - "huntridge-labs/security"
+
+    # Allow specific version updates
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "production"
+
+    # Ignore specific packages or versions if needed
+    # ignore:
+    #   - dependency-name: "some-package"
+    #     versions: ["4.x", "5.x"]
+
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/hardening-dagger/.github/workflows"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "dagger-module"
+    commit-message:
+      prefix: "chore(deps)"

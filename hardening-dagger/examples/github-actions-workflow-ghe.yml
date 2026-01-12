@@ -1,0 +1,113 @@
+# Example: Using hardening-dagger on GitHub Enterprise Server
+#
+# This example shows the minimal configuration needed to run
+# hardening scans on a GHE server where:
+# - The hardening-workflows repo may not exist
+# - External github.com access may be blocked
+# - The container image is mirrored to local registry
+
+name: Security Hardening (GHE)
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      scanners:
+        description: 'Scanners to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - sast
+          - secrets
+          - iac
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+env:
+  # Point to your GHE's container registry
+  # This image should be mirrored from ghcr.io/huntridge-labs/hardening
+  HARDENING_IMAGE: your-ghe-server.company.com/security/hardening:2.10.0
+
+jobs:
+  security-scan:
+    name: Security Scan
+    runs-on: [self-hosted, linux]  # Or your GHE runner labels
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Option A: Dagger CLI pre-installed on runner
+      # Option B: Install Dagger (if internet access available)
+      - name: Ensure Dagger CLI
+        run: |
+          if ! command -v dagger &> /dev/null; then
+            echo "Installing Dagger CLI..."
+            curl -fsSL https://dl.dagger.io/dagger/install.sh | sh
+            sudo mv bin/dagger /usr/local/bin/
+          fi
+          dagger version
+
+      # Authenticate to your GHE container registry if needed
+      - name: Login to GHE Registry
+        run: |
+          echo "${{ secrets.GHE_REGISTRY_TOKEN }}" | \
+            docker login your-ghe-server.company.com -u ${{ github.actor }} --password-stdin
+
+      - name: Run hardening scan
+        run: |
+          SCANNERS="${{ inputs.scanners || 'all' }}"
+
+          dagger call -m ${{ env.HARDENING_IMAGE }} \
+            scan \
+            --source . \
+            --scanners "$SCANNERS" \
+            --repository "${{ github.repository }}" \
+            --branch "${{ github.ref_name }}" \
+            --commit-sha "${{ github.sha }}" \
+            export --path ./hardening-reports
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-reports-${{ github.run_id }}
+          path: hardening-reports/
+
+      # Post PR comment (for pull requests)
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        run: |
+          # Use GHE's API URL
+          dagger call -m ${{ env.HARDENING_IMAGE }} \
+            github post-pr-comment \
+            --token env:GITHUB_TOKEN \
+            --repository "${{ github.repository }}" \
+            --pr-number ${{ github.event.pull_request.number }} \
+            --report ./hardening-reports/hardening-report.md \
+            --api-url "https://your-ghe-server.company.com/api/v3"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Upload SARIF (if GHE has Code Scanning enabled)
+      - name: Upload to Code Scanning
+        if: always()
+        run: |
+          dagger call -m ${{ env.HARDENING_IMAGE }} \
+            github upload-sarif \
+            --token env:GITHUB_TOKEN \
+            --repository "${{ github.repository }}" \
+            --sarif-file ./hardening-reports/hardening-report.sarif \
+            --ref "${{ github.ref }}" \
+            --commit-sha "${{ github.sha }}" \
+            --api-url "https://your-ghe-server.company.com/api/v3"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true

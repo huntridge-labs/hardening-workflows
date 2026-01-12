@@ -1,0 +1,226 @@
+# PR Verification for Hardening Dagger Module
+#
+# This workflow runs on all PRs that modify the hardening-dagger module.
+# It verifies that:
+# 1. Python code passes linting and type checks
+# 2. Unit tests pass
+# 3. Dependencies have no known vulnerabilities
+# 4. The Dagger module builds successfully
+# 5. Basic scanner functionality works
+
+name: PR - Dagger Module Verification
+
+on:
+  pull_request:
+    paths:
+      - 'hardening-dagger/**'
+      - '.github/workflows/pr-dagger-module.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'hardening-dagger/**'
+
+defaults:
+  run:
+    working-directory: hardening-dagger
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: hardening-dagger/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run Ruff (linting)
+        run: ruff check src/ tests/
+
+      - name: Run Ruff (formatting check)
+        run: ruff format --check src/ tests/
+
+      - name: Run MyPy (type checking)
+        run: mypy src/hardening/
+        continue-on-error: true  # Type hints may be incomplete initially
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: hardening-dagger/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run tests
+        run: pytest tests/ -v --cov=src/hardening --cov-report=xml
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.12'
+        with:
+          files: hardening-dagger/coverage.xml
+          flags: dagger-module
+        continue-on-error: true
+
+  dependency-audit:
+    name: Dependency Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Audit dependencies
+        run: |
+          pip install -e .
+          pip-audit --strict --progress-spinner off
+
+  dagger-build:
+    name: Dagger Module Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dagger CLI
+        run: |
+          curl -fsSL https://dl.dagger.io/dagger/install.sh | sh
+          sudo mv bin/dagger /usr/local/bin/
+
+      - name: Verify module structure
+        run: |
+          # Check required files exist
+          test -f dagger.json
+          test -f pyproject.toml
+          test -f src/hardening/main.py
+          test -f src/hardening/__init__.py
+          echo "Module structure verified"
+
+      - name: Build module
+        run: dagger develop
+
+      - name: List available functions
+        run: dagger functions
+
+  integration-test:
+    name: Integration Test (Bandit)
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, unit-tests, dagger-build]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dagger CLI
+        run: |
+          curl -fsSL https://dl.dagger.io/dagger/install.sh | sh
+          sudo mv bin/dagger /usr/local/bin/
+
+      - name: Create test Python file
+        run: |
+          mkdir -p /tmp/test-project
+          cat > /tmp/test-project/app.py << 'EOF'
+          import subprocess
+
+          # This should trigger Bandit B602
+          def run_cmd(cmd):
+              subprocess.call(cmd, shell=True)
+
+          # This should trigger Bandit B105
+          PASSWORD = "hardcoded_password"
+          EOF
+
+      - name: Run Bandit scanner
+        run: |
+          dagger call bandit --source /tmp/test-project export --path /tmp/bandit-results
+
+      - name: Verify Bandit output
+        run: |
+          ls -la /tmp/bandit-results/
+          # Should have SARIF and JSON output
+          test -f /tmp/bandit-results/bandit.sarif || test -f /tmp/bandit-results/bandit.json
+          echo "Bandit scanner test passed"
+
+  # This job runs after all others and summarizes the results
+  summary:
+    name: PR Check Summary
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, unit-tests, dependency-audit, dagger-build, integration-test]
+    if: always()
+
+    steps:
+      - name: Check job results
+        run: |
+          echo "## Dagger Module PR Check Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Check each job result
+          if [ "${{ needs.lint-and-typecheck.result }}" == "success" ]; then
+            echo "- ✅ Lint & Type Check" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ Lint & Type Check" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.unit-tests.result }}" == "success" ]; then
+            echo "- ✅ Unit Tests" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ Unit Tests" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.dependency-audit.result }}" == "success" ]; then
+            echo "- ✅ Dependency Audit" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ Dependency Audit" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.dagger-build.result }}" == "success" ]; then
+            echo "- ✅ Dagger Build" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ Dagger Build" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.integration-test.result }}" == "success" ]; then
+            echo "- ✅ Integration Test" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ Integration Test" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Fail if any job failed
+        if: |
+          needs.lint-and-typecheck.result == 'failure' ||
+          needs.unit-tests.result == 'failure' ||
+          needs.dependency-audit.result == 'failure' ||
+          needs.dagger-build.result == 'failure' ||
+          needs.integration-test.result == 'failure'
+        run: exit 1

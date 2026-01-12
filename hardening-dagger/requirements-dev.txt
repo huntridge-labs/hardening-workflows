@@ -1,0 +1,23 @@
+# Hardening Dagger Module - Development Dependencies
+#
+# Install with: pip install -r requirements-dev.txt
+
+# Include production dependencies
+-r requirements.txt
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.25.2
+pytest-cov==6.0.0
+pytest-timeout==2.3.1
+
+# Type checking
+mypy==1.14.1
+
+# Linting & formatting
+ruff==0.9.3
+black==25.1.0
+
+# Security scanning of dependencies
+pip-audit==2.8.0
+safety==3.3.0

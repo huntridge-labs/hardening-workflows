@@ -1,0 +1,46 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate configuration for hardening-dagger module",
+  "extends": [
+    "config:recommended",
+    ":semanticCommitTypeAll(chore)",
+    ":separateMajorReleases",
+    "group:allNonMajor"
+  ],
+  "labels": ["dependencies", "python", "dagger-module"],
+  "packageRules": [
+    {
+      "description": "Group dagger-io updates",
+      "matchPackageNames": ["dagger-io"],
+      "groupName": "dagger SDK",
+      "labels": ["dependencies", "dagger"]
+    },
+    {
+      "description": "Group test dependencies",
+      "matchPackageNames": ["pytest", "pytest-*"],
+      "groupName": "pytest",
+      "labels": ["dependencies", "testing"]
+    },
+    {
+      "description": "Group linting dependencies",
+      "matchPackageNames": ["ruff", "black", "mypy"],
+      "groupName": "linting",
+      "labels": ["dependencies", "linting"]
+    },
+    {
+      "description": "Automerge patch updates for dev dependencies",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    }
+  ],
+  "pip_requirements": {
+    "fileMatch": ["requirements.*\\.txt$"]
+  },
+  "schedule": ["before 9am on monday"],
+  "timezone": "America/New_York",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2
+}

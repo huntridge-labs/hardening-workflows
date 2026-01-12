@@ -1,0 +1,111 @@
+[project]
+name = "hardening"
+version = "2.10.0"
+description = "Security hardening pipeline - run anywhere"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+authors = [
+    { name = "Huntridge Labs", email = "security@huntridge-labs.com" }
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+]
+keywords = ["security", "hardening", "sast", "dast", "scanning", "dagger", "ci-cd"]
+
+dependencies = [
+    "dagger-io==0.19.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.4",
+    "pytest-asyncio==0.25.2",
+    "pytest-cov==6.0.0",
+    "pytest-timeout==2.3.1",
+    "mypy==1.14.1",
+    "ruff==0.9.3",
+    "black==25.1.0",
+    "pip-audit==2.8.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/huntridge-labs/hardening-workflows"
+Documentation = "https://github.com/huntridge-labs/hardening-workflows/tree/main/hardening-dagger"
+Repository = "https://github.com/huntridge-labs/hardening-workflows"
+Issues = "https://github.com/huntridge-labs/hardening-workflows/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hardening"]
+
+# Ruff configuration
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "S",      # flake8-bandit (security)
+]
+ignore = [
+    "S101",   # assert used (OK in tests)
+    "S603",   # subprocess call (we control the input)
+    "S607",   # partial path (we control the input)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+
+# Black configuration
+[tool.black]
+target-version = ["py311", "py312"]
+line-length = 100
+
+# MyPy configuration
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+# Pytest configuration
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+timeout = 300  # 5 minute timeout per test
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["src/hardening"]
+branch = true
+omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
