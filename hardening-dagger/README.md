@@ -132,6 +132,11 @@ dagger call scan --source .
 
 **Key point:** Always add `export --path <dir>` to get files on your local machine.
 
+**Note:** Dagger's `export` merges with existing files rather than overwriting. For clean results, delete the target directory first:
+```bash
+rm -rf ./reports && dagger call scan --source . export --path ./reports
+```
+
 ## Logging and Debugging
 
 All scanners support a `--log-level` argument for debugging:

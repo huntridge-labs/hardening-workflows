@@ -341,7 +341,8 @@ class CodeQLScanner(BaseScanner):
         if ghcr_username and ghcr_token:
             # Use GitHub's official CodeQL bundle with authentication
             image = "ghcr.io/github/codeql-action/codeql-bundle:latest"
-            self.log.dagger_info("Creating container with GHCR auth", image=image)
+            self.log.dagger_info("Using GitHub official CodeQL bundle (GHCR authenticated)", image=image)
+            self.log.dagger_debug("GHCR authentication provided", username=ghcr_username)
             container = (
                 dag.container()
                 .with_registry_auth("ghcr.io", ghcr_username, ghcr_token)
@@ -350,7 +351,12 @@ class CodeQLScanner(BaseScanner):
         else:
             # Fall back to Microsoft's public container (no auth required)
             image = "mcr.microsoft.com/cstsectools/codeql-container:latest"
-            self.log.dagger_info("Creating container (no GHCR auth)", image=image)
+            self.log.dagger_info("Using Microsoft public CodeQL container (no GHCR credentials)")
+            self.log.dagger_debug(
+                "GHCR credentials not provided - to use GitHub's official CodeQL bundle, "
+                "pass --ghcr-username and --ghcr-token env:GHCR_TOKEN",
+                fallback_image=image,
+            )
             container = dag.container().from_(image)
 
         self.log.container_debug("Container configured", workdir="/src")

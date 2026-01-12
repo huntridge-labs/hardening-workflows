@@ -18,6 +18,7 @@
 #
 # Environment variables:
 #   MODULE_PATH  - Path to the Dagger module (default: current directory)
+#   KEEP_OLD     - Set to "1" to keep existing reports (default: clean first)
 #
 
 set -euo pipefail
@@ -27,6 +28,7 @@ MODULE_PATH="${MODULE_PATH:-.}"
 SCANNERS="${1:-sast}"
 SOURCE_DIR="${2:-.}"
 OUTPUT_DIR="${3:-./hardening-reports}"
+KEEP_OLD="${KEEP_OLD:-}"
 
 echo "=== Hardening Security Scan (Local Development) ==="
 echo "Module: $MODULE_PATH"
@@ -34,6 +36,12 @@ echo "Source: $SOURCE_DIR"
 echo "Output: $OUTPUT_DIR"
 echo "Scanners: $SCANNERS"
 echo ""
+
+# Clean output directory for fresh results (Dagger export merges, doesn't overwrite)
+if [ -d "$OUTPUT_DIR" ] && [ -z "$KEEP_OLD" ]; then
+  echo "Cleaning existing output directory..."
+  rm -rf "$OUTPUT_DIR"
+fi
 
 # Ensure output directory exists
 mkdir -p "$OUTPUT_DIR"
