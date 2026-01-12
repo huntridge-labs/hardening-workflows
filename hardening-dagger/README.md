@@ -111,6 +111,48 @@ dagger call -m ghcr.io/huntridge-labs/hardening:latest scan \
   --repository "owner/repo"           # For report metadata
   --branch "main"                     # For report metadata
   --commit-sha "abc123"               # For report metadata
+  export --path ./reports             # Export artifacts to local filesystem
+```
+
+## Exporting Results
+
+Dagger functions return virtual `Directory` objects. To write files to your local filesystem, chain the `export` function:
+
+```bash
+# Scan and export to ./reports directory
+dagger call scan --source . export --path ./reports
+
+# Individual scanner with export
+dagger call bandit --source . export --path ./reports/bandit
+
+# Without export, you only get a directory reference (no local files)
+dagger call scan --source .
+# Returns: Directory@xxh3:abc123... (virtual, not on disk)
+```
+
+**Key point:** Always add `export --path <dir>` to get files on your local machine.
+
+## Logging and Debugging
+
+All scanners support a `--log-level` argument for debugging:
+
+```bash
+# Available levels: error, warn, info (default), debug
+dagger call bandit --source . --log-level debug export --path ./reports
+
+# Debug the full scan
+dagger call scan --source . --scanners bandit --log-level debug export --path ./reports
+```
+
+Log files are included in the exported artifacts:
+- `{scanner}-scan.log` - Human-readable log
+- `{scanner}-scan.log.json` - Structured JSON log
+
+Example log output:
+```
+[2024-01-12T14:43:09+00:00] [INFO ] [hardening ] bandit: Starting Bandit scan
+[2024-01-12T14:43:09+00:00] [DEBUG] [container ] bandit: Container configured | {"workdir": "/src"}
+[2024-01-12T14:43:14+00:00] [WARN ] [hardening ] bandit: Security issues found | {"count": 5}
 ```
 
 ## GitHub Integration
@@ -166,36 +208,64 @@ See [examples/mirror-to-ghe.sh](examples/mirror-to-ghe.sh) for automation.
 
 ## Individual Scanner Functions
 
-Run scanners individually for more control:
+Run scanners individually for more control. Each scanner returns a `Directory` with reports and logs.
 
 ```bash
-# Just Bandit
-dagger call -m ghcr.io/huntridge-labs/hardening:latest \
-  bandit --source .
+# Bandit (Python SAST)
+dagger call bandit --source . --log-level debug \
+  export --path ./reports/bandit
 
-# Just Gitleaks with custom config
-dagger call -m ghcr.io/huntridge-labs/hardening:latest \
-  gitleaks --source . --config ".gitleaks.toml"
+# Gitleaks (secrets detection) with custom config
+dagger call gitleaks --source . --config ".gitleaks.toml" \
+  export --path ./reports/gitleaks
 
 # Trivy IaC with custom path
-dagger call -m ghcr.io/huntridge-labs/hardening:latest \
-  trivy-iac --source . --path "terraform/"
+dagger call trivy-iac --source . --path "terraform/" \
+  export --path ./reports/trivy-iac
 
-# Scan a container image
-dagger call -m ghcr.io/huntridge-labs/hardening:latest \
-  trivy-container --image-ref "nginx:latest"
+# Trivy container image scan
+dagger call trivy-container --image-ref "nginx:latest" \
+  export --path ./reports/trivy-container
 
-# CodeQL analysis (Python and JavaScript)
-dagger call -m ghcr.io/huntridge-labs/hardening:latest \
-  codeql --source . --languages "python,javascript"
+# Grype (SCA/dependency vulnerabilities)
+dagger call grype --source . \
+  export --path ./reports/grype
+
+# OpenGrep/Semgrep (SAST)
+dagger call opengrep --source . --config "auto" \
+  export --path ./reports/opengrep
+
+# Checkov (IaC policy scanning)
+dagger call checkov --source . --path "terraform/" --framework terraform \
+  export --path ./reports/checkov
+
+# ClamAV (malware detection)
+dagger call clamav --source . \
+  export --path ./reports/clamav
+
+# CodeQL (semantic SAST - Python and JavaScript)
+dagger call codeql --source . --languages "python,javascript" \
+  export --path ./reports/codeql
 
 # ZAP DAST scan against a running application
-dagger call -m ghcr.io/huntridge-labs/hardening:latest \
-  zap --target-url "http://localhost:8080" --scan-type baseline
+dagger call zap --target-url "http://localhost:8080" --scan-type baseline \
+  export --path ./reports/zap
 
 # ZAP scan with auto-started container
-dagger call -m ghcr.io/huntridge-labs/hardening:latest \
-  zap-with-service --app-image "myapp:latest" --app-port 8080
+dagger call zap-with-service --app-image "myapp:latest" --app-port 8080 \
+  export --path ./reports/zap
+```
+
+### Getting Help
+
+```bash
+# List all available functions
+dagger call --help
+
+# Get help for a specific function
+dagger call scan --help
+dagger call bandit --help
+dagger call codeql --help
 ```
 
 ## Output Files

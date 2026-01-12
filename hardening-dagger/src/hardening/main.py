@@ -112,12 +112,13 @@ class Hardening:
         """
         Run security scanners against source code.
 
-        Returns a directory containing all scan reports in the requested formats.
+        Returns a directory containing all scan reports. Use 'export --path <dir>'
+        to write files to your local filesystem.
 
         Examples:
-            dagger call scan --source .
-            dagger call scan --source . --scanners "bandit,gitleaks"
-            dagger call scan --source . --severity-threshold high
+            dagger call scan --source . export --path ./reports
+            dagger call scan --source . --scanners "bandit,gitleaks" export --path ./reports
+            dagger call scan --source . --severity-threshold high export --path ./reports
         """
         # Resolve which scanners to run
         selected = self._resolve_scanners(scanners)
@@ -338,8 +339,8 @@ class Hardening:
         - Without credentials: Falls back to Microsoft's public container
 
         Examples:
-            dagger call codeql --source . --languages python
-            dagger call codeql --source . --languages python --ghcr-username myuser --ghcr-token env:GHCR_TOKEN
+            dagger call codeql --source . --languages python export --path ./reports/codeql
+            dagger call codeql --source . --languages python --log-level debug export --path ./reports/codeql
         """
         scanner = CodeQLScanner()
         result = await scanner.scan(
@@ -373,9 +374,9 @@ class Hardening:
         - api: OpenAPI/Swagger-driven API scanning
 
         Examples:
-            dagger call zap --target-url http://localhost:8080 --scan-type baseline
-            dagger call zap --target-url http://app:3000 --scan-type full
-            dagger call zap --target-url "" --scan-type api --api-spec http://localhost:8080/openapi.json
+            dagger call zap --target-url http://localhost:8080 export --path ./reports/zap
+            dagger call zap --target-url http://app:3000 --scan-type full export --path ./reports/zap
+            dagger call zap --scan-type api --api-spec http://localhost:8080/openapi.json export --path ./reports/zap
         """
         scanner = ZAPScanner()
         result = await scanner.scan(
@@ -405,8 +406,8 @@ class Hardening:
         automatically stopped when the scan completes.
 
         Examples:
-            dagger call zap-with-service --app-image nginx:latest --app-port 80
-            dagger call zap-with-service --app-image myapp:latest --scan-type full
+            dagger call zap-with-service --app-image nginx:latest --app-port 80 export --path ./reports/zap
+            dagger call zap-with-service --app-image myapp:latest --scan-type full --log-level debug export --path ./reports/zap
         """
         scanner = ZAPScanner()
         result = await scanner.scan_with_service(
