@@ -1,14 +1,14 @@
 """Security scanners."""
 
-from .bandit import BanditScanner
-from .checkov import CheckovScanner
-from .clamav import ClamAVScanner
-from .codeql import CodeQLScanner
-from .gitleaks import GitleaksScanner
-from .grype import GrypeScanner
-from .opengrep import OpenGrepScanner
-from .trivy import TrivyContainerScanner, TrivyIacScanner
-from .zap import ZAPScanner
+from scanners.bandit import BanditScanner
+from scanners.checkov import CheckovScanner
+from scanners.clamav import ClamAVScanner
+from scanners.codeql import CodeQLScanner
+from scanners.gitleaks import GitleaksScanner
+from scanners.grype import GrypeScanner
+from scanners.opengrep import OpenGrepScanner
+from scanners.trivy import TrivyContainerScanner, TrivyIacScanner
+from scanners.zap import ZAPScanner
 
 __all__ = [
     "BanditScanner",

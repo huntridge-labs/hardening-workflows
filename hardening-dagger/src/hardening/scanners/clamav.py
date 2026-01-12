@@ -5,8 +5,8 @@ import re
 import dagger
 from dagger import dag
 
-from ..models import Finding, ScanResult, Severity
-from .base import BaseScanner
+from models import Finding, ScanResult, Severity
+from scanners.base import BaseScanner
 
 
 class ClamAVScanner(BaseScanner):
@@ -33,7 +33,7 @@ class ClamAVScanner(BaseScanner):
         # Update virus definitions
         container = container.with_exec(
             ["freshclam", "--quiet"],
-            expect=dagger.Expect.SUCCESS_OR_FAILURE,
+            expect=dagger.ReturnType.ANY,
         )
 
         target_path = f"/src/{scan_path}" if scan_path != "." else "/src"
@@ -48,7 +48,7 @@ class ClamAVScanner(BaseScanner):
                 "--log=/reports/clamav.log",
                 "--no-summary",
             ],
-            expect=dagger.Expect.SUCCESS_OR_FAILURE,  # ClamAV exits 1 on findings
+            expect=dagger.ReturnType.ANY,  # ClamAV exits 1 on findings
         )
 
         # Also get summary
@@ -60,7 +60,7 @@ class ClamAVScanner(BaseScanner):
                 "--infected",
                 "-o",  # Only print infected files
             ],
-            expect=dagger.Expect.SUCCESS_OR_FAILURE,
+            expect=dagger.ReturnType.ANY,
         )
 
         # Parse findings from log

@@ -5,8 +5,8 @@ import json
 import dagger
 from dagger import dag
 
-from ..models import Finding, ScanResult, Severity
-from .base import BaseScanner
+from models import Finding, ScanResult, Severity
+from scanners.base import BaseScanner
 
 
 class CheckovScanner(BaseScanner):

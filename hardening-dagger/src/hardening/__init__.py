@@ -6,6 +6,6 @@ Usage:
     dagger call scan --source . --scanners "bandit,gitleaks" --severity-threshold high
 """
 
-from .main import Hardening
+from main import Hardening
 
 __all__ = ["Hardening"]

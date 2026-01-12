@@ -5,8 +5,8 @@ import json
 import dagger
 from dagger import dag
 
-from ..models import Finding, ScanResult, Severity
-from .base import BaseScanner
+from models import Finding, ScanResult, Severity
+from scanners.base import BaseScanner
 
 
 class GrypeScanner(BaseScanner):
@@ -45,7 +45,7 @@ class GrypeScanner(BaseScanner):
                 "--file",
                 "/reports/grype.sarif",
             ],
-            expect=dagger.Expect.SUCCESS_OR_FAILURE,
+            expect=dagger.ReturnType.ANY,
         )
 
         # JSON output for parsing
@@ -58,7 +58,7 @@ class GrypeScanner(BaseScanner):
                 "--file",
                 "/reports/grype.json",
             ],
-            expect=dagger.Expect.SUCCESS_OR_FAILURE,
+            expect=dagger.ReturnType.ANY,
         )
 
         # Parse findings

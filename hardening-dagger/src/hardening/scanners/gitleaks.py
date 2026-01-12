@@ -5,8 +5,8 @@ import json
 import dagger
 from dagger import dag
 
-from ..models import Finding, ScanResult, Severity
-from .base import BaseScanner
+from models import Finding, ScanResult, Severity
+from scanners.base import BaseScanner
 
 
 class GitleaksScanner(BaseScanner):
@@ -22,17 +22,17 @@ class GitleaksScanner(BaseScanner):
         **kwargs,
     ) -> ScanResult:
         """Run Gitleaks secrets detection."""
-        # TODO: Consider pinning to a specific Gitleaks version
+        # Use official gitleaks image but clear the entrypoint to allow shell commands
         container = (
             dag.container()
-            .from_("zricethezav/gitleaks:latest")
+            .from_("zricethezav/gitleaks:v8.18.4")
+            .with_entrypoint([])  # Clear entrypoint to allow arbitrary commands
             .with_mounted_directory("/src", source)
             .with_workdir("/src")
             .with_exec(["mkdir", "-p", "/reports"])
         )
 
         # Build command
-        # TODO: Support git history scanning
         base_cmd = [
             "gitleaks",
             "detect",
@@ -64,8 +64,8 @@ class GitleaksScanner(BaseScanner):
             "0",
         ]
 
-        container = container.with_exec(sarif_cmd)
-        container = container.with_exec(json_cmd)
+        container = container.with_exec(sarif_cmd, expect=dagger.ReturnType.ANY)
+        container = container.with_exec(json_cmd, expect=dagger.ReturnType.ANY)
 
         # Parse findings
         try:

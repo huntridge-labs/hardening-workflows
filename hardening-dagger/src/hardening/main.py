@@ -27,10 +27,10 @@ from typing import Annotated
 import dagger
 from dagger import Doc, dag, function, object_type
 
-from .github import GitHubIntegration
-from .models import HardeningReport, ScanResult, Severity
-from .report import ReportGenerator
-from .scanners import (
+from github import GitHubIntegration
+from models import HardeningReport, ScanResult, Severity
+from report import ReportGenerator
+from scanners import (
     BanditScanner,
     CheckovScanner,
     ClamAVScanner,

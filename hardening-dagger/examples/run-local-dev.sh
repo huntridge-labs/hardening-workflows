@@ -11,21 +11,22 @@
 #   - Run from the hardening-dagger directory (or set MODULE_PATH)
 #
 # Usage:
-#   ./examples/run-local-dev.sh [source_dir] [output_dir]
-#   ./examples/run-local-dev.sh ../my-project ./reports
+#   ./examples/run-local-dev.sh [scanners] [source_dir] [output_dir]
+#   ./examples/run-local-dev.sh gitleaks . ./reports
+#   ./examples/run-local-dev.sh bandit,gitleaks ../my-project ./reports
+#   ./examples/run-local-dev.sh sast  # scan current dir with sast group
 #
 # Environment variables:
 #   MODULE_PATH  - Path to the Dagger module (default: current directory)
-#   SCANNERS     - Comma-separated scanners or groups (default: sast)
 #
 
 set -euo pipefail
 
 # Configuration
 MODULE_PATH="${MODULE_PATH:-.}"
-SOURCE_DIR="${1:-.}"
-OUTPUT_DIR="${2:-./hardening-reports}"
-SCANNERS="${SCANNERS:-sast}"
+SCANNERS="${1:-sast}"
+SOURCE_DIR="${2:-.}"
+OUTPUT_DIR="${3:-./hardening-reports}"
 
 echo "=== Hardening Security Scan (Local Development) ==="
 echo "Module: $MODULE_PATH"

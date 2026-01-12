@@ -18,8 +18,8 @@ import json
 import dagger
 from dagger import dag
 
-from ..models import Finding, ScanResult, Severity
-from .base import BaseScanner
+from models import Finding, ScanResult, Severity
+from scanners.base import BaseScanner
 
 
 class ZAPScanner(BaseScanner):
@@ -157,7 +157,7 @@ class ZAPScanner(BaseScanner):
                 "-c",
                 f"for i in $(seq 1 60); do curl -sf {target_url} && break || sleep 2; done",
             ],
-            expect=dagger.Expect.SUCCESS_OR_FAILURE,
+            expect=dagger.ReturnType.ANY,
         )
 
         # Run scan
@@ -207,7 +207,7 @@ class ZAPScanner(BaseScanner):
                 str(max_duration),
                 "-I",  # Don't fail on warnings
             ],
-            expect=dagger.Expect.SUCCESS_OR_FAILURE,
+            expect=dagger.ReturnType.ANY,
         )
 
     async def _run_full_scan(
@@ -234,7 +234,7 @@ class ZAPScanner(BaseScanner):
                 str(max_duration),
                 "-I",  # Don't fail on warnings
             ],
-            expect=dagger.Expect.SUCCESS_OR_FAILURE,
+            expect=dagger.ReturnType.ANY,
         )
 
     async def _run_api_scan(
@@ -266,7 +266,7 @@ class ZAPScanner(BaseScanner):
         if target_url:
             cmd.extend(["-O", target_url])
 
-        return container.with_exec(cmd, expect=dagger.Expect.SUCCESS_OR_FAILURE)
+        return container.with_exec(cmd, expect=dagger.ReturnType.ANY)
 
     def parse_findings(self, output: str) -> list[Finding]:
         """Parse ZAP JSON output into findings."""

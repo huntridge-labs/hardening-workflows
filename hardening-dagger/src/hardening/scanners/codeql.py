@@ -14,8 +14,8 @@ import json
 import dagger
 from dagger import dag
 
-from ..models import Finding, ScanResult, Severity
-from .base import BaseScanner
+from models import Finding, ScanResult, Severity
+from scanners.base import BaseScanner
 
 
 class CodeQLScanner(BaseScanner):
@@ -145,7 +145,7 @@ class CodeQLScanner(BaseScanner):
                 "--source-root=/src",
                 "--overwrite",
             ],
-            expect=dagger.Expect.SUCCESS_OR_FAILURE,
+            expect=dagger.ReturnType.ANY,
         )
 
         # Run analysis with security queries
@@ -160,7 +160,7 @@ class CodeQLScanner(BaseScanner):
                 "--",  # Query packs after this
                 f"{language}-security-extended",
             ],
-            expect=dagger.Expect.SUCCESS_OR_FAILURE,
+            expect=dagger.ReturnType.ANY,
         )
 
         # Parse results

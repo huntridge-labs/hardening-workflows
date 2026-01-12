@@ -5,8 +5,8 @@ import json
 import dagger
 from dagger import dag
 
-from ..models import Finding, ScanResult, Severity
-from .base import BaseScanner
+from models import Finding, ScanResult, Severity
+from scanners.base import BaseScanner
 
 
 class OpenGrepScanner(BaseScanner):
@@ -42,7 +42,7 @@ class OpenGrepScanner(BaseScanner):
                 "--output",
                 "/reports/opengrep.sarif",
             ],
-            expect=dagger.Expect.SUCCESS_OR_FAILURE,
+            expect=dagger.ReturnType.ANY,
         )
 
         # JSON output for parsing
@@ -56,7 +56,7 @@ class OpenGrepScanner(BaseScanner):
                 "--output",
                 "/reports/opengrep.json",
             ],
-            expect=dagger.Expect.SUCCESS_OR_FAILURE,
+            expect=dagger.ReturnType.ANY,
         )
 
         # Parse findings

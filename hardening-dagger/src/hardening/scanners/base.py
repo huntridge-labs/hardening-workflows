@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 import dagger
 from dagger import dag
 
-from ..models import Finding, ScanResult
+from models import Finding, ScanResult
 
 
 class BaseScanner(ABC):

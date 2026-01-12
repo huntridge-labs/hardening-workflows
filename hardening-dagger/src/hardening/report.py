@@ -3,7 +3,7 @@
 import json
 from datetime import UTC, datetime
 
-from .models import Finding, HardeningReport, ScanResult, Severity
+from models import Finding, HardeningReport, ScanResult, Severity
 
 
 class ReportGenerator:
