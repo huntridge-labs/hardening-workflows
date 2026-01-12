@@ -1,12 +1,22 @@
 #!/usr/bin/env bash
 #
-# Example: Running hardening scans locally
+# Run Released Container: Use the published hardening module
+#
+# Use this script to run the hardening pipeline using a published container image.
+# This is for end-users who want to scan their code without cloning the module source.
 #
 # Prerequisites:
 #   - Docker installed and running
-#   - Dagger CLI installed: curl -fsSL https://dl.dagger.io/dagger/install.sh | sh
+#   - Dagger CLI installed: brew install dagger/tap/dagger
 #
-# No GitHub, GitLab, or any CI system required!
+# Usage:
+#   ./run-release.sh [source_dir] [output_dir]
+#   ./run-release.sh /path/to/my-project ./reports
+#
+# Environment variables:
+#   HARDENING_IMAGE - Container image to use (default: ghcr.io/huntridge-labs/hardening:latest)
+#   SCANNERS        - Comma-separated scanners or groups (default: all)
+#
 
 set -euo pipefail
 
@@ -16,7 +26,8 @@ SOURCE_DIR="${1:-.}"
 OUTPUT_DIR="${2:-./hardening-reports}"
 SCANNERS="${SCANNERS:-all}"
 
-echo "=== Hardening Security Scan ==="
+echo "=== Hardening Security Scan (Released Container) ==="
+echo "Image: $HARDENING_IMAGE"
 echo "Source: $SOURCE_DIR"
 echo "Output: $OUTPUT_DIR"
 echo "Scanners: $SCANNERS"
@@ -25,8 +36,8 @@ echo ""
 # Ensure output directory exists
 mkdir -p "$OUTPUT_DIR"
 
-# Run the scan
-echo "Running security scan..."
+# Run the scan using the published container
+echo "Running security scan from released container..."
 dagger call -m "$HARDENING_IMAGE" \
   scan \
   --source "$SOURCE_DIR" \
