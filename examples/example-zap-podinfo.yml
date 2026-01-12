@@ -13,10 +13,11 @@ on:
         required: false
         type: choice
         options:
+          - all
           - baseline
           - full
           - api
-        default: baseline
+        default: all
       post_pr_comment:
         description: 'Post results as PR comment'
         required: false
@@ -43,11 +44,13 @@ permissions:
   id-token: write
 
 jobs:
-  # Example 1: Baseline scan (passive, fast)
-  # Good for: CI pipelines, quick security checks, PRs
+  # Baseline scan (passive, fast)
+  # Runs on: PRs (always), dispatch when 'all' or 'baseline' selected
   zap-baseline:
     name: ZAP Baseline Scan
-    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.zap_scan_type == 'baseline')
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.zap_scan_type == 'baseline' || inputs.zap_scan_type == 'all'))
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
     with:
       scanners: zap
@@ -62,11 +65,11 @@ jobs:
       allow_failure: true
       severity_threshold: ${{ inputs.severity_threshold || 'none' }}
 
-  # Example 2: Full active scan (thorough, slower)
-  # Good for: Nightly builds, release candidates, comprehensive security audits
+  # Full active scan (thorough, slower)
+  # Runs on: dispatch only when 'all' or 'full' selected
   zap-full:
     name: ZAP Full Scan
-    if: github.event_name == 'workflow_dispatch' && inputs.zap_scan_type == 'full'
+    if: github.event_name == 'workflow_dispatch' && (inputs.zap_scan_type == 'full' || inputs.zap_scan_type == 'all')
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
     with:
       scanners: zap
@@ -77,15 +80,15 @@ jobs:
       zap_healthcheck_url: 'http://127.0.0.1:9898/healthz'
       zap_scan_type: full
       zap_max_duration_minutes: 15
-      post_pr_comment: ${{ inputs.post_pr_comment }}
+      post_pr_comment: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.post_pr_comment) }}
       allow_failure: true
       severity_threshold: ${{ inputs.severity_threshold || 'none' }}
 
-  # Example 3: API scan using OpenAPI/Swagger spec
-  # Good for: REST APIs, microservices with documented endpoints
+  # API scan using OpenAPI/Swagger spec
+  # Runs on: dispatch only when 'all' or 'api' selected
   zap-api:
     name: ZAP API Scan
-    if: github.event_name == 'workflow_dispatch' && inputs.zap_scan_type == 'api'
+    if: github.event_name == 'workflow_dispatch' && (inputs.zap_scan_type == 'api' || inputs.zap_scan_type == 'all')
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
     with:
       scanners: zap
@@ -96,24 +99,6 @@ jobs:
       zap_scan_type: api
       zap_api_spec: 'http://127.0.0.1:9898/swagger.json'
       zap_max_duration_minutes: 10
-      post_pr_comment: ${{ inputs.post_pr_comment }}
+      post_pr_comment: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.post_pr_comment) }}
       allow_failure: true
       severity_threshold: ${{ inputs.severity_threshold || 'none' }}
-
-  # Example 4: Combined security scan (SAST + DAST)
-  # Good for: Comprehensive security pipeline with both static and dynamic analysis
-  # zap-with-sast:
-  #   name: ZAP + SAST Combined
-  #   if: github.event_name == 'workflow_dispatch'
-  #   uses: ./.github/workflows/reusable-security-hardening.yml
-  #   with:
-  #     scanners: zap,gitleaks,bandit
-  #     zap_scan_mode: docker-run
-  #     zap_app_image_ref: 'ghcr.io/stefanprodan/podinfo:latest'
-  #     zap_app_ports: '9898:9898'
-  #     zap_target_urls: 'http://127.0.0.1:9898'
-  #     zap_healthcheck_url: 'http://127.0.0.1:9898/healthz'
-  #     zap_scan_type: baseline
-  #     zap_max_duration_minutes: 5
-  #     post_pr_comment: true
-  #     allow_failure: true
