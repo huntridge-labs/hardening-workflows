@@ -19,54 +19,62 @@ class OpenGrepScanner(BaseScanner):
         self,
         source: dagger.Directory,
         config: str = "auto",
+        log_level: str = "info",
         **kwargs,
     ) -> ScanResult:
         """Run OpenGrep/Semgrep scan."""
-        # TODO: Consider pinning to a specific Semgrep version
+        self._init_logger(log_level)
+        self.log.hardening_info("Starting OpenGrep/Semgrep scan")
+
+        image = "semgrep/semgrep:latest"
+        self.log.dagger_info("Creating container", image=image)
+
         container = (
             dag.container()
-            .from_("semgrep/semgrep:latest")
+            .from_(image)
             .with_mounted_directory("/src", source)
             .with_workdir("/src")
             .with_exec(["mkdir", "-p", "/reports"])
         )
+        self.log.container_debug("Container configured", workdir="/src", config=config)
 
         # SARIF output
-        container = container.with_exec(
-            [
-                "semgrep",
-                "scan",
-                "--config",
-                config,
-                "--sarif",
-                "--output",
-                "/reports/opengrep.sarif",
-            ],
-            expect=dagger.ReturnType.ANY,
-        )
+        sarif_cmd = [
+            "semgrep", "scan", "--config", config,
+            "--sarif", "--output", "/reports/opengrep.sarif",
+        ]
+        self.log.scanner_debug("Executing SARIF scan", command=" ".join(sarif_cmd))
+        container = container.with_exec(sarif_cmd, expect=dagger.ReturnType.ANY)
 
         # JSON output for parsing
-        container = container.with_exec(
-            [
-                "semgrep",
-                "scan",
-                "--config",
-                config,
-                "--json",
-                "--output",
-                "/reports/opengrep.json",
-            ],
-            expect=dagger.ReturnType.ANY,
-        )
+        json_cmd = [
+            "semgrep", "scan", "--config", config,
+            "--json", "--output", "/reports/opengrep.json",
+        ]
+        self.log.scanner_debug("Executing JSON scan", command=" ".join(json_cmd))
+        container = container.with_exec(json_cmd, expect=dagger.ReturnType.ANY)
 
         # Parse findings
+        findings = []
         try:
+            self.log.scanner_info("Parsing scan results")
             json_content = await container.file("/reports/opengrep.json").contents()
             findings = self.parse_findings(json_content)
-        except Exception:
-            findings = []
+            self.log.scanner_info("Scan completed", findings_count=len(findings))
+        except Exception as e:
+            self.log.scanner_error("Failed to parse results", error=str(e))
+
+        if findings:
+            severity_counts = {}
+            for f in findings:
+                sev = f.severity.name
+                severity_counts[sev] = severity_counts.get(sev, 0) + 1
+            self.log.hardening_warn("Security issues found", count=len(findings), by_severity=severity_counts)
+        else:
+            self.log.hardening_info("No security issues found")
 
         reports = container.directory("/reports")
+        reports = self._add_logs_to_artifacts(reports)
 
         return ScanResult(
             scanner=self.name,

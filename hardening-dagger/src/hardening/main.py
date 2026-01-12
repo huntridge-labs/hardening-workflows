@@ -217,10 +217,11 @@ class Hardening:
     async def bandit(
         self,
         source: Annotated[dagger.Directory, Doc("Python source code to scan")],
+        log_level: Annotated[str, Doc("Log level: error, warn, info, debug")] = "info",
     ) -> dagger.Directory:
         """Run Bandit Python security scanner."""
         scanner = BanditScanner()
-        result = await scanner.scan(source)
+        result = await scanner.scan(source, log_level=log_level)
         return result.artifacts
 
     @function
@@ -228,10 +229,11 @@ class Hardening:
         self,
         source: Annotated[dagger.Directory, Doc("Source to scan for secrets")],
         config: Annotated[str | None, Doc("Path to gitleaks.toml")] = None,
+        log_level: Annotated[str, Doc("Log level: error, warn, info, debug")] = "info",
     ) -> dagger.Directory:
         """Run Gitleaks secrets scanner."""
         scanner = GitleaksScanner()
-        result = await scanner.scan(source, config_path=config)
+        result = await scanner.scan(source, config_path=config, log_level=log_level)
         return result.artifacts
 
     @function
@@ -239,20 +241,22 @@ class Hardening:
         self,
         source: Annotated[dagger.Directory, Doc("IaC source to scan")],
         path: Annotated[str, Doc("Subdirectory with IaC files")] = ".",
+        log_level: Annotated[str, Doc("Log level: error, warn, info, debug")] = "info",
     ) -> dagger.Directory:
         """Run Trivy infrastructure-as-code scanner."""
         scanner = TrivyIacScanner()
-        result = await scanner.scan(source, iac_path=path)
+        result = await scanner.scan(source, iac_path=path, log_level=log_level)
         return result.artifacts
 
     @function
     async def trivy_container(
         self,
         image_ref: Annotated[str, Doc("Container image to scan (e.g., nginx:latest)")],
+        log_level: Annotated[str, Doc("Log level: error, warn, info, debug")] = "info",
     ) -> dagger.Directory:
         """Run Trivy container vulnerability scanner."""
         scanner = TrivyContainerScanner()
-        result = await scanner.scan(dag.directory(), image_ref=image_ref)
+        result = await scanner.scan(dag.directory(), image_ref=image_ref, log_level=log_level)
         return result.artifacts
 
     @function
@@ -263,10 +267,11 @@ class Hardening:
         framework: Annotated[
             str | None, Doc("Specific framework: terraform, cloudformation, kubernetes")
         ] = None,
+        log_level: Annotated[str, Doc("Log level: error, warn, info, debug")] = "info",
     ) -> dagger.Directory:
         """Run Checkov IaC scanner."""
         scanner = CheckovScanner()
-        result = await scanner.scan(source, iac_path=path, framework=framework)
+        result = await scanner.scan(source, iac_path=path, framework=framework, log_level=log_level)
         return result.artifacts
 
     @function
@@ -276,10 +281,11 @@ class Hardening:
         image_ref: Annotated[
             str | None, Doc("Container image to scan instead of filesystem")
         ] = None,
+        log_level: Annotated[str, Doc("Log level: error, warn, info, debug")] = "info",
     ) -> dagger.Directory:
         """Run Grype vulnerability scanner."""
         scanner = GrypeScanner()
-        result = await scanner.scan(source, image_ref=image_ref)
+        result = await scanner.scan(source, image_ref=image_ref, log_level=log_level)
         return result.artifacts
 
     @function
@@ -287,10 +293,11 @@ class Hardening:
         self,
         source: Annotated[dagger.Directory, Doc("Source code to scan")],
         config: Annotated[str, Doc("Semgrep config: auto, p/security-audit, etc.")] = "auto",
+        log_level: Annotated[str, Doc("Log level: error, warn, info, debug")] = "info",
     ) -> dagger.Directory:
         """Run OpenGrep/Semgrep SAST scanner."""
         scanner = OpenGrepScanner()
-        result = await scanner.scan(source, config=config)
+        result = await scanner.scan(source, config=config, log_level=log_level)
         return result.artifacts
 
     @function
@@ -298,10 +305,11 @@ class Hardening:
         self,
         source: Annotated[dagger.Directory, Doc("Files to scan for malware")],
         path: Annotated[str, Doc("Subdirectory to scan")] = ".",
+        log_level: Annotated[str, Doc("Log level: error, warn, info, debug")] = "info",
     ) -> dagger.Directory:
         """Run ClamAV malware scanner."""
         scanner = ClamAVScanner()
-        result = await scanner.scan(source, scan_path=path)
+        result = await scanner.scan(source, scan_path=path, log_level=log_level)
         return result.artifacts
 
     @function
@@ -317,6 +325,7 @@ class Hardening:
         ghcr_token: Annotated[
             dagger.Secret | None, Doc("GHCR token (PAT with read:packages) - use env:GHCR_TOKEN")
         ] = None,
+        log_level: Annotated[str, Doc("Log level: error, warn, info, debug")] = "info",
     ) -> dagger.Directory:
         """
         Run CodeQL semantic SAST analysis.
@@ -334,7 +343,11 @@ class Hardening:
         """
         scanner = CodeQLScanner()
         result = await scanner.scan(
-            source, languages=languages, ghcr_username=ghcr_username, ghcr_token=ghcr_token
+            source,
+            languages=languages,
+            ghcr_username=ghcr_username,
+            ghcr_token=ghcr_token,
+            log_level=log_level,
         )
         return result.artifacts
 
@@ -347,6 +360,7 @@ class Hardening:
         ] = "baseline",
         api_spec: Annotated[str, Doc("OpenAPI/Swagger spec URL (required for api scan type)")] = "",
         max_duration: Annotated[int, Doc("Maximum scan duration in minutes")] = 10,
+        log_level: Annotated[str, Doc("Log level: error, warn, info, debug")] = "info",
     ) -> dagger.Directory:
         """
         Run ZAP DAST (Dynamic Application Security Testing) scan.
@@ -370,6 +384,7 @@ class Hardening:
             scan_type=scan_type,
             api_spec=api_spec,
             max_duration_minutes=max_duration,
+            log_level=log_level,
         )
         return result.artifacts
 
@@ -380,6 +395,7 @@ class Hardening:
         app_port: Annotated[int, Doc("Port the application listens on")] = 8080,
         scan_type: Annotated[str, Doc("Scan type: baseline or full")] = "baseline",
         max_duration: Annotated[int, Doc("Maximum scan duration in minutes")] = 10,
+        log_level: Annotated[str, Doc("Log level: error, warn, info, debug")] = "info",
     ) -> dagger.Directory:
         """
         Run ZAP DAST scan against a containerized application.
@@ -399,6 +415,7 @@ class Hardening:
             app_port=app_port,
             scan_type=scan_type,
             max_duration_minutes=max_duration,
+            log_level=log_level,
         )
         return result.artifacts
 
@@ -412,17 +429,16 @@ class Hardening:
         source: dagger.Directory,
         **kwargs,
     ) -> ScanResult:
-        """Run a single scanner with error handling."""
+        """Run a single scanner with error handling.
+
+        Always ensures logs are captured and returned in the artifacts,
+        even if the scanner fails mid-execution.
+        """
         try:
             return await scanner.scan(source, **kwargs)
         except Exception as e:
-            return ScanResult(
-                scanner=scanner.name,
-                findings=[],
-                artifacts=dag.directory(),
-                exit_code=1,
-                error_message=str(e),
-            )
+            # Use the scanner's error handler to ensure logs are saved
+            return scanner._create_error_result(e)
 
     def _resolve_scanners(self, scanners: str) -> set[str]:
         """Resolve scanner selection string to set of scanner names."""

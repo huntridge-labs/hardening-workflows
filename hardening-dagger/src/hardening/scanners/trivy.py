@@ -19,62 +19,64 @@ class TrivyIacScanner(BaseScanner):
         self,
         source: dagger.Directory,
         iac_path: str = ".",
+        log_level: str = "info",
         **kwargs,
     ) -> ScanResult:
         """Run Trivy IaC scan."""
-        # TODO: Consider pinning to a specific Trivy version
+        self._init_logger(log_level)
+        self.log.hardening_info("Starting Trivy IaC scan")
+
+        image = "aquasec/trivy:latest"
+        self.log.dagger_info("Creating container", image=image)
+
         container = (
             dag.container()
-            .from_("aquasec/trivy:latest")
+            .from_(image)
             .with_mounted_directory("/src", source)
             .with_workdir("/src")
             .with_exec(["mkdir", "-p", "/reports"])
         )
 
         scan_path = f"/src/{iac_path}" if iac_path != "." else "/src"
+        self.log.container_debug("Container configured", workdir="/src", scan_path=scan_path)
 
         # SARIF output
-        container = container.with_exec(
-            [
-                "trivy",
-                "config",
-                scan_path,
-                "--format",
-                "sarif",
-                "--output",
-                "/reports/trivy-iac.sarif",
-            ],
-            expect=dagger.ReturnType.ANY,
-        )
+        sarif_cmd = ["trivy", "config", scan_path, "--format", "sarif", "--output", "/reports/trivy-iac.sarif"]
+        self.log.scanner_debug("Executing SARIF scan", command=" ".join(sarif_cmd))
+        container = container.with_exec(sarif_cmd, expect=dagger.ReturnType.ANY)
 
         # JSON output for parsing
-        container = container.with_exec(
-            [
-                "trivy",
-                "config",
-                scan_path,
-                "--format",
-                "json",
-                "--output",
-                "/reports/trivy-iac.json",
-            ],
-            expect=dagger.ReturnType.ANY,
-        )
+        json_cmd = ["trivy", "config", scan_path, "--format", "json", "--output", "/reports/trivy-iac.json"]
+        self.log.scanner_debug("Executing JSON scan", command=" ".join(json_cmd))
+        container = container.with_exec(json_cmd, expect=dagger.ReturnType.ANY)
 
         # Parse findings
+        findings = []
         try:
+            self.log.scanner_info("Parsing scan results")
             json_content = await container.file("/reports/trivy-iac.json").contents()
             findings = self.parse_findings(json_content)
-        except Exception:
-            findings = []
+            self.log.scanner_info("Scan completed", findings_count=len(findings))
+        except Exception as e:
+            self.log.scanner_error("Failed to parse results", error=str(e))
+
+        if findings:
+            severity_counts = {}
+            for f in findings:
+                sev = f.severity.name
+                severity_counts[sev] = severity_counts.get(sev, 0) + 1
+            self.log.hardening_warn("Misconfigurations found", count=len(findings), by_severity=severity_counts)
+        else:
+            self.log.hardening_info("No misconfigurations found")
 
         reports = container.directory("/reports")
+        reports = self._add_logs_to_artifacts(reports)
 
         return ScanResult(
             scanner=self.name,
             findings=findings,
             artifacts=reports,
-            exit_code=0,
+            exit_code=0 if not findings else 1,
         )
 
     def parse_findings(self, output: str) -> list[Finding]:
@@ -121,11 +123,15 @@ class TrivyContainerScanner(BaseScanner):
         self,
         source: dagger.Directory,
         image_ref: str = "",
+        log_level: str = "info",
         **kwargs,
     ) -> ScanResult:
         """Run Trivy container scan."""
+        self._init_logger(log_level)
+        self.log.hardening_info("Starting Trivy container scan")
+
         if not image_ref:
-            # Try to detect Dockerfile and build, or skip
+            self.log.hardening_warn("No image_ref provided, skipping scan")
             return ScanResult(
                 scanner=self.name,
                 findings=[],
@@ -134,45 +140,52 @@ class TrivyContainerScanner(BaseScanner):
                 error_message="No image_ref provided",
             )
 
+        image = "aquasec/trivy:latest"
+        self.log.dagger_info("Creating container", image=image)
+        self.log.container_debug("Target image", image_ref=image_ref)
+
         container = (
-            dag.container().from_("aquasec/trivy:latest").with_exec(["mkdir", "-p", "/reports"])
+            dag.container().from_(image).with_exec(["mkdir", "-p", "/reports"])
         )
 
         # SARIF output
-        container = container.with_exec(
-            [
-                "trivy",
-                "image",
-                image_ref,
-                "--format",
-                "sarif",
-                "--output",
-                "/reports/trivy-container.sarif",
-            ],
-            expect=dagger.ReturnType.ANY,
-        )
+        sarif_cmd = [
+            "trivy", "image", image_ref,
+            "--format", "sarif",
+            "--output", "/reports/trivy-container.sarif",
+        ]
+        self.log.scanner_debug("Executing SARIF scan", command=" ".join(sarif_cmd))
+        container = container.with_exec(sarif_cmd, expect=dagger.ReturnType.ANY)
 
         # JSON output
-        container = container.with_exec(
-            [
-                "trivy",
-                "image",
-                image_ref,
-                "--format",
-                "json",
-                "--output",
-                "/reports/trivy-container.json",
-            ],
-            expect=dagger.ReturnType.ANY,
-        )
+        json_cmd = [
+            "trivy", "image", image_ref,
+            "--format", "json",
+            "--output", "/reports/trivy-container.json",
+        ]
+        self.log.scanner_debug("Executing JSON scan", command=" ".join(json_cmd))
+        container = container.with_exec(json_cmd, expect=dagger.ReturnType.ANY)
 
+        findings = []
         try:
+            self.log.scanner_info("Parsing scan results")
             json_content = await container.file("/reports/trivy-container.json").contents()
             findings = self.parse_findings(json_content)
-        except Exception:
-            findings = []
+            self.log.scanner_info("Scan completed", findings_count=len(findings))
+        except Exception as e:
+            self.log.scanner_error("Failed to parse results", error=str(e))
+
+        if findings:
+            severity_counts = {}
+            for f in findings:
+                sev = f.severity.name
+                severity_counts[sev] = severity_counts.get(sev, 0) + 1
+            self.log.hardening_warn("Vulnerabilities found", count=len(findings), by_severity=severity_counts)
+        else:
+            self.log.hardening_info("No vulnerabilities found")
 
         reports = container.directory("/reports")
+        reports = self._add_logs_to_artifacts(reports)
 
         return ScanResult(
             scanner=self.name,

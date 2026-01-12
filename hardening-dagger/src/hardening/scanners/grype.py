@@ -19,56 +19,63 @@ class GrypeScanner(BaseScanner):
         self,
         source: dagger.Directory,
         image_ref: str | None = None,
+        log_level: str = "info",
         **kwargs,
     ) -> ScanResult:
         """Run Grype vulnerability scan."""
-        # TODO: Consider pinning to a specific Grype version
+        self._init_logger(log_level)
+        self.log.hardening_info("Starting Grype vulnerability scan")
+
+        image = "anchore/grype:latest"
+        self.log.dagger_info("Creating container", image=image)
+
         container = (
-            dag.container().from_("anchore/grype:latest").with_exec(["mkdir", "-p", "/reports"])
+            dag.container().from_(image).with_exec(["mkdir", "-p", "/reports"])
         )
 
         # Determine scan target
         if image_ref:
             target = image_ref
+            self.log.container_debug("Scanning container image", target=target)
         else:
             # Scan filesystem
             container = container.with_mounted_directory("/src", source)
             target = "dir:/src"
+            self.log.container_debug("Scanning filesystem", target=target)
 
         # SARIF output
-        container = container.with_exec(
-            [
-                "grype",
-                target,
-                "--output",
-                "sarif",
-                "--file",
-                "/reports/grype.sarif",
-            ],
-            expect=dagger.ReturnType.ANY,
-        )
+        sarif_cmd = ["grype", target, "--output", "sarif", "--file", "/reports/grype.sarif"]
+        self.log.scanner_debug("Executing SARIF scan", command=" ".join(sarif_cmd))
+        container = container.with_exec(sarif_cmd, expect=dagger.ReturnType.ANY)
 
         # JSON output for parsing
-        container = container.with_exec(
-            [
-                "grype",
-                target,
-                "--output",
-                "json",
-                "--file",
-                "/reports/grype.json",
-            ],
-            expect=dagger.ReturnType.ANY,
-        )
+        json_cmd = ["grype", target, "--output", "json", "--file", "/reports/grype.json"]
+        self.log.scanner_debug("Executing JSON scan", command=" ".join(json_cmd))
+        container = container.with_exec(json_cmd, expect=dagger.ReturnType.ANY)
 
         # Parse findings
+        findings = []
         try:
+            self.log.scanner_info("Parsing scan results")
             json_content = await container.file("/reports/grype.json").contents()
             findings = self.parse_findings(json_content)
-        except Exception:
-            findings = []
+            self.log.scanner_info("Scan completed", findings_count=len(findings))
+        except Exception as e:
+            self.log.scanner_error("Failed to parse results", error=str(e))
+
+        if findings:
+            severity_counts = {}
+            for f in findings:
+                sev = f.severity.name
+                severity_counts[sev] = severity_counts.get(sev, 0) + 1
+            self.log.hardening_warn(
+                "Vulnerabilities found", count=len(findings), by_severity=severity_counts
+            )
+        else:
+            self.log.hardening_info("No vulnerabilities found")
 
         reports = container.directory("/reports")
+        reports = self._add_logs_to_artifacts(reports)
 
         return ScanResult(
             scanner=self.name,

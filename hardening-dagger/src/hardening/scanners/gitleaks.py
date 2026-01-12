@@ -19,18 +19,27 @@ class GitleaksScanner(BaseScanner):
         self,
         source: dagger.Directory,
         config_path: str | None = None,
+        log_level: str = "info",
         **kwargs,
     ) -> ScanResult:
         """Run Gitleaks secrets detection."""
+        # Initialize logger for this scan
+        self._init_logger(log_level)
+        self.log.hardening_info("Starting Gitleaks scan")
+
         # Use official gitleaks image but clear the entrypoint to allow shell commands
+        image = "zricethezav/gitleaks:v8.18.4"
+        self.log.dagger_info("Creating container", image=image)
+
         container = (
             dag.container()
-            .from_("zricethezav/gitleaks:v8.18.4")
+            .from_(image)
             .with_entrypoint([])  # Clear entrypoint to allow arbitrary commands
             .with_mounted_directory("/src", source)
             .with_workdir("/src")
             .with_exec(["mkdir", "-p", "/reports"])
         )
+        self.log.container_debug("Container configured", workdir="/src", reports_dir="/reports")
 
         # Build command
         base_cmd = [
@@ -43,6 +52,7 @@ class GitleaksScanner(BaseScanner):
 
         if config_path:
             base_cmd.extend(["--config", config_path])
+            self.log.scanner_info("Using custom config", config_path=config_path)
 
         # SARIF output
         sarif_cmd = base_cmd + [
@@ -64,23 +74,42 @@ class GitleaksScanner(BaseScanner):
             "0",
         ]
 
+        self.log.scanner_debug("Executing SARIF scan", command=" ".join(sarif_cmd))
         container = container.with_exec(sarif_cmd, expect=dagger.ReturnType.ANY)
+
+        self.log.scanner_debug("Executing JSON scan", command=" ".join(json_cmd))
         container = container.with_exec(json_cmd, expect=dagger.ReturnType.ANY)
 
         # Parse findings
+        findings = []
         try:
+            self.log.scanner_info("Parsing scan results")
             json_content = await container.file("/reports/gitleaks.json").contents()
             findings = self.parse_findings(json_content)
-        except Exception:
+            self.log.scanner_info("Scan completed", findings_count=len(findings))
+        except Exception as e:
+            self.log.scanner_error("Failed to parse results", error=str(e))
             findings = []
 
+        # Log summary of findings
+        if findings:
+            self.log.hardening_warn(
+                "Secrets detected",
+                count=len(findings),
+                files=list(set(f.file_path for f in findings)),
+            )
+        else:
+            self.log.hardening_info("No secrets detected")
+
+        # Get reports and add logs
         reports = container.directory("/reports")
+        reports = self._add_logs_to_artifacts(reports)
 
         return ScanResult(
             scanner=self.name,
             findings=findings,
             artifacts=reports,
-            exit_code=0,
+            exit_code=0 if not findings else 1,
         )
 
     def parse_findings(self, output: str) -> list[Finding]:

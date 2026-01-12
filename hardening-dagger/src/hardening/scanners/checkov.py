@@ -20,62 +20,79 @@ class CheckovScanner(BaseScanner):
         source: dagger.Directory,
         iac_path: str = ".",
         framework: str | None = None,
+        log_level: str = "info",
         **kwargs,
     ) -> ScanResult:
         """Run Checkov IaC scan."""
-        # TODO: Consider pinning to a specific Checkov version
+        self._init_logger(log_level)
+        self.log.hardening_info("Starting Checkov IaC scan")
+
+        image = "bridgecrew/checkov:latest"
+        self.log.dagger_info("Creating container", image=image)
+
         container = (
             dag.container()
-            .from_("bridgecrew/checkov:latest")
+            .from_(image)
             .with_mounted_directory("/src", source)
             .with_workdir("/src")
             .with_exec(["mkdir", "-p", "/reports"])
         )
 
         scan_path = iac_path if iac_path else "."
+        self.log.container_debug(
+            "Container configured", workdir="/src", scan_path=scan_path, framework=framework
+        )
 
-        # Build command
+        # Build SARIF command
         cmd = [
-            "checkov",
-            "-d",
-            scan_path,
-            "--output",
-            "sarif",
-            "--output-file-path",
-            "/reports/",
-            "--soft-fail",  # Don't exit non-zero on findings
+            "checkov", "-d", scan_path,
+            "--output", "sarif",
+            "--output-file-path", "/reports/",
+            "--soft-fail",
         ]
-
         if framework:
             cmd.extend(["--framework", framework])
 
+        self.log.scanner_debug("Executing SARIF scan", command=" ".join(cmd))
         container = container.with_exec(cmd)
 
         # Also generate JSON
         json_cmd = [
-            "checkov",
-            "-d",
-            scan_path,
-            "--output",
-            "json",
-            "--output-file-path",
-            "/reports/",
+            "checkov", "-d", scan_path,
+            "--output", "json",
+            "--output-file-path", "/reports/",
             "--soft-fail",
         ]
         if framework:
             json_cmd.extend(["--framework", framework])
 
+        self.log.scanner_debug("Executing JSON scan", command=" ".join(json_cmd))
         container = container.with_exec(json_cmd)
 
         # Parse findings
+        findings = []
         try:
+            self.log.scanner_info("Parsing scan results")
             # Checkov outputs to results_sarif.sarif and results_json.json
             json_content = await container.file("/reports/results_json.json").contents()
             findings = self.parse_findings(json_content)
-        except Exception:
-            findings = []
+            self.log.scanner_info("Scan completed", findings_count=len(findings))
+        except Exception as e:
+            self.log.scanner_error("Failed to parse results", error=str(e))
+
+        if findings:
+            severity_counts = {}
+            for f in findings:
+                sev = f.severity.name
+                severity_counts[sev] = severity_counts.get(sev, 0) + 1
+            self.log.hardening_warn(
+                "Policy violations found", count=len(findings), by_severity=severity_counts
+            )
+        else:
+            self.log.hardening_info("No policy violations found")
 
         reports = container.directory("/reports")
+        reports = self._add_logs_to_artifacts(reports)
 
         return ScanResult(
             scanner=self.name,

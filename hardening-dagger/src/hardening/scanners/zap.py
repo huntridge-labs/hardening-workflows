@@ -35,6 +35,7 @@ class ZAPScanner(BaseScanner):
         scan_type: str = "baseline",
         api_spec: str = "",
         max_duration_minutes: int = 10,
+        log_level: str = "info",
         **kwargs,
     ) -> ScanResult:
         """
@@ -46,6 +47,7 @@ class ZAPScanner(BaseScanner):
             scan_type: Type of scan - baseline, full, or api
             api_spec: OpenAPI/Swagger spec URL (required for api scan type)
             max_duration_minutes: Maximum scan duration per target
+            log_level: Logging verbosity (error, warn, info, debug)
 
         Returns:
             ScanResult with findings and artifacts
@@ -53,7 +55,11 @@ class ZAPScanner(BaseScanner):
         Note: The target application must be running and accessible.
         For containerized apps, use the zap_with_container() function instead.
         """
+        self._init_logger(log_level)
+        self.log.hardening_info("Starting ZAP DAST scan", scan_type=scan_type)
+
         if not target_url and scan_type != "api":
+            self.log.hardening_warn("No target_url provided for baseline/full scan")
             return ScanResult(
                 scanner=self.name,
                 findings=[],
@@ -63,6 +69,7 @@ class ZAPScanner(BaseScanner):
             )
 
         if scan_type == "api" and not api_spec:
+            self.log.hardening_warn("No api_spec provided for API scan")
             return ScanResult(
                 scanner=self.name,
                 findings=[],
@@ -72,23 +79,33 @@ class ZAPScanner(BaseScanner):
             )
 
         # Use official ZAP stable image
-        # TODO: Consider pinning to a specific ZAP version
+        image = "ghcr.io/zaproxy/zaproxy:stable"
+        self.log.dagger_info("Creating container", image=image)
         container = (
             dag.container()
-            .from_("ghcr.io/zaproxy/zaproxy:stable")
+            .from_(image)
             .with_exec(["mkdir", "-p", "/zap/reports"])
+        )
+        self.log.container_debug(
+            "Container configured",
+            target_url=target_url,
+            max_duration_minutes=max_duration_minutes,
         )
 
         # Build ZAP command based on scan type
         if scan_type == "baseline":
+            self.log.scanner_info("Running baseline (passive) scan")
             container = await self._run_baseline_scan(container, target_url, max_duration_minutes)
         elif scan_type == "full":
+            self.log.scanner_info("Running full (active) scan")
             container = await self._run_full_scan(container, target_url, max_duration_minutes)
         elif scan_type == "api":
+            self.log.scanner_info("Running API scan", api_spec=api_spec)
             container = await self._run_api_scan(
                 container, api_spec, target_url, max_duration_minutes
             )
         else:
+            self.log.hardening_warn("Unknown scan type", scan_type=scan_type)
             return ScanResult(
                 scanner=self.name,
                 findings=[],
@@ -100,13 +117,27 @@ class ZAPScanner(BaseScanner):
         # Parse results - report may not exist if scan failed
         findings = []
         try:
+            self.log.scanner_info("Parsing scan results")
             json_content = await container.file("/zap/reports/zap-report.json").contents()
             findings = self.parse_findings(json_content)
-        except Exception:  # noqa: S110
-            pass  # Report file may not exist if scan didn't complete
+            self.log.scanner_info("Scan completed", findings_count=len(findings))
+        except Exception as e:
+            self.log.scanner_error("Failed to parse results", error=str(e))
+
+        if findings:
+            severity_counts = {}
+            for f in findings:
+                sev = f.severity.name
+                severity_counts[sev] = severity_counts.get(sev, 0) + 1
+            self.log.hardening_warn(
+                "Security issues found", count=len(findings), by_severity=severity_counts
+            )
+        else:
+            self.log.hardening_info("No security issues found")
 
         # Collect artifacts
         reports = container.directory("/zap/reports")
+        reports = self._add_logs_to_artifacts(reports)
 
         return ScanResult(
             scanner=self.name,
@@ -122,6 +153,7 @@ class ZAPScanner(BaseScanner):
         app_port: int = 8080,
         scan_type: str = "baseline",
         max_duration_minutes: int = 10,
+        log_level: str = "info",
         **kwargs,
     ) -> ScanResult:
         """
@@ -136,21 +168,30 @@ class ZAPScanner(BaseScanner):
             app_port: Port the application listens on
             scan_type: Type of scan - baseline or full
             max_duration_minutes: Maximum scan duration
+            log_level: Logging verbosity (error, warn, info, debug)
         """
+        self._init_logger(log_level)
+        self.log.hardening_info("Starting ZAP scan with service", scan_type=scan_type)
+
         # Start the application as a service
+        self.log.dagger_info("Creating application service", image=app_image, port=app_port)
         app_service = dag.container().from_(app_image).with_exposed_port(app_port).as_service()
 
         # Create ZAP container with service binding
         target_url = f"http://app:{app_port}"
 
+        image = "ghcr.io/zaproxy/zaproxy:stable"
+        self.log.dagger_info("Creating ZAP container", image=image)
         container = (
             dag.container()
-            .from_("ghcr.io/zaproxy/zaproxy:stable")
+            .from_(image)
             .with_service_binding("app", app_service)
             .with_exec(["mkdir", "-p", "/zap/reports"])
         )
+        self.log.container_debug("Container configured", target_url=target_url)
 
         # Wait for app to be ready
+        self.log.scanner_info("Waiting for application to be ready")
         container = container.with_exec(
             [
                 "bash",
@@ -162,19 +203,35 @@ class ZAPScanner(BaseScanner):
 
         # Run scan
         if scan_type == "baseline":
+            self.log.scanner_info("Running baseline (passive) scan")
             container = await self._run_baseline_scan(container, target_url, max_duration_minutes)
         else:
+            self.log.scanner_info("Running full (active) scan")
             container = await self._run_full_scan(container, target_url, max_duration_minutes)
 
         # Parse results - report may not exist if scan failed
         findings = []
         try:
+            self.log.scanner_info("Parsing scan results")
             json_content = await container.file("/zap/reports/zap-report.json").contents()
             findings = self.parse_findings(json_content)
-        except Exception:  # noqa: S110
-            pass  # Report file may not exist if scan didn't complete
+            self.log.scanner_info("Scan completed", findings_count=len(findings))
+        except Exception as e:
+            self.log.scanner_error("Failed to parse results", error=str(e))
+
+        if findings:
+            severity_counts = {}
+            for f in findings:
+                sev = f.severity.name
+                severity_counts[sev] = severity_counts.get(sev, 0) + 1
+            self.log.hardening_warn(
+                "Security issues found", count=len(findings), by_severity=severity_counts
+            )
+        else:
+            self.log.hardening_info("No security issues found")
 
         reports = container.directory("/zap/reports")
+        reports = self._add_logs_to_artifacts(reports)
 
         return ScanResult(
             scanner=self.name,

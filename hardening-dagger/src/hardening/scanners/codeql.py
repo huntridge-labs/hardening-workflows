@@ -52,6 +52,7 @@ class CodeQLScanner(BaseScanner):
         languages: str = "python,javascript",
         ghcr_username: str | None = None,
         ghcr_token: dagger.Secret | None = None,
+        log_level: str = "info",
         **kwargs,
     ) -> ScanResult:
         """
@@ -62,13 +63,18 @@ class CodeQLScanner(BaseScanner):
             languages: Comma-separated list of languages to analyze
             ghcr_username: Optional GHCR username for GitHub's official image
             ghcr_token: Optional GHCR token (dagger.Secret) for authentication
+            log_level: Logging verbosity (error, warn, info, debug)
 
         Note: CodeQL requires significant resources. For large codebases,
         consider running via GitHub Actions where CodeQL is optimized.
         """
+        self._init_logger(log_level)
+        self.log.hardening_info("Starting CodeQL analysis")
+
         # Parse and validate languages
         lang_list = self._parse_languages(languages)
         if not lang_list:
+            self.log.hardening_warn("No supported languages found", requested=languages)
             return ScanResult(
                 scanner=self.name,
                 findings=[],
@@ -76,6 +82,8 @@ class CodeQLScanner(BaseScanner):
                 exit_code=0,
                 error_message=f"No supported languages in: {languages}",
             )
+
+        self.log.scanner_info("Languages to analyze", languages=lang_list)
 
         # Try GitHub's official CodeQL bundle if credentials are available,
         # otherwise fall back to Microsoft's public container
@@ -87,8 +95,12 @@ class CodeQLScanner(BaseScanner):
         # Process each language
         for lang in lang_list:
             try:
+                self.log.scanner_info(f"Analyzing {lang}")
                 result_container, lang_findings = await self._scan_language(container, lang)
                 all_findings.extend(lang_findings)
+                self.log.scanner_info(
+                    f"Completed {lang} analysis", findings_count=len(lang_findings)
+                )
 
                 # Export language-specific reports
                 try:
@@ -100,8 +112,20 @@ class CodeQLScanner(BaseScanner):
                     pass  # SARIF file may not exist if analysis produced no results
 
             except Exception as e:
-                # Log error but continue with other languages
-                print(f"CodeQL {lang} analysis failed: {e}")
+                self.log.scanner_error(f"CodeQL {lang} analysis failed", error=str(e))
+
+        self.log.scanner_info("All language analyses completed", total_findings=len(all_findings))
+
+        if all_findings:
+            severity_counts = {}
+            for f in all_findings:
+                sev = f.severity.name
+                severity_counts[sev] = severity_counts.get(sev, 0) + 1
+            self.log.hardening_warn(
+                "Security issues found", count=len(all_findings), by_severity=severity_counts
+            )
+        else:
+            self.log.hardening_info("No security issues found")
 
         # Create combined SARIF
         combined_sarif = self._create_combined_sarif(all_findings)
@@ -118,6 +142,9 @@ class CodeQLScanner(BaseScanner):
             indent=2,
         )
         artifacts = artifacts.with_new_file("codeql-report.json", json_report)
+
+        # Add logs to artifacts
+        artifacts = self._add_logs_to_artifacts(artifacts)
 
         return ScanResult(
             scanner=self.name,
@@ -313,18 +340,20 @@ class CodeQLScanner(BaseScanner):
         """
         if ghcr_username and ghcr_token:
             # Use GitHub's official CodeQL bundle with authentication
+            image = "ghcr.io/github/codeql-action/codeql-bundle:latest"
+            self.log.dagger_info("Creating container with GHCR auth", image=image)
             container = (
                 dag.container()
                 .with_registry_auth("ghcr.io", ghcr_username, ghcr_token)
-                .from_("ghcr.io/github/codeql-action/codeql-bundle:latest")
+                .from_(image)
             )
         else:
             # Fall back to Microsoft's public container (no auth required)
-            # https://github.com/microsoft/codeql-container
-            container = dag.container().from_(
-                "mcr.microsoft.com/cstsectools/codeql-container:latest"
-            )
+            image = "mcr.microsoft.com/cstsectools/codeql-container:latest"
+            self.log.dagger_info("Creating container (no GHCR auth)", image=image)
+            container = dag.container().from_(image)
 
+        self.log.container_debug("Container configured", workdir="/src")
         return (
             container.with_mounted_directory("/src", source)
             .with_workdir("/src")
