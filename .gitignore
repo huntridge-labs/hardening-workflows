@@ -59,6 +59,7 @@ tmp/
 **/*.tmp
 **/*.swp
 *~
+reports/
 
 # Terraform
 **/.terraform/

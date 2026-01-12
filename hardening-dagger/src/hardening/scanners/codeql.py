@@ -7,6 +7,10 @@ Note: CodeQL has some limitations when running outside of GitHub Actions:
 
 This scanner provides a containerized CodeQL experience that works anywhere,
 with support for the most common languages (Python, JavaScript/TypeScript, Go, Java).
+
+Container images (in order of preference):
+- GitHub's official CodeQL bundle (ghcr.io) - requires GHCR_USERNAME and GHCR_TOKEN
+- Microsoft's public CodeQL container (mcr.microsoft.com) - no auth required (fallback)
 """
 
 import json
@@ -46,6 +50,8 @@ class CodeQLScanner(BaseScanner):
         self,
         source: dagger.Directory,
         languages: str = "python,javascript",
+        ghcr_username: str | None = None,
+        ghcr_token: dagger.Secret | None = None,
         **kwargs,
     ) -> ScanResult:
         """
@@ -54,6 +60,8 @@ class CodeQLScanner(BaseScanner):
         Args:
             source: Source code directory to scan
             languages: Comma-separated list of languages to analyze
+            ghcr_username: Optional GHCR username for GitHub's official image
+            ghcr_token: Optional GHCR token (dagger.Secret) for authentication
 
         Note: CodeQL requires significant resources. For large codebases,
         consider running via GitHub Actions where CodeQL is optimized.
@@ -69,16 +77,9 @@ class CodeQLScanner(BaseScanner):
                 error_message=f"No supported languages in: {languages}",
             )
 
-        # Use the official CodeQL container
-        # This container includes the CLI and standard query packs
-        # TODO: Consider pinning to a specific CodeQL version
-        container = (
-            dag.container()
-            .from_("ghcr.io/github/codeql-action/codeql-bundle:latest")
-            .with_mounted_directory("/src", source)
-            .with_workdir("/src")
-            .with_exec(["mkdir", "-p", "/reports", "/codeql-dbs"])
-        )
+        # Try GitHub's official CodeQL bundle if credentials are available,
+        # otherwise fall back to Microsoft's public container
+        container = self._create_codeql_container(source, ghcr_username, ghcr_token)
 
         all_findings: list[Finding] = []
         artifacts = dag.directory()
@@ -298,3 +299,34 @@ class CodeQLScanner(BaseScanner):
             Severity.NONE: "none",
         }
         return mapping.get(severity, "warning")
+
+    def _create_codeql_container(
+        self,
+        source: dagger.Directory,
+        ghcr_username: str | None = None,
+        ghcr_token: dagger.Secret | None = None,
+    ) -> dagger.Container:
+        """Create CodeQL container with appropriate image and auth.
+
+        Uses GitHub's official CodeQL bundle if GHCR credentials are provided,
+        otherwise falls back to Microsoft's public container.
+        """
+        if ghcr_username and ghcr_token:
+            # Use GitHub's official CodeQL bundle with authentication
+            container = (
+                dag.container()
+                .with_registry_auth("ghcr.io", ghcr_username, ghcr_token)
+                .from_("ghcr.io/github/codeql-action/codeql-bundle:latest")
+            )
+        else:
+            # Fall back to Microsoft's public container (no auth required)
+            # https://github.com/microsoft/codeql-container
+            container = dag.container().from_(
+                "mcr.microsoft.com/cstsectools/codeql-container:latest"
+            )
+
+        return (
+            container.with_mounted_directory("/src", source)
+            .with_workdir("/src")
+            .with_exec(["mkdir", "-p", "/reports", "/codeql-dbs"])
+        )

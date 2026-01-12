@@ -311,6 +311,12 @@ class Hardening:
         languages: Annotated[
             str, Doc("Comma-separated languages: python,javascript,go,java,csharp,cpp,ruby")
         ] = "python,javascript",
+        ghcr_username: Annotated[
+            str | None, Doc("GHCR username for GitHub's official CodeQL image")
+        ] = None,
+        ghcr_token: Annotated[
+            dagger.Secret | None, Doc("GHCR token (PAT with read:packages) - use env:GHCR_TOKEN")
+        ] = None,
     ) -> dagger.Directory:
         """
         Run CodeQL semantic SAST analysis.
@@ -318,12 +324,18 @@ class Hardening:
         Note: CodeQL analysis requires significant resources and time.
         For large codebases, GitHub Actions with CodeQL is recommended.
 
+        Container images:
+        - With GHCR credentials: Uses GitHub's official codeql-bundle (recommended)
+        - Without credentials: Falls back to Microsoft's public container
+
         Examples:
             dagger call codeql --source . --languages python
-            dagger call codeql --source . --languages "python,javascript,go"
+            dagger call codeql --source . --languages python --ghcr-username myuser --ghcr-token env:GHCR_TOKEN
         """
         scanner = CodeQLScanner()
-        result = await scanner.scan(source, languages=languages)
+        result = await scanner.scan(
+            source, languages=languages, ghcr_username=ghcr_username, ghcr_token=ghcr_token
+        )
         return result.artifacts
 
     @function
