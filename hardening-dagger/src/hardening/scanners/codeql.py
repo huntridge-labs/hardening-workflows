@@ -10,11 +10,12 @@ with support for the most common languages (Python, JavaScript/TypeScript, Go, J
 """
 
 import json
+
 import dagger
 from dagger import dag
 
+from ..models import Finding, ScanResult, Severity
 from .base import BaseScanner
-from ..models import ScanResult, Finding, Severity
 
 
 class CodeQLScanner(BaseScanner):
@@ -70,6 +71,7 @@ class CodeQLScanner(BaseScanner):
 
         # Use the official CodeQL container
         # This container includes the CLI and standard query packs
+        # TODO: Consider pinning to a specific CodeQL version
         container = (
             dag.container()
             .from_("ghcr.io/github/codeql-action/codeql-bundle:latest")
@@ -84,9 +86,7 @@ class CodeQLScanner(BaseScanner):
         # Process each language
         for lang in lang_list:
             try:
-                result_container, lang_findings = await self._scan_language(
-                    container, lang
-                )
+                result_container, lang_findings = await self._scan_language(container, lang)
                 all_findings.extend(lang_findings)
 
                 # Export language-specific reports
@@ -94,11 +94,9 @@ class CodeQLScanner(BaseScanner):
                     sarif_content = await result_container.file(
                         f"/reports/codeql-{lang}.sarif"
                     ).contents()
-                    artifacts = artifacts.with_new_file(
-                        f"codeql-{lang}.sarif", sarif_content
-                    )
-                except Exception:
-                    pass
+                    artifacts = artifacts.with_new_file(f"codeql-{lang}.sarif", sarif_content)
+                except Exception:  # noqa: S110
+                    pass  # SARIF file may not exist if analysis produced no results
 
             except Exception as e:
                 # Log error but continue with other languages
@@ -109,12 +107,15 @@ class CodeQLScanner(BaseScanner):
         artifacts = artifacts.with_new_file("codeql-combined.sarif", combined_sarif)
 
         # Create JSON summary
-        json_report = json.dumps({
-            "scanner": self.name,
-            "languages": lang_list,
-            "findings": [f.to_dict() for f in all_findings],
-            "total": len(all_findings),
-        }, indent=2)
+        json_report = json.dumps(
+            {
+                "scanner": self.name,
+                "languages": lang_list,
+                "findings": [f.to_dict() for f in all_findings],
+                "total": len(all_findings),
+            },
+            indent=2,
+        )
         artifacts = artifacts.with_new_file("codeql-report.json", json_report)
 
         return ScanResult(
@@ -136,7 +137,9 @@ class CodeQLScanner(BaseScanner):
         # Create database
         container = base_container.with_exec(
             [
-                "codeql", "database", "create",
+                "codeql",
+                "database",
+                "create",
                 db_path,
                 f"--language={language}",
                 "--source-root=/src",
@@ -148,9 +151,11 @@ class CodeQLScanner(BaseScanner):
         # Run analysis with security queries
         container = container.with_exec(
             [
-                "codeql", "database", "analyze",
+                "codeql",
+                "database",
+                "analyze",
                 db_path,
-                f"--format=sarifv2.1.0",
+                "--format=sarifv2.1.0",
                 f"--output={sarif_path}",
                 "--",  # Query packs after this
                 f"{language}-security-extended",
@@ -163,8 +168,8 @@ class CodeQLScanner(BaseScanner):
         try:
             sarif_content = await container.file(sarif_path).contents()
             findings = self.parse_findings(sarif_content)
-        except Exception:
-            pass
+        except Exception:  # noqa: S110
+            pass  # SARIF file may not exist if no issues found
 
         return container, findings
 
@@ -202,15 +207,17 @@ class CodeQLScanner(BaseScanner):
                             cwe = tag.replace("external/cwe/", "").upper()
                             break
 
-                    findings.append(Finding(
-                        rule_id=rule_id,
-                        severity=severity,
-                        message=result.get("message", {}).get("text", ""),
-                        file_path=file_path.lstrip("./"),
-                        line_number=line,
-                        scanner=self.name,
-                        cwe=cwe,
-                    ))
+                    findings.append(
+                        Finding(
+                            rule_id=rule_id,
+                            severity=severity,
+                            message=result.get("message", {}).get("text", ""),
+                            file_path=file_path.lstrip("./"),
+                            line_number=line,
+                            scanner=self.name,
+                            cwe=cwe,
+                        )
+                    )
 
         except json.JSONDecodeError:
             pass
@@ -251,29 +258,33 @@ class CodeQLScanner(BaseScanner):
         sarif = {
             "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
             "version": "2.1.0",
-            "runs": [{
-                "tool": {
-                    "driver": {
-                        "name": "CodeQL (via Hardening)",
-                        "version": "2.10.0",
-                        "informationUri": "https://github.com/huntridge-labs/hardening-workflows",
-                    }
-                },
-                "results": [
-                    {
-                        "ruleId": f.rule_id,
-                        "level": self._severity_to_sarif_level(f.severity),
-                        "message": {"text": f.message},
-                        "locations": [{
-                            "physicalLocation": {
-                                "artifactLocation": {"uri": f.file_path},
-                                "region": {"startLine": max(1, f.line_number)},
-                            }
-                        }],
-                    }
-                    for f in findings
-                ],
-            }],
+            "runs": [
+                {
+                    "tool": {
+                        "driver": {
+                            "name": "CodeQL (via Hardening)",
+                            "version": "2.10.0",
+                            "informationUri": "https://github.com/huntridge-labs/hardening-workflows",
+                        }
+                    },
+                    "results": [
+                        {
+                            "ruleId": f.rule_id,
+                            "level": self._severity_to_sarif_level(f.severity),
+                            "message": {"text": f.message},
+                            "locations": [
+                                {
+                                    "physicalLocation": {
+                                        "artifactLocation": {"uri": f.file_path},
+                                        "region": {"startLine": max(1, f.line_number)},
+                                    }
+                                }
+                            ],
+                        }
+                        for f in findings
+                    ],
+                }
+            ],
         }
         return json.dumps(sarif, indent=2)
 

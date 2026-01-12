@@ -1,13 +1,20 @@
 """Tests for scanner resolution logic."""
 
-import pytest
 
 
 # Import the scanner groups and resolution logic
 # Note: These tests run without Dagger context, testing pure Python logic
 SCANNERS = {
-    "bandit", "gitleaks", "trivy-iac", "trivy-container",
-    "checkov", "grype", "opengrep", "clamav", "codeql", "zap"
+    "bandit",
+    "gitleaks",
+    "trivy-iac",
+    "trivy-container",
+    "checkov",
+    "grype",
+    "opengrep",
+    "clamav",
+    "codeql",
+    "zap",
 }
 
 SCANNER_GROUPS = {

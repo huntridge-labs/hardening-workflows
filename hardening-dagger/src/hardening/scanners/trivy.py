@@ -1,11 +1,12 @@
 """Trivy security scanner (IaC and Container)."""
 
 import json
+
 import dagger
 from dagger import dag
 
+from ..models import Finding, ScanResult, Severity
 from .base import BaseScanner
-from ..models import ScanResult, Finding, Severity
 
 
 class TrivyIacScanner(BaseScanner):
@@ -21,6 +22,7 @@ class TrivyIacScanner(BaseScanner):
         **kwargs,
     ) -> ScanResult:
         """Run Trivy IaC scan."""
+        # TODO: Consider pinning to a specific Trivy version
         container = (
             dag.container()
             .from_("aquasec/trivy:latest")
@@ -34,9 +36,13 @@ class TrivyIacScanner(BaseScanner):
         # SARIF output
         container = container.with_exec(
             [
-                "trivy", "config", scan_path,
-                "--format", "sarif",
-                "--output", "/reports/trivy-iac.sarif",
+                "trivy",
+                "config",
+                scan_path,
+                "--format",
+                "sarif",
+                "--output",
+                "/reports/trivy-iac.sarif",
             ],
             expect=dagger.Expect.SUCCESS_OR_FAILURE,
         )
@@ -44,9 +50,13 @@ class TrivyIacScanner(BaseScanner):
         # JSON output for parsing
         container = container.with_exec(
             [
-                "trivy", "config", scan_path,
-                "--format", "json",
-                "--output", "/reports/trivy-iac.json",
+                "trivy",
+                "config",
+                scan_path,
+                "--format",
+                "json",
+                "--output",
+                "/reports/trivy-iac.json",
             ],
             expect=dagger.Expect.SUCCESS_OR_FAILURE,
         )
@@ -76,14 +86,16 @@ class TrivyIacScanner(BaseScanner):
                 target = result.get("Target", "")
                 for misconfig in result.get("Misconfigurations", []):
                     severity = self._map_severity(misconfig.get("Severity", "LOW"))
-                    findings.append(Finding(
-                        rule_id=misconfig.get("ID", "UNKNOWN"),
-                        severity=severity,
-                        message=misconfig.get("Title", misconfig.get("Message", "")),
-                        file_path=target.lstrip("./"),
-                        line_number=misconfig.get("CauseMetadata", {}).get("StartLine", 0),
-                        scanner=self.name,
-                    ))
+                    findings.append(
+                        Finding(
+                            rule_id=misconfig.get("ID", "UNKNOWN"),
+                            severity=severity,
+                            message=misconfig.get("Title", misconfig.get("Message", "")),
+                            file_path=target.lstrip("./"),
+                            line_number=misconfig.get("CauseMetadata", {}).get("StartLine", 0),
+                            scanner=self.name,
+                        )
+                    )
         except json.JSONDecodeError:
             pass
         return findings
@@ -123,17 +135,19 @@ class TrivyContainerScanner(BaseScanner):
             )
 
         container = (
-            dag.container()
-            .from_("aquasec/trivy:latest")
-            .with_exec(["mkdir", "-p", "/reports"])
+            dag.container().from_("aquasec/trivy:latest").with_exec(["mkdir", "-p", "/reports"])
         )
 
         # SARIF output
         container = container.with_exec(
             [
-                "trivy", "image", image_ref,
-                "--format", "sarif",
-                "--output", "/reports/trivy-container.sarif",
+                "trivy",
+                "image",
+                image_ref,
+                "--format",
+                "sarif",
+                "--output",
+                "/reports/trivy-container.sarif",
             ],
             expect=dagger.Expect.SUCCESS_OR_FAILURE,
         )
@@ -141,9 +155,13 @@ class TrivyContainerScanner(BaseScanner):
         # JSON output
         container = container.with_exec(
             [
-                "trivy", "image", image_ref,
-                "--format", "json",
-                "--output", "/reports/trivy-container.json",
+                "trivy",
+                "image",
+                image_ref,
+                "--format",
+                "json",
+                "--output",
+                "/reports/trivy-container.json",
             ],
             expect=dagger.Expect.SUCCESS_OR_FAILURE,
         )
@@ -172,15 +190,17 @@ class TrivyContainerScanner(BaseScanner):
                 target = result.get("Target", "")
                 for vuln in result.get("Vulnerabilities", []):
                     severity = Severity.from_string(vuln.get("Severity", "LOW"))
-                    findings.append(Finding(
-                        rule_id=vuln.get("VulnerabilityID", "UNKNOWN"),
-                        severity=severity,
-                        message=f"{vuln.get('PkgName', '')}: {vuln.get('Title', '')}",
-                        file_path=target,
-                        line_number=0,
-                        scanner=self.name,
-                        cvss_score=vuln.get("CVSS", {}).get("nvd", {}).get("V3Score"),
-                    ))
+                    findings.append(
+                        Finding(
+                            rule_id=vuln.get("VulnerabilityID", "UNKNOWN"),
+                            severity=severity,
+                            message=f"{vuln.get('PkgName', '')}: {vuln.get('Title', '')}",
+                            file_path=target,
+                            line_number=0,
+                            scanner=self.name,
+                            cvss_score=vuln.get("CVSS", {}).get("nvd", {}).get("V3Score"),
+                        )
+                    )
         except json.JSONDecodeError:
             pass
         return findings

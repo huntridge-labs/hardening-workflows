@@ -14,11 +14,12 @@ Scan types:
 """
 
 import json
+
 import dagger
 from dagger import dag
 
+from ..models import Finding, ScanResult, Severity
 from .base import BaseScanner
-from ..models import ScanResult, Finding, Severity
 
 
 class ZAPScanner(BaseScanner):
@@ -71,6 +72,7 @@ class ZAPScanner(BaseScanner):
             )
 
         # Use official ZAP stable image
+        # TODO: Consider pinning to a specific ZAP version
         container = (
             dag.container()
             .from_("ghcr.io/zaproxy/zaproxy:stable")
@@ -79,13 +81,9 @@ class ZAPScanner(BaseScanner):
 
         # Build ZAP command based on scan type
         if scan_type == "baseline":
-            container = await self._run_baseline_scan(
-                container, target_url, max_duration_minutes
-            )
+            container = await self._run_baseline_scan(container, target_url, max_duration_minutes)
         elif scan_type == "full":
-            container = await self._run_full_scan(
-                container, target_url, max_duration_minutes
-            )
+            container = await self._run_full_scan(container, target_url, max_duration_minutes)
         elif scan_type == "api":
             container = await self._run_api_scan(
                 container, api_spec, target_url, max_duration_minutes
@@ -99,13 +97,13 @@ class ZAPScanner(BaseScanner):
                 error_message=f"Unknown scan_type: {scan_type}",
             )
 
-        # Parse results
+        # Parse results - report may not exist if scan failed
         findings = []
         try:
             json_content = await container.file("/zap/reports/zap-report.json").contents()
             findings = self.parse_findings(json_content)
-        except Exception:
-            pass
+        except Exception:  # noqa: S110
+            pass  # Report file may not exist if scan didn't complete
 
         # Collect artifacts
         reports = container.directory("/zap/reports")
@@ -140,12 +138,7 @@ class ZAPScanner(BaseScanner):
             max_duration_minutes: Maximum scan duration
         """
         # Start the application as a service
-        app_service = (
-            dag.container()
-            .from_(app_image)
-            .with_exposed_port(app_port)
-            .as_service()
-        )
+        app_service = dag.container().from_(app_image).with_exposed_port(app_port).as_service()
 
         # Create ZAP container with service binding
         target_url = f"http://app:{app_port}"
@@ -160,29 +153,26 @@ class ZAPScanner(BaseScanner):
         # Wait for app to be ready
         container = container.with_exec(
             [
-                "bash", "-c",
-                f"for i in $(seq 1 60); do curl -sf {target_url} && break || sleep 2; done"
+                "bash",
+                "-c",
+                f"for i in $(seq 1 60); do curl -sf {target_url} && break || sleep 2; done",
             ],
             expect=dagger.Expect.SUCCESS_OR_FAILURE,
         )
 
         # Run scan
         if scan_type == "baseline":
-            container = await self._run_baseline_scan(
-                container, target_url, max_duration_minutes
-            )
+            container = await self._run_baseline_scan(container, target_url, max_duration_minutes)
         else:
-            container = await self._run_full_scan(
-                container, target_url, max_duration_minutes
-            )
+            container = await self._run_full_scan(container, target_url, max_duration_minutes)
 
-        # Parse results
+        # Parse results - report may not exist if scan failed
         findings = []
         try:
             json_content = await container.file("/zap/reports/zap-report.json").contents()
             findings = self.parse_findings(json_content)
-        except Exception:
-            pass
+        except Exception:  # noqa: S110
+            pass  # Report file may not exist if scan didn't complete
 
         reports = container.directory("/zap/reports")
 
@@ -203,12 +193,18 @@ class ZAPScanner(BaseScanner):
         return container.with_exec(
             [
                 "zap-baseline.py",
-                "-t", target_url,
-                "-J", "/zap/reports/zap-report.json",
-                "-r", "/zap/reports/zap-report.html",
-                "-w", "/zap/reports/zap-report.md",
-                "-x", "/zap/reports/zap-report.xml",
-                "-m", str(max_duration),
+                "-t",
+                target_url,
+                "-J",
+                "/zap/reports/zap-report.json",
+                "-r",
+                "/zap/reports/zap-report.html",
+                "-w",
+                "/zap/reports/zap-report.md",
+                "-x",
+                "/zap/reports/zap-report.xml",
+                "-m",
+                str(max_duration),
                 "-I",  # Don't fail on warnings
             ],
             expect=dagger.Expect.SUCCESS_OR_FAILURE,
@@ -224,12 +220,18 @@ class ZAPScanner(BaseScanner):
         return container.with_exec(
             [
                 "zap-full-scan.py",
-                "-t", target_url,
-                "-J", "/zap/reports/zap-report.json",
-                "-r", "/zap/reports/zap-report.html",
-                "-w", "/zap/reports/zap-report.md",
-                "-x", "/zap/reports/zap-report.xml",
-                "-m", str(max_duration),
+                "-t",
+                target_url,
+                "-J",
+                "/zap/reports/zap-report.json",
+                "-r",
+                "/zap/reports/zap-report.html",
+                "-w",
+                "/zap/reports/zap-report.md",
+                "-x",
+                "/zap/reports/zap-report.xml",
+                "-m",
+                str(max_duration),
                 "-I",  # Don't fail on warnings
             ],
             expect=dagger.Expect.SUCCESS_OR_FAILURE,
@@ -245,12 +247,18 @@ class ZAPScanner(BaseScanner):
         """Run ZAP API scan."""
         cmd = [
             "zap-api-scan.py",
-            "-t", api_spec,
-            "-f", "openapi",
-            "-J", "/zap/reports/zap-report.json",
-            "-r", "/zap/reports/zap-report.html",
-            "-w", "/zap/reports/zap-report.md",
-            "-x", "/zap/reports/zap-report.xml",
+            "-t",
+            api_spec,
+            "-f",
+            "openapi",
+            "-J",
+            "/zap/reports/zap-report.json",
+            "-r",
+            "/zap/reports/zap-report.html",
+            "-w",
+            "/zap/reports/zap-report.md",
+            "-x",
+            "/zap/reports/zap-report.xml",
             "-I",  # Don't fail on warnings
         ]
 
@@ -280,15 +288,18 @@ class ZAPScanner(BaseScanner):
                     instances = alert.get("instances", [])
                     uri = instances[0].get("uri", "") if instances else ""
 
-                    findings.append(Finding(
-                        rule_id=alert.get("pluginid", alert.get("alertRef", "UNKNOWN")),
-                        severity=severity,
-                        message=f"{alert.get('name', 'Unknown')}: {alert.get('desc', '')[:100]}",
-                        file_path=uri,
-                        line_number=0,
-                        scanner=self.name,
-                        cwe=f"CWE-{alert.get('cweid')}" if alert.get("cweid") else None,
-                    ))
+                    desc = alert.get("desc", "")[:100]
+                    findings.append(
+                        Finding(
+                            rule_id=alert.get("pluginid", alert.get("alertRef", "UNKNOWN")),
+                            severity=severity,
+                            message=f"{alert.get('name', 'Unknown')}: {desc}",
+                            file_path=uri,
+                            line_number=0,
+                            scanner=self.name,
+                            cwe=f"CWE-{alert.get('cweid')}" if alert.get("cweid") else None,
+                        )
+                    )
 
         except json.JSONDecodeError:
             pass

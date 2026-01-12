@@ -1,9 +1,6 @@
 """Tests for data models."""
 
-import pytest
-from hardening.models import Severity, Finding, ScanResult, HardeningReport
-import dagger
-from dagger import dag
+from hardening.models import Finding, HardeningReport, Severity
 
 
 class TestSeverity:

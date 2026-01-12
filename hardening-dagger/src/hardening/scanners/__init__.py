@@ -1,13 +1,13 @@
 """Security scanners."""
 
 from .bandit import BanditScanner
-from .gitleaks import GitleaksScanner
-from .trivy import TrivyIacScanner, TrivyContainerScanner
 from .checkov import CheckovScanner
-from .grype import GrypeScanner
-from .opengrep import OpenGrepScanner
 from .clamav import ClamAVScanner
 from .codeql import CodeQLScanner
+from .gitleaks import GitleaksScanner
+from .grype import GrypeScanner
+from .opengrep import OpenGrepScanner
+from .trivy import TrivyContainerScanner, TrivyIacScanner
 from .zap import ZAPScanner
 
 __all__ = [

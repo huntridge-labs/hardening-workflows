@@ -1,10 +1,11 @@
 """Base scanner interface."""
 
 from abc import ABC, abstractmethod
+
 import dagger
 from dagger import dag
 
-from ..models import ScanResult, Finding
+from ..models import Finding, ScanResult
 
 
 class BaseScanner(ABC):
@@ -29,8 +30,4 @@ class BaseScanner(ABC):
 
     def base_container(self, image: str) -> dagger.Container:
         """Create base container with common setup."""
-        return (
-            dag.container()
-            .from_(image)
-            .with_exec(["mkdir", "-p", "/reports"])
-        )
+        return dag.container().from_(image).with_exec(["mkdir", "-p", "/reports"])

@@ -1,11 +1,12 @@
 """Checkov IaC security scanner."""
 
 import json
+
 import dagger
 from dagger import dag
 
+from ..models import Finding, ScanResult, Severity
 from .base import BaseScanner
-from ..models import ScanResult, Finding, Severity
 
 
 class CheckovScanner(BaseScanner):
@@ -22,6 +23,7 @@ class CheckovScanner(BaseScanner):
         **kwargs,
     ) -> ScanResult:
         """Run Checkov IaC scan."""
+        # TODO: Consider pinning to a specific Checkov version
         container = (
             dag.container()
             .from_("bridgecrew/checkov:latest")
@@ -35,9 +37,12 @@ class CheckovScanner(BaseScanner):
         # Build command
         cmd = [
             "checkov",
-            "-d", scan_path,
-            "--output", "sarif",
-            "--output-file-path", "/reports/",
+            "-d",
+            scan_path,
+            "--output",
+            "sarif",
+            "--output-file-path",
+            "/reports/",
             "--soft-fail",  # Don't exit non-zero on findings
         ]
 
@@ -49,9 +54,12 @@ class CheckovScanner(BaseScanner):
         # Also generate JSON
         json_cmd = [
             "checkov",
-            "-d", scan_path,
-            "--output", "json",
-            "--output-file-path", "/reports/",
+            "-d",
+            scan_path,
+            "--output",
+            "json",
+            "--output-file-path",
+            "/reports/",
             "--soft-fail",
         ]
         if framework:
@@ -88,14 +96,16 @@ class CheckovScanner(BaseScanner):
             for results in results_list:
                 for check in results.get("results", {}).get("failed_checks", []):
                     severity = self._map_severity(check.get("check_result", {}).get("severity"))
-                    findings.append(Finding(
-                        rule_id=check.get("check_id", "UNKNOWN"),
-                        severity=severity,
-                        message=check.get("check_name", ""),
-                        file_path=check.get("file_path", "").lstrip("/"),
-                        line_number=check.get("file_line_range", [0])[0],
-                        scanner=self.name,
-                    ))
+                    findings.append(
+                        Finding(
+                            rule_id=check.get("check_id", "UNKNOWN"),
+                            severity=severity,
+                            message=check.get("check_name", ""),
+                            file_path=check.get("file_path", "").lstrip("/"),
+                            line_number=check.get("file_line_range", [0])[0],
+                            scanner=self.name,
+                        )
+                    )
         except json.JSONDecodeError:
             pass
         return findings

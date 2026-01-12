@@ -22,26 +22,26 @@ Usage:
 """
 
 import asyncio
-import dagger
-from dagger import dag, function, object_type, Doc
 from typing import Annotated
 
-from .models import ScanResult, HardeningReport, Severity
+import dagger
+from dagger import Doc, dag, function, object_type
+
+from .github import GitHubIntegration
+from .models import HardeningReport, ScanResult, Severity
 from .report import ReportGenerator
 from .scanners import (
     BanditScanner,
-    GitleaksScanner,
-    TrivyIacScanner,
-    TrivyContainerScanner,
     CheckovScanner,
-    GrypeScanner,
-    OpenGrepScanner,
     ClamAVScanner,
     CodeQLScanner,
+    GitleaksScanner,
+    GrypeScanner,
+    OpenGrepScanner,
+    TrivyContainerScanner,
+    TrivyIacScanner,
     ZAPScanner,
 )
-from .github import GitHubIntegration
-
 
 # Scanner registry
 SCANNERS = {
@@ -92,32 +92,22 @@ class Hardening:
         source: Annotated[dagger.Directory, Doc("Source code directory to scan")],
         scanners: Annotated[
             str,
-            Doc("Comma-separated scanners or groups: bandit,gitleaks,trivy-iac,checkov,grype,opengrep,clamav,codeql,zap,all,full,sast,iac,dast")
+            Doc(
+                "Comma-separated scanners or groups: "
+                "bandit,gitleaks,trivy-iac,checkov,grype,opengrep,clamav,codeql,zap,"
+                "all,full,sast,iac,dast"
+            ),
         ] = "all",
         severity_threshold: Annotated[
-            str,
-            Doc("Fail if findings at or above: none, low, medium, high, critical")
+            str, Doc("Fail if findings at or above: none, low, medium, high, critical")
         ] = "none",
-        iac_path: Annotated[
-            str,
-            Doc("Path to infrastructure-as-code files")
-        ] = "infrastructure",
-        output_format: Annotated[
-            str,
-            Doc("Output formats: markdown, json, sarif, all")
-        ] = "all",
+        iac_path: Annotated[str, Doc("Path to infrastructure-as-code files")] = "infrastructure",
+        output_format: Annotated[str, Doc("Output formats: markdown, json, sarif, all")] = "all",
         repository: Annotated[
-            str,
-            Doc("Repository name for report metadata (e.g., owner/repo)")
+            str, Doc("Repository name for report metadata (e.g., owner/repo)")
         ] = "",
-        branch: Annotated[
-            str,
-            Doc("Branch name for report metadata")
-        ] = "",
-        commit_sha: Annotated[
-            str,
-            Doc("Commit SHA for report metadata")
-        ] = "",
+        branch: Annotated[str, Doc("Branch name for report metadata")] = "",
+        commit_sha: Annotated[str, Doc("Commit SHA for report metadata")] = "",
     ) -> dagger.Directory:
         """
         Run security scanners against source code.
@@ -156,13 +146,15 @@ class Hardening:
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 scanner_name = list(selected)[i]
-                scan_results.append(ScanResult(
-                    scanner=scanner_name,
-                    findings=[],
-                    artifacts=dag.directory(),
-                    exit_code=1,
-                    error_message=str(result),
-                ))
+                scan_results.append(
+                    ScanResult(
+                        scanner=scanner_name,
+                        findings=[],
+                        artifacts=dag.directory(),
+                        exit_code=1,
+                        error_message=str(result),
+                    )
+                )
             else:
                 scan_results.append(result)
 
@@ -268,7 +260,9 @@ class Hardening:
         self,
         source: Annotated[dagger.Directory, Doc("IaC source to scan")],
         path: Annotated[str, Doc("Subdirectory with IaC files")] = ".",
-        framework: Annotated[str | None, Doc("Specific framework: terraform, cloudformation, kubernetes")] = None,
+        framework: Annotated[
+            str | None, Doc("Specific framework: terraform, cloudformation, kubernetes")
+        ] = None,
     ) -> dagger.Directory:
         """Run Checkov IaC scanner."""
         scanner = CheckovScanner()
@@ -279,7 +273,9 @@ class Hardening:
     async def grype(
         self,
         source: Annotated[dagger.Directory, Doc("Source to scan for vulnerabilities")],
-        image_ref: Annotated[str | None, Doc("Container image to scan instead of filesystem")] = None,
+        image_ref: Annotated[
+            str | None, Doc("Container image to scan instead of filesystem")
+        ] = None,
     ) -> dagger.Directory:
         """Run Grype vulnerability scanner."""
         scanner = GrypeScanner()
@@ -312,7 +308,9 @@ class Hardening:
     async def codeql(
         self,
         source: Annotated[dagger.Directory, Doc("Source code to scan")],
-        languages: Annotated[str, Doc("Comma-separated languages: python,javascript,go,java,csharp,cpp,ruby")] = "python,javascript",
+        languages: Annotated[
+            str, Doc("Comma-separated languages: python,javascript,go,java,csharp,cpp,ruby")
+        ] = "python,javascript",
     ) -> dagger.Directory:
         """
         Run CodeQL semantic SAST analysis.
@@ -332,7 +330,9 @@ class Hardening:
     async def zap(
         self,
         target_url: Annotated[str, Doc("URL of the running application to scan")],
-        scan_type: Annotated[str, Doc("Scan type: baseline (passive), full (active), api")] = "baseline",
+        scan_type: Annotated[
+            str, Doc("Scan type: baseline (passive), full (active), api")
+        ] = "baseline",
         api_spec: Annotated[str, Doc("OpenAPI/Swagger spec URL (required for api scan type)")] = "",
         max_duration: Annotated[int, Doc("Maximum scan duration in minutes")] = 10,
     ) -> dagger.Directory:

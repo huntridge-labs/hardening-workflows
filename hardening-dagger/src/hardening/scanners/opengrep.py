@@ -1,11 +1,12 @@
 """OpenGrep (Semgrep) SAST scanner."""
 
 import json
+
 import dagger
 from dagger import dag
 
+from ..models import Finding, ScanResult, Severity
 from .base import BaseScanner
-from ..models import ScanResult, Finding, Severity
 
 
 class OpenGrepScanner(BaseScanner):
@@ -21,6 +22,7 @@ class OpenGrepScanner(BaseScanner):
         **kwargs,
     ) -> ScanResult:
         """Run OpenGrep/Semgrep scan."""
+        # TODO: Consider pinning to a specific Semgrep version
         container = (
             dag.container()
             .from_("semgrep/semgrep:latest")
@@ -32,10 +34,13 @@ class OpenGrepScanner(BaseScanner):
         # SARIF output
         container = container.with_exec(
             [
-                "semgrep", "scan",
-                "--config", config,
+                "semgrep",
+                "scan",
+                "--config",
+                config,
                 "--sarif",
-                "--output", "/reports/opengrep.sarif",
+                "--output",
+                "/reports/opengrep.sarif",
             ],
             expect=dagger.Expect.SUCCESS_OR_FAILURE,
         )
@@ -43,10 +48,13 @@ class OpenGrepScanner(BaseScanner):
         # JSON output for parsing
         container = container.with_exec(
             [
-                "semgrep", "scan",
-                "--config", config,
+                "semgrep",
+                "scan",
+                "--config",
+                config,
                 "--json",
-                "--output", "/reports/opengrep.json",
+                "--output",
+                "/reports/opengrep.json",
             ],
             expect=dagger.Expect.SUCCESS_OR_FAILURE,
         )
@@ -82,15 +90,17 @@ class OpenGrepScanner(BaseScanner):
                 if cwe_list:
                     cwe = cwe_list[0] if isinstance(cwe_list, list) else cwe_list
 
-                findings.append(Finding(
-                    rule_id=result.get("check_id", "UNKNOWN"),
-                    severity=severity,
-                    message=result.get("extra", {}).get("message", ""),
-                    file_path=result.get("path", "").lstrip("./"),
-                    line_number=result.get("start", {}).get("line", 0),
-                    scanner=self.name,
-                    cwe=cwe,
-                ))
+                findings.append(
+                    Finding(
+                        rule_id=result.get("check_id", "UNKNOWN"),
+                        severity=severity,
+                        message=result.get("extra", {}).get("message", ""),
+                        file_path=result.get("path", "").lstrip("./"),
+                        line_number=result.get("start", {}).get("line", 0),
+                        scanner=self.name,
+                        cwe=cwe,
+                    )
+                )
         except json.JSONDecodeError:
             pass
         return findings

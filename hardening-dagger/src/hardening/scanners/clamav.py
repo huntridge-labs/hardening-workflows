@@ -1,11 +1,12 @@
 """ClamAV malware scanner."""
 
 import re
+
 import dagger
 from dagger import dag
 
+from ..models import Finding, ScanResult, Severity
 from .base import BaseScanner
-from ..models import ScanResult, Finding, Severity
 
 
 class ClamAVScanner(BaseScanner):
@@ -21,6 +22,7 @@ class ClamAVScanner(BaseScanner):
         **kwargs,
     ) -> ScanResult:
         """Run ClamAV malware scan."""
+        # TODO: Consider pinning to a specific ClamAV version
         container = (
             dag.container()
             .from_("clamav/clamav:latest")
@@ -40,7 +42,8 @@ class ClamAVScanner(BaseScanner):
         container = container.with_exec(
             [
                 "clamscan",
-                "-r", target_path,
+                "-r",
+                target_path,
                 "--infected",
                 "--log=/reports/clamav.log",
                 "--no-summary",
@@ -52,7 +55,8 @@ class ClamAVScanner(BaseScanner):
         container = container.with_exec(
             [
                 "clamscan",
-                "-r", target_path,
+                "-r",
+                target_path,
                 "--infected",
                 "-o",  # Only print infected files
             ],
@@ -89,25 +93,33 @@ class ClamAVScanner(BaseScanner):
         for line in output.split("\n"):
             match = re.match(pattern, line.strip())
             if match:
-                file_path = match.group(1).lstrip("/src/")
+                file_path = match.group(1)
+                if file_path.startswith("/src/"):
+                    file_path = file_path[5:]  # Remove /src/ prefix
                 signature = match.group(2)
 
-                findings.append(Finding(
-                    rule_id=signature,
-                    severity=Severity.CRITICAL,  # Malware is always critical
-                    message=f"Malware detected: {signature}",
-                    file_path=file_path,
-                    line_number=0,
-                    scanner=self.name,
-                ))
+                findings.append(
+                    Finding(
+                        rule_id=signature,
+                        severity=Severity.CRITICAL,  # Malware is always critical
+                        message=f"Malware detected: {signature}",
+                        file_path=file_path,
+                        line_number=0,
+                        scanner=self.name,
+                    )
+                )
 
         return findings
 
     def _create_json_report(self, findings: list[Finding]) -> str:
         """Create JSON report from findings."""
         import json
-        return json.dumps({
-            "scanner": self.name,
-            "findings": [f.to_dict() for f in findings],
-            "total": len(findings),
-        }, indent=2)
+
+        return json.dumps(
+            {
+                "scanner": self.name,
+                "findings": [f.to_dict() for f in findings],
+                "total": len(findings),
+            },
+            indent=2,
+        )

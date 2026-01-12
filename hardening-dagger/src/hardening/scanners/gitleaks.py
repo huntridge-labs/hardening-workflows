@@ -1,11 +1,12 @@
 """Gitleaks secrets scanner."""
 
 import json
+
 import dagger
 from dagger import dag
 
+from ..models import Finding, ScanResult, Severity
 from .base import BaseScanner
-from ..models import ScanResult, Finding, Severity
 
 
 class GitleaksScanner(BaseScanner):
@@ -33,8 +34,10 @@ class GitleaksScanner(BaseScanner):
         # Build command
         # TODO: Support git history scanning
         base_cmd = [
-            "gitleaks", "detect",
-            "--source", ".",
+            "gitleaks",
+            "detect",
+            "--source",
+            ".",
             "--no-git",  # Scan files, not git history (for mounted dirs)
         ]
 
@@ -43,16 +46,22 @@ class GitleaksScanner(BaseScanner):
 
         # SARIF output
         sarif_cmd = base_cmd + [
-            "--report-format", "sarif",
-            "--report-path", "/reports/gitleaks.sarif",
-            "--exit-code", "0",
+            "--report-format",
+            "sarif",
+            "--report-path",
+            "/reports/gitleaks.sarif",
+            "--exit-code",
+            "0",
         ]
 
         # JSON output for parsing
         json_cmd = base_cmd + [
-            "--report-format", "json",
-            "--report-path", "/reports/gitleaks.json",
-            "--exit-code", "0",
+            "--report-format",
+            "json",
+            "--report-path",
+            "/reports/gitleaks.json",
+            "--exit-code",
+            "0",
         ]
 
         container = container.with_exec(sarif_cmd)
@@ -83,14 +92,16 @@ class GitleaksScanner(BaseScanner):
                 return findings
 
             for result in data:
-                findings.append(Finding(
-                    rule_id=result.get("RuleID", "secret-detected"),
-                    severity=Severity.HIGH,  # Secrets are always high severity
-                    message=f"Secret detected: {result.get('Description', 'Potential secret')}",
-                    file_path=result.get("File", "").lstrip("./"),
-                    line_number=result.get("StartLine", 0),
-                    scanner=self.name,
-                ))
+                findings.append(
+                    Finding(
+                        rule_id=result.get("RuleID", "secret-detected"),
+                        severity=Severity.HIGH,  # Secrets are always high severity
+                        message=f"Secret detected: {result.get('Description', 'Potential secret')}",
+                        file_path=result.get("File", "").lstrip("./"),
+                        line_number=result.get("StartLine", 0),
+                        scanner=self.name,
+                    )
+                )
         except json.JSONDecodeError:
             pass
         return findings

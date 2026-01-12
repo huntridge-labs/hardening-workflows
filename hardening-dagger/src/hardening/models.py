@@ -3,11 +3,13 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+
 import dagger
 
 
 class Severity(Enum):
     """Severity levels for findings."""
+
     NONE = 0
     LOW = 1
     MEDIUM = 2
@@ -43,6 +45,7 @@ class Severity(Enum):
 @dataclass
 class Finding:
     """A single security finding from a scanner."""
+
     rule_id: str
     severity: Severity
     message: str
@@ -68,6 +71,7 @@ class Finding:
 @dataclass
 class ScanResult:
     """Results from a single scanner run."""
+
     scanner: str
     findings: list[Finding]
     artifacts: dagger.Directory
@@ -90,6 +94,7 @@ class ScanResult:
 @dataclass
 class HardeningReport:
     """Combined report from all scanners."""
+
     results: list[ScanResult] = field(default_factory=list)
     repository: str = ""
     branch: str = ""
@@ -101,35 +106,19 @@ class HardeningReport:
 
     @property
     def critical_count(self) -> int:
-        return sum(
-            1 for r in self.results
-            for f in r.findings
-            if f.severity == Severity.CRITICAL
-        )
+        return sum(1 for r in self.results for f in r.findings if f.severity == Severity.CRITICAL)
 
     @property
     def high_count(self) -> int:
-        return sum(
-            1 for r in self.results
-            for f in r.findings
-            if f.severity == Severity.HIGH
-        )
+        return sum(1 for r in self.results for f in r.findings if f.severity == Severity.HIGH)
 
     @property
     def medium_count(self) -> int:
-        return sum(
-            1 for r in self.results
-            for f in r.findings
-            if f.severity == Severity.MEDIUM
-        )
+        return sum(1 for r in self.results for f in r.findings if f.severity == Severity.MEDIUM)
 
     @property
     def low_count(self) -> int:
-        return sum(
-            1 for r in self.results
-            for f in r.findings
-            if f.severity == Severity.LOW
-        )
+        return sum(1 for r in self.results for f in r.findings if f.severity == Severity.LOW)
 
     def exceeds_threshold(self, threshold: Severity) -> bool:
         """Check if any finding meets or exceeds the severity threshold."""

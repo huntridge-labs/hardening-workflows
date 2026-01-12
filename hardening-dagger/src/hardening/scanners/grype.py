@@ -1,11 +1,12 @@
 """Grype vulnerability scanner."""
 
 import json
+
 import dagger
 from dagger import dag
 
+from ..models import Finding, ScanResult, Severity
 from .base import BaseScanner
-from ..models import ScanResult, Finding, Severity
 
 
 class GrypeScanner(BaseScanner):
@@ -21,10 +22,9 @@ class GrypeScanner(BaseScanner):
         **kwargs,
     ) -> ScanResult:
         """Run Grype vulnerability scan."""
+        # TODO: Consider pinning to a specific Grype version
         container = (
-            dag.container()
-            .from_("anchore/grype:latest")
-            .with_exec(["mkdir", "-p", "/reports"])
+            dag.container().from_("anchore/grype:latest").with_exec(["mkdir", "-p", "/reports"])
         )
 
         # Determine scan target
@@ -38,9 +38,12 @@ class GrypeScanner(BaseScanner):
         # SARIF output
         container = container.with_exec(
             [
-                "grype", target,
-                "--output", "sarif",
-                "--file", "/reports/grype.sarif",
+                "grype",
+                target,
+                "--output",
+                "sarif",
+                "--file",
+                "/reports/grype.sarif",
             ],
             expect=dagger.Expect.SUCCESS_OR_FAILURE,
         )
@@ -48,9 +51,12 @@ class GrypeScanner(BaseScanner):
         # JSON output for parsing
         container = container.with_exec(
             [
-                "grype", target,
-                "--output", "json",
-                "--file", "/reports/grype.json",
+                "grype",
+                target,
+                "--output",
+                "json",
+                "--file",
+                "/reports/grype.json",
             ],
             expect=dagger.Expect.SUCCESS_OR_FAILURE,
         )
@@ -88,15 +94,18 @@ class GrypeScanner(BaseScanner):
                         cvss_score = cvss.get("metrics", {}).get("baseScore")
                         break
 
-                findings.append(Finding(
-                    rule_id=vuln.get("id", "UNKNOWN"),
-                    severity=severity,
-                    message=f"{artifact.get('name', '')}@{artifact.get('version', '')}: {vuln.get('description', '')[:100]}",
-                    file_path=artifact.get("locations", [{}])[0].get("path", ""),
-                    line_number=0,
-                    scanner=self.name,
-                    cvss_score=cvss_score,
-                ))
+                desc = vuln.get("description", "")[:100]
+                findings.append(
+                    Finding(
+                        rule_id=vuln.get("id", "UNKNOWN"),
+                        severity=severity,
+                        message=f"{artifact.get('name', '')}@{artifact.get('version', '')}: {desc}",
+                        file_path=artifact.get("locations", [{}])[0].get("path", ""),
+                        line_number=0,
+                        scanner=self.name,
+                        cvss_score=cvss_score,
+                    )
+                )
         except json.JSONDecodeError:
             pass
         return findings

@@ -1,11 +1,12 @@
 """Bandit Python security scanner."""
 
 import json
+
 import dagger
 from dagger import dag
 
+from ..models import Finding, ScanResult, Severity
 from .base import BaseScanner
-from ..models import ScanResult, Finding, Severity
 
 
 class BanditScanner(BaseScanner):
@@ -33,20 +34,30 @@ class BanditScanner(BaseScanner):
         # Run scans - SARIF for GitHub integration, JSON for parsing
         container = container.with_exec(
             [
-                "bandit", "-r", ".",
-                "--exclude", exclude_dirs,
-                "-f", "sarif",
-                "-o", "/reports/bandit.sarif",
+                "bandit",
+                "-r",
+                ".",
+                "--exclude",
+                exclude_dirs,
+                "-f",
+                "sarif",
+                "-o",
+                "/reports/bandit.sarif",
                 "--exit-zero",
             ],
         )
 
         container = container.with_exec(
             [
-                "bandit", "-r", ".",
-                "--exclude", exclude_dirs,
-                "-f", "json",
-                "-o", "/reports/bandit.json",
+                "bandit",
+                "-r",
+                ".",
+                "--exclude",
+                exclude_dirs,
+                "-f",
+                "json",
+                "-o",
+                "/reports/bandit.json",
                 "--exit-zero",
             ],
         )
@@ -74,15 +85,17 @@ class BanditScanner(BaseScanner):
                 cwe_data = result.get("issue_cwe", {})
                 cwe = f"CWE-{cwe_data.get('id')}" if cwe_data.get("id") else None
 
-                findings.append(Finding(
-                    rule_id=result.get("test_id", "UNKNOWN"),
-                    severity=severity,
-                    message=result.get("issue_text", ""),
-                    file_path=result.get("filename", "").lstrip("./"),
-                    line_number=result.get("line_number", 0),
-                    scanner=self.name,
-                    cwe=cwe,
-                ))
+                findings.append(
+                    Finding(
+                        rule_id=result.get("test_id", "UNKNOWN"),
+                        severity=severity,
+                        message=result.get("issue_text", ""),
+                        file_path=result.get("filename", "").lstrip("./"),
+                        line_number=result.get("line_number", 0),
+                        scanner=self.name,
+                        cwe=cwe,
+                    )
+                )
         except json.JSONDecodeError:
             pass
         return findings

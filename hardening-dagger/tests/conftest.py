@@ -1,13 +1,12 @@
 """Pytest configuration and fixtures."""
 
 import pytest
-import dagger
 
 
 @pytest.fixture
 def sample_python_code() -> str:
     """Sample Python code with security issues for testing."""
-    return '''
+    return """
 import os
 import subprocess
 
@@ -23,13 +22,13 @@ import pickle
 def load_data(filename):
     with open(filename, 'rb') as f:
         return pickle.load(f)
-'''
+"""
 
 
 @pytest.fixture
 def sample_terraform_code() -> str:
     """Sample Terraform code with misconfigurations for testing."""
-    return '''
+    return """
 # Trivy/Checkov: S3 bucket without encryption
 resource "aws_s3_bucket" "insecure" {
   bucket = "my-insecure-bucket"
@@ -42,7 +41,7 @@ resource "aws_ebs_volume" "unencrypted" {
   size              = 40
   # encrypted = true  # Missing!
 }
-'''
+"""
 
 
 @pytest.fixture

@@ -1,12 +1,9 @@
 """GitHub integration helpers for PR comments and SARIF upload."""
 
-import json
-import os
-from dataclasses import dataclass
-from typing import Any
-import dagger
-from dagger import dag, function, object_type, Doc
 from typing import Annotated
+
+import dagger
+from dagger import Doc, dag, function, object_type
 
 
 @object_type
