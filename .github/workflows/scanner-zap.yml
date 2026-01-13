@@ -208,10 +208,18 @@ jobs:
             exit 1
           fi
 
-          # Generate artifact prefix
-          scan_name="${{ inputs.scan_name }}"
-          [[ -z "$scan_name" ]] && scan_name="zap-scan"
-          name_hash=$(echo -n "$scan_name" | sha256sum | cut -c1-8)
+          # Generate unique artifact prefix by hashing all inputs
+          # Using toJSON(inputs) automatically includes all workflow inputs
+          echo "::group::Debug: Artifact Hash Generation"
+          echo "All inputs (JSON):"
+          echo "$ALL_INPUTS" | jq '.' 2>/dev/null || echo "$ALL_INPUTS"
+          echo ""
+          echo "SHA256 of inputs: $(echo -n "$ALL_INPUTS" | sha256sum)"
+          name_hash=$(echo -n "$ALL_INPUTS" | sha256sum | cut -c1-8)
+          echo "Truncated hash (8 chars): $name_hash"
+          echo "Final artifact prefix: ${scan_type}-${name_hash}"
+          echo "::endgroup::"
+
           echo "artifact_prefix=${scan_type}-${name_hash}" >> "$GITHUB_OUTPUT"
 
           # Check if registry password is provided
@@ -222,6 +230,7 @@ jobs:
           fi
         env:
           REGISTRY_PASSWORD: ${{ secrets.registry_password }}
+          ALL_INPUTS: ${{ toJSON(inputs) }}
 
       - name: Login to registry
         if: inputs.app_image_ref != '' && steps.validate.outputs.has_registry_password == 'true'
