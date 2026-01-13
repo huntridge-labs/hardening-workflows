@@ -612,19 +612,17 @@ jobs:
     if: needs.scan-coordinator.outputs.run_zap == 'true'
     uses: ./.github/workflows/scanner-zap.yml
     with:
-      config_file: ${{ inputs.zap_config_file }}
       scan_mode: ${{ inputs.zap_scan_mode }}
-      target_urls: ${{ inputs.zap_target_urls }}
+      scan_type: ${{ inputs.zap_scan_type }}
+      target_url: ${{ inputs.zap_target_urls }}
+      api_spec: ${{ inputs.zap_api_spec }}
       healthcheck_url: ${{ inputs.zap_healthcheck_url }}
       app_image_ref: ${{ inputs.zap_app_image_ref }}
       app_ports: ${{ inputs.zap_app_ports }}
       compose_file: ${{ inputs.zap_compose_file }}
-      zap_scan_type: ${{ inputs.zap_scan_type }}
-      zap_api_spec: ${{ inputs.zap_api_spec }}
-      zap_max_duration_minutes: ${{ inputs.zap_max_duration_minutes }}
+      max_duration_minutes: ${{ inputs.zap_max_duration_minutes }}
       fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
-      post_pr_comment: false # PR comment would be redundant here; summary job covers it
-      enable_code_security: false # DAST findings are not integrated into GitHub Code Security
+      post_pr_comment: false
     permissions:
       contents: read
       actions: read

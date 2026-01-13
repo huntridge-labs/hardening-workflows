@@ -1,0 +1,319 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/huntridge-labs/hardening-workflows/main/.github/schemas/zap-config.schema.json",
+  "title": "ZAP DAST Scanner Configuration",
+  "description": "Configuration schema for ZAP dynamic application security testing",
+  "type": "object",
+  "required": [
+    "scans"
+  ],
+  "properties": {
+    "target": {
+      "type": "object",
+      "description": "Target application configuration - shared across all scans",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "How to obtain a running target: url (already running), docker-run (run container), compose (docker compose)",
+          "enum": [
+            "url",
+            "docker-run",
+            "compose"
+          ],
+          "default": "url"
+        },
+        "image": {
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Container image reference (e.g., ghcr.io/owner/app:latest)",
+              "minLength": 1
+            },
+            {
+              "type": "object",
+              "description": "Structured container image reference",
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "registry": {
+                  "type": "string",
+                  "description": "Registry host (e.g., ghcr.io, docker.io)"
+                },
+                "repository": {
+                  "type": "string",
+                  "description": "Repository/organization path"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Image name",
+                  "minLength": 1
+                },
+                "tag": {
+                  "type": "string",
+                  "description": "Image tag",
+                  "default": "latest"
+                },
+                "digest": {
+                  "type": "string",
+                  "description": "Image digest for pinned versions",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "ports": {
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Port mapping (e.g., 8080:8080)"
+            },
+            {
+              "type": "array",
+              "description": "Port mappings",
+              "items": {
+                "type": "string"
+              }
+            }
+          ],
+          "default": "8080:8080"
+        },
+        "build": {
+          "type": "object",
+          "description": "Build configuration when using local Dockerfile",
+          "properties": {
+            "context": {
+              "type": "string",
+              "description": "Docker build context directory"
+            },
+            "dockerfile": {
+              "type": "string",
+              "description": "Path to Dockerfile"
+            },
+            "tag": {
+              "type": "string",
+              "description": "Tag for built image"
+            }
+          },
+          "additionalProperties": false
+        },
+        "compose_file": {
+          "type": "string",
+          "description": "Path to docker-compose file (for compose mode)",
+          "default": "docker-compose.yml"
+        },
+        "compose_build": {
+          "type": "boolean",
+          "description": "Run docker compose with --build",
+          "default": true
+        },
+        "registry": {
+          "type": "object",
+          "description": "Registry authentication for private images",
+          "properties": {
+            "host": {
+              "type": "string",
+              "description": "Registry host (e.g., ghcr.io)"
+            },
+            "username": {
+              "type": "string",
+              "description": "Registry username - supports ${VAR_NAME} syntax"
+            },
+            "auth_secret": {
+              "type": "string",
+              "description": "Name of GitHub secret containing registry password/token",
+              "pattern": "^[A-Z0-9_]+$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "healthcheck_url": {
+          "type": "string",
+          "description": "URL to poll until target is ready",
+          "format": "uri"
+        }
+      },
+      "additionalProperties": false
+    },
+    "scans": {
+      "type": "array",
+      "description": "List of ZAP scans to run",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Unique identifier for this scan (used in artifacts)",
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "type": {
+            "type": "string",
+            "description": "ZAP scan type",
+            "enum": [
+              "baseline",
+              "full",
+              "api"
+            ]
+          },
+          "target_url": {
+            "type": "string",
+            "description": "Target URL for baseline/full scans",
+            "format": "uri"
+          },
+          "api_spec": {
+            "type": "string",
+            "description": "OpenAPI/Swagger spec URL or file path (required for api scans)"
+          },
+          "healthcheck_url": {
+            "type": "string",
+            "description": "Override target healthcheck URL for this scan",
+            "format": "uri"
+          },
+          "max_duration_minutes": {
+            "type": "integer",
+            "description": "Maximum scan duration in minutes",
+            "minimum": 1,
+            "maximum": 120,
+            "default": 10
+          },
+          "rules_file": {
+            "type": "string",
+            "description": "Path to ZAP rules file (.tsv) to ignore alerts"
+          },
+          "context_file": {
+            "type": "string",
+            "description": "Path to ZAP context file for authentication"
+          },
+          "auth": {
+            "type": "object",
+            "description": "Header-based authentication for the scan. ZAP will include this header in all requests.",
+            "properties": {
+              "header_name": {
+                "type": "string",
+                "description": "HTTP header name (e.g., Authorization, X-API-Key, X-Auth-Token)",
+                "default": "Authorization"
+              },
+              "header_value": {
+                "type": "string",
+                "description": "Header value - supports ${VAR_NAME} syntax for non-secret values (e.g., 'Bearer ${TOKEN}')"
+              },
+              "header_secret": {
+                "type": "string",
+                "description": "Name of GitHub secret containing the header value (e.g., API_KEY, AUTH_TOKEN). Use this instead of header_value for sensitive tokens.",
+                "pattern": "^[A-Z0-9_]+$"
+              },
+              "site": {
+                "type": "string",
+                "description": "Site pattern to apply auth header to (e.g., 'example.com'). If not set, applies to target URL host."
+              }
+            },
+            "additionalProperties": false
+          },
+          "cmd_options": {
+            "type": "string",
+            "description": "Additional ZAP command-line options"
+          },
+          "fail_on_severity": {
+            "type": "string",
+            "description": "Fail if findings at or above this severity",
+            "enum": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ],
+            "default": "none"
+          },
+          "allow_failure": {
+            "type": "boolean",
+            "description": "Allow workflow to continue if scan fails",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "api"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "api_spec"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "enum": [
+                    "baseline",
+                    "full"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "target_url"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "description": "Default settings applied to all scans (can be overridden per-scan)",
+      "properties": {
+        "max_duration_minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120,
+          "default": 10
+        },
+        "fail_on_severity": {
+          "type": "string",
+          "enum": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "default": "none"
+        },
+        "allow_failure": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "post_pr_comment": {
+      "type": "boolean",
+      "description": "Post scan results as PR comment",
+      "default": false
+    },
+    "enable_code_security": {
+      "type": "boolean",
+      "description": "Upload SARIF to GitHub Security tab (reserved for future use)",
+      "default": false
+    }
+  },
+  "additionalProperties": false
+}
