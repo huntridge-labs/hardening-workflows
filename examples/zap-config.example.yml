@@ -66,14 +66,14 @@ scans:
     type: full
     target_url: 'http://127.0.0.1:9898'
     max_duration_minutes: 15
-    fail_on_severity: high
+    fail_on_severity: none  # options: info, low, medium, high, critical, none
 
   # API scan - OpenAPI/Swagger-driven scanning
   - name: api
     type: api
     api_spec: 'http://127.0.0.1:9898/swagger.json'
     max_duration_minutes: 10
-    fail_on_severity: medium
+    fail_on_severity: none  # options: info, low, medium, high, critical, none
 
   # Example: API scan with authentication
   # Uncomment to scan endpoints that require auth
@@ -93,7 +93,7 @@ scans:
 # Default settings applied to all scans (can be overridden per-scan)
 defaults:
   max_duration_minutes: 10
-  fail_on_severity: none
+  fail_on_severity: none # options: info, low, medium, high, critical, none
   allow_failure: false
 
 # Post results as PR comment
