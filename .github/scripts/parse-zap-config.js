@@ -176,30 +176,43 @@ function generateMatrix(config) {
 
   // Generate matrix entries for each scan
   config.scans.forEach(scan => {
+    // Merge auth from defaults and scan-specific (scan takes precedence)
+    const mergedAuth = { ...(defaults.auth || {}), ...(scan.auth || {}) };
+
+    // post_pr_comment priority: scan-level > defaults > root > false
+    const postPrComment = scan.post_pr_comment !== undefined
+      ? scan.post_pr_comment
+      : (defaults.post_pr_comment !== undefined
+          ? defaults.post_pr_comment
+          : (config.post_pr_comment || false));
+
     const entry = {
       // Scan identification
       name: scan.name,
       scan_type: scan.type,
 
-      // Scan-specific settings
-      target_url: scan.target_url || '',
-      api_spec: scan.api_spec || '',
-      healthcheck_url: scan.healthcheck_url || sharedTarget.healthcheck_url,
+      // Scan-specific settings (with defaults fallback)
+      target_url: scan.target_url || defaults.target_url || '',
+      api_spec: scan.api_spec || defaults.api_spec || '',
+      healthcheck_url: scan.healthcheck_url || defaults.healthcheck_url || sharedTarget.healthcheck_url,
       max_duration_minutes: scan.max_duration_minutes || defaults.max_duration_minutes || 10,
-      rules_file: scan.rules_file || '',
-      context_file: scan.context_file || '',
-      cmd_options: scan.cmd_options || '',
+      rules_file: scan.rules_file || defaults.rules_file || '',
+      context_file: scan.context_file || defaults.context_file || '',
+      cmd_options: scan.cmd_options || defaults.cmd_options || '',
 
       // Failure handling
       fail_on_severity: scan.fail_on_severity || defaults.fail_on_severity || 'none',
       allow_failure: scan.allow_failure !== undefined ? scan.allow_failure : (defaults.allow_failure || false),
 
+      // PR comment preference (per-scan)
+      post_pr_comment: postPrComment,
+
       // Authentication (header-based auth supported by ZAP actions)
       // ZAP env vars: ZAP_AUTH_HEADER, ZAP_AUTH_HEADER_VALUE, ZAP_AUTH_HEADER_SITE
-      auth_header_name: scan.auth?.header_name || '',
-      auth_header_value: scan.auth?.header_value || '',
-      auth_header_secret: scan.auth?.header_secret || '',
-      auth_header_site: scan.auth?.site || '',
+      auth_header_name: mergedAuth.header_name || '',
+      auth_header_value: mergedAuth.header_value || '',
+      auth_header_secret: mergedAuth.header_secret || '',
+      auth_header_site: mergedAuth.site || '',
 
       // Shared target settings (copied to each matrix entry)
       ...sharedTarget
@@ -216,6 +229,12 @@ function generateMatrix(config) {
  */
 function generateTargetOutputs(config) {
   const target = config.target || {};
+  const defaults = config.defaults || {};
+
+  // post_pr_comment can be set at root or in defaults (root takes precedence)
+  const postPrComment = config.post_pr_comment !== undefined
+    ? config.post_pr_comment
+    : (defaults.post_pr_comment || false);
 
   return {
     mode: target.mode || 'url',
@@ -230,7 +249,7 @@ function generateTargetOutputs(config) {
     registry_username: target.registry?.username || '',
     registry_auth_secret: target.registry?.auth_secret || '',
     healthcheck_url: target.healthcheck_url || '',
-    post_pr_comment: config.post_pr_comment === true ? 'true' : 'false',
+    post_pr_comment: postPrComment ? 'true' : 'false',
     enable_code_security: config.enable_code_security === true ? 'true' : 'false'
   };
 }

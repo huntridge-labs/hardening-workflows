@@ -238,6 +238,11 @@
             "type": "boolean",
             "description": "Allow workflow to continue if scan fails",
             "default": false
+          },
+          "post_pr_comment": {
+            "type": "boolean",
+            "description": "Post this scan's results as PR comment (overrides default)",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -280,6 +285,20 @@
       "type": "object",
       "description": "Default settings applied to all scans (can be overridden per-scan)",
       "properties": {
+        "target_url": {
+          "type": "string",
+          "description": "Default target URL for baseline/full scans",
+          "format": "uri"
+        },
+        "api_spec": {
+          "type": "string",
+          "description": "Default OpenAPI/Swagger spec URL or file path for api scans"
+        },
+        "healthcheck_url": {
+          "type": "string",
+          "description": "Default URL to poll until target is ready",
+          "format": "uri"
+        },
         "max_duration_minutes": {
           "type": "integer",
           "minimum": 1,
@@ -299,6 +318,48 @@
         },
         "allow_failure": {
           "type": "boolean",
+          "default": false
+        },
+        "rules_file": {
+          "type": "string",
+          "description": "Default path to ZAP rules file (.tsv) to ignore alerts"
+        },
+        "context_file": {
+          "type": "string",
+          "description": "Default path to ZAP context file for authentication"
+        },
+        "cmd_options": {
+          "type": "string",
+          "description": "Default additional ZAP command-line options"
+        },
+        "auth": {
+          "type": "object",
+          "description": "Default header-based authentication for scans",
+          "properties": {
+            "header_name": {
+              "type": "string",
+              "description": "HTTP header name (e.g., Authorization, X-API-Key)",
+              "default": "Authorization"
+            },
+            "header_value": {
+              "type": "string",
+              "description": "Header value - supports ${VAR_NAME} syntax"
+            },
+            "header_secret": {
+              "type": "string",
+              "description": "Name of GitHub secret containing the header value",
+              "pattern": "^[A-Z0-9_]+$"
+            },
+            "site": {
+              "type": "string",
+              "description": "Site pattern to apply auth header to"
+            }
+          },
+          "additionalProperties": false
+        },
+        "post_pr_comment": {
+          "type": "boolean",
+          "description": "Post scan results as PR comment",
           "default": false
         }
       },
