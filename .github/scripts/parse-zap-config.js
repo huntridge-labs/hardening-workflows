@@ -338,8 +338,8 @@ function main() {
         `group_count=${result.groups.length}`,
         `has_scans=${result.groups.some(g => g.matrix.include.length > 0) ? 'true' : 'false'}`,
         `total_scan_count=${result.groups.reduce((sum, g) => sum + g.matrix.include.length, 0)}`,
-        // Global settings
-        `post_pr_comment=${config.post_pr_comment === true ? 'true' : 'false'}`,
+        // Global settings - check if any scan has post_pr_comment enabled
+        `post_pr_comment=${combinedMatrix.include.some(s => s.post_pr_comment === true) ? 'true' : 'false'}`,
         `enable_code_security=${config.enable_code_security === true ? 'true' : 'false'}`
       ];
 
