@@ -81,7 +81,7 @@ jobs:
       target_registry_username: ${{ steps.parse.outputs.target_registry_username }}
       target_registry_auth_secret: ${{ steps.parse.outputs.target_registry_auth_secret }}
       target_healthcheck_url: ${{ steps.parse.outputs.target_healthcheck_url }}
-      target_post_pr_comment: ${{ steps.parse.outputs.target_post_pr_comment }}
+      post_pr_comment: ${{ steps.parse.outputs.post_pr_comment }}
       config_hash: ${{ steps.parse.outputs.config_hash }}
     steps:
       - name: Checkout repository
@@ -382,7 +382,7 @@ jobs:
           retention-days: 30
 
       - name: Comment PR with ZAP summary
-        if: github.event_name == 'pull_request' && needs.parse-config.outputs.target_post_pr_comment == 'true'
+        if: github.event_name == 'pull_request' && needs.parse-config.outputs.post_pr_comment == 'true'
         uses: actions/github-script@v8
         continue-on-error: true
         with:
