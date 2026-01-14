@@ -1,5 +1,6 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/huntridge-labs/hardening-workflows/main/.github/schemas/zap-config.schema.json
+#
 # ZAP DAST Scanner Configuration - Combined Example
-# Schema: https://raw.githubusercontent.com/huntridge-labs/hardening-workflows/main/.github/schemas/zap-config.schema.json
 #
 # This config uses scan_groups to define parallel pipelines:
 # - url-scans: Tests against already-running external targets

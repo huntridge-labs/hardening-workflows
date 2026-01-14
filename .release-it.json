@@ -124,7 +124,7 @@
           "files": [
             ".github/workflows/reusable-security-hardening.yml",
             ".github/workflows/container-scan-from-config.yml",
-            "examples/example-zap-podinfo.yml"
+            "examples/scanner-zap-podinfo.yml"
           ],
           "search": {
             "pattern": "\\.yml@[^\\s]+",

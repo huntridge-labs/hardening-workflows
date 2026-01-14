@@ -1,4 +1,5 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/huntridge-labs/hardening-workflows/main/.github/schemas/zap-config.schema.json
+#
 # ZAP DAST Scanner Configuration
 # This file defines target application and scans to run
 #
