@@ -319,7 +319,21 @@ function main() {
     });
 
     if (process.env.GITHUB_OUTPUT) {
+      // Combine all groups into a single matrix for workflow consumption
+      // Add group metadata to each scan entry
+      const combinedMatrix = { include: [] };
+      result.groups.forEach(group => {
+        group.matrix.include.forEach(scan => {
+          combinedMatrix.include.push({
+            ...scan,
+            group_name: group.name,
+            group_description: group.description
+          });
+        });
+      });
+
       const outputs = [
+        `matrix=${JSON.stringify(combinedMatrix)}`,
         `groups=${groupsJson}`,
         `group_count=${result.groups.length}`,
         `has_scans=${result.groups.some(g => g.matrix.include.length > 0) ? 'true' : 'false'}`,
@@ -329,16 +343,15 @@ function main() {
         `enable_code_security=${config.enable_code_security === true ? 'true' : 'false'}`
       ];
 
-      // Output each group's matrix and target settings
+      // Output each group's matrix and target settings (for advanced use)
       result.groups.forEach((group, index) => {
-        const prefix = result.groups.length === 1 ? '' : `group_${index}_`;
-        outputs.push(`${prefix}matrix=${JSON.stringify(group.matrix)}`);
-        outputs.push(`${prefix}name=${group.name}`);
-        outputs.push(`${prefix}description=${group.description}`);
-        outputs.push(`${prefix}mode=${group.target.mode}`);
-        outputs.push(`${prefix}image=${group.target.image}`);
-        outputs.push(`${prefix}ports=${group.target.ports}`);
-        outputs.push(`${prefix}scan_count=${group.matrix.include.length}`);
+        outputs.push(`group_${index}_matrix=${JSON.stringify(group.matrix)}`);
+        outputs.push(`group_${index}_name=${group.name}`);
+        outputs.push(`group_${index}_description=${group.description}`);
+        outputs.push(`group_${index}_mode=${group.target.mode}`);
+        outputs.push(`group_${index}_image=${group.target.image}`);
+        outputs.push(`group_${index}_ports=${group.target.ports}`);
+        outputs.push(`group_${index}_scan_count=${group.matrix.include.length}`);
       });
 
       outputs.forEach(output => {
