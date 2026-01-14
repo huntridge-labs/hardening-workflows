@@ -4,6 +4,10 @@
  * ZAP DAST Config Parser
  * Parses YAML, JSON, or JS config files and validates them against the JSON schema
  * Outputs matrix-compatible JSON for GitHub Actions
+ *
+ * Supports two config styles:
+ * 1. Flat: `scans` array with optional root `target`
+ * 2. Grouped: `scan_groups` array, each with their own `target` and `scans`
  */
 
 const fs = require('fs');
@@ -91,15 +95,23 @@ function validateConfig(config, schema) {
     throw new Error(`Config validation failed:\n${errors}`);
   }
 
-  // Enforce scan name uniqueness
-  if (config.scans && Array.isArray(config.scans)) {
-    const names = config.scans.map(s => s.name);
-    const duplicates = names.filter((name, index) => names.indexOf(name) !== index);
+  // Enforce scan name uniqueness across all scans
+  const allScans = [];
+  if (config.scans) {
+    allScans.push(...config.scans);
+  }
+  if (config.scan_groups) {
+    config.scan_groups.forEach(group => {
+      allScans.push(...group.scans);
+    });
+  }
 
-    if (duplicates.length > 0) {
-      const uniqueDuplicates = [...new Set(duplicates)];
-      throw new Error(`Config validation failed:\n  - scans: Duplicate scan names found: ${uniqueDuplicates.join(', ')}. Each scan must have a unique name.`);
-    }
+  const names = allScans.map(s => s.name);
+  const duplicates = names.filter((name, index) => names.indexOf(name) !== index);
+
+  if (duplicates.length > 0) {
+    const uniqueDuplicates = [...new Set(duplicates)];
+    throw new Error(`Config validation failed:\n  - scans: Duplicate scan names found: ${uniqueDuplicates.join(', ')}. Each scan must have a unique name.`);
   }
 
   return true;
@@ -150,16 +162,11 @@ function normalizePorts(ports) {
 }
 
 /**
- * Generate matrix from validated config
- * Creates one matrix entry per scan
+ * Build target configuration object
  */
-function generateMatrix(config) {
-  const matrix = { include: [] };
-  const target = config.target || {};
-  const defaults = config.defaults || {};
-
-  // Build shared target configuration
-  const sharedTarget = {
+function buildTargetConfig(target) {
+  target = target || {};
+  return {
     mode: target.mode || 'url',
     image: target.image ? buildImageReference(target.image) : '',
     ports: normalizePorts(target.ports).join(','),
@@ -173,85 +180,104 @@ function generateMatrix(config) {
     registry_auth_secret: target.registry?.auth_secret || '',
     healthcheck_url: target.healthcheck_url || ''
   };
-
-  // Generate matrix entries for each scan
-  config.scans.forEach(scan => {
-    // Merge auth from defaults and scan-specific (scan takes precedence)
-    const mergedAuth = { ...(defaults.auth || {}), ...(scan.auth || {}) };
-
-    // post_pr_comment priority: scan-level > defaults > root > false
-    const postPrComment = scan.post_pr_comment !== undefined
-      ? scan.post_pr_comment
-      : (defaults.post_pr_comment !== undefined
-          ? defaults.post_pr_comment
-          : (config.post_pr_comment || false));
-
-    const entry = {
-      // Scan identification
-      name: scan.name,
-      scan_type: scan.type,
-
-      // Scan-specific settings (with defaults fallback)
-      target_url: scan.target_url || defaults.target_url || '',
-      api_spec: scan.api_spec || defaults.api_spec || '',
-      healthcheck_url: scan.healthcheck_url || defaults.healthcheck_url || sharedTarget.healthcheck_url,
-      max_duration_minutes: scan.max_duration_minutes || defaults.max_duration_minutes || 10,
-      rules_file: scan.rules_file || defaults.rules_file || '',
-      context_file: scan.context_file || defaults.context_file || '',
-      cmd_options: scan.cmd_options || defaults.cmd_options || '',
-
-      // Failure handling
-      fail_on_severity: scan.fail_on_severity || defaults.fail_on_severity || 'none',
-      allow_failure: scan.allow_failure !== undefined ? scan.allow_failure : (defaults.allow_failure || false),
-
-      // PR comment preference (per-scan)
-      post_pr_comment: postPrComment,
-
-      // Authentication (header-based auth supported by ZAP actions)
-      // ZAP env vars: ZAP_AUTH_HEADER, ZAP_AUTH_HEADER_VALUE, ZAP_AUTH_HEADER_SITE
-      auth_header_name: mergedAuth.header_name || '',
-      auth_header_value: mergedAuth.header_value || '',
-      auth_header_secret: mergedAuth.header_secret || '',
-      auth_header_site: mergedAuth.site || '',
-
-      // Shared target settings (copied to each matrix entry)
-      ...sharedTarget
-    };
-
-    matrix.include.push(entry);
-  });
-
-  return matrix;
 }
 
 /**
- * Generate shared outputs for target configuration
+ * Generate scan entry with defaults applied
  */
-function generateTargetOutputs(config) {
-  const target = config.target || {};
-  const defaults = config.defaults || {};
+function generateScanEntry(scan, defaults, targetConfig, rootConfig) {
+  // Merge auth from defaults and scan-specific (scan takes precedence)
+  const mergedAuth = { ...(defaults.auth || {}), ...(scan.auth || {}) };
 
-  // post_pr_comment can be set at root or in defaults (root takes precedence)
-  const postPrComment = config.post_pr_comment !== undefined
-    ? config.post_pr_comment
-    : (defaults.post_pr_comment || false);
+  // post_pr_comment priority: scan-level > defaults > root > false
+  const postPrComment = scan.post_pr_comment !== undefined
+    ? scan.post_pr_comment
+    : (defaults.post_pr_comment !== undefined
+        ? defaults.post_pr_comment
+        : (rootConfig.post_pr_comment || false));
 
   return {
-    mode: target.mode || 'url',
-    image: target.image ? buildImageReference(target.image) : '',
-    ports: normalizePorts(target.ports).join(','),
-    build_context: target.build?.context || '',
-    build_dockerfile: target.build?.dockerfile || '',
-    build_tag: target.build?.tag || '',
-    compose_file: target.compose_file || 'docker-compose.yml',
-    compose_build: target.compose_build !== false ? 'true' : 'false',
-    registry_host: target.registry?.host || '',
-    registry_username: target.registry?.username || '',
-    registry_auth_secret: target.registry?.auth_secret || '',
-    healthcheck_url: target.healthcheck_url || '',
-    post_pr_comment: postPrComment ? 'true' : 'false',
-    enable_code_security: config.enable_code_security === true ? 'true' : 'false'
+    // Scan identification
+    name: scan.name,
+    scan_type: scan.type,
+
+    // Scan-specific settings (with defaults fallback)
+    target_url: scan.target_url || defaults.target_url || '',
+    api_spec: scan.api_spec || defaults.api_spec || '',
+    healthcheck_url: scan.healthcheck_url || defaults.healthcheck_url || targetConfig.healthcheck_url,
+    max_duration_minutes: scan.max_duration_minutes || defaults.max_duration_minutes || 10,
+    rules_file: scan.rules_file || defaults.rules_file || '',
+    context_file: scan.context_file || defaults.context_file || '',
+    cmd_options: scan.cmd_options || defaults.cmd_options || '',
+
+    // Failure handling
+    fail_on_severity: scan.fail_on_severity || defaults.fail_on_severity || 'none',
+    allow_failure: scan.allow_failure !== undefined ? scan.allow_failure : (defaults.allow_failure || false),
+
+    // PR comment preference (per-scan)
+    post_pr_comment: postPrComment,
+
+    // Authentication
+    auth_header_name: mergedAuth.header_name || '',
+    auth_header_value: mergedAuth.header_value || '',
+    auth_header_secret: mergedAuth.header_secret || '',
+    auth_header_site: mergedAuth.site || '',
+
+    // Target settings
+    ...targetConfig
   };
+}
+
+/**
+ * Generate matrices from validated config
+ * Returns an object with group names as keys and matrices as values
+ */
+function generateMatrices(config) {
+  const rootDefaults = config.defaults || {};
+  const rootTarget = buildTargetConfig(config.target);
+
+  // Flat config style: single matrix
+  if (config.scans) {
+    const matrix = { include: [] };
+    config.scans.forEach(scan => {
+      matrix.include.push(generateScanEntry(scan, rootDefaults, rootTarget, config));
+    });
+    return {
+      groups: [{
+        name: 'default',
+        description: 'ZAP Scans',
+        matrix: matrix,
+        target: rootTarget
+      }]
+    };
+  }
+
+  // Grouped config style: one matrix per group
+  if (config.scan_groups) {
+    const groups = config.scan_groups.map(group => {
+      // Merge group target with root target (group takes precedence)
+      const groupTarget = buildTargetConfig({ ...config.target, ...(group.target || {}) });
+
+      // Merge group defaults with root defaults (group takes precedence)
+      const groupDefaults = { ...rootDefaults, ...(group.defaults || {}) };
+
+      const matrix = { include: [] };
+      group.scans.forEach(scan => {
+        matrix.include.push(generateScanEntry(scan, groupDefaults, groupTarget, config));
+      });
+
+      return {
+        name: group.name,
+        description: group.description || group.name,
+        matrix: matrix,
+        target: groupTarget
+      };
+    });
+
+    return { groups };
+  }
+
+  throw new Error('Config must have either "scans" or "scan_groups"');
 }
 
 /**
@@ -273,25 +299,47 @@ function main() {
     validateConfig(config, schema);
     console.log('Config validation passed');
 
-    console.log('Generating matrix...');
-    const matrix = generateMatrix(config);
-    console.log(`Generated ${matrix.include.length} matrix entries`);
-
-    console.log('Generating target outputs...');
-    const targetOutputs = generateTargetOutputs(config);
+    console.log('Generating matrices...');
+    const result = generateMatrices(config);
+    console.log(`Generated ${result.groups.length} group(s)`);
 
     // Output for GitHub Actions
-    const matrixJson = JSON.stringify(matrix);
-    console.log('\nMatrix JSON:');
-    console.log(matrixJson);
+    const groupsJson = JSON.stringify(result.groups.map(g => ({
+      name: g.name,
+      description: g.description,
+      mode: g.target.mode
+    })));
+
+    console.log('\nGroups JSON:');
+    console.log(groupsJson);
+
+    result.groups.forEach(group => {
+      console.log(`\nMatrix for ${group.name}:`);
+      console.log(JSON.stringify(group.matrix));
+    });
 
     if (process.env.GITHUB_OUTPUT) {
       const outputs = [
-        `matrix=${matrixJson}`,
-        `has_scans=${matrix.include.length > 0 ? 'true' : 'false'}`,
-        `scan_count=${matrix.include.length}`,
-        ...Object.entries(targetOutputs).map(([key, value]) => `target_${key}=${value}`)
+        `groups=${groupsJson}`,
+        `group_count=${result.groups.length}`,
+        `has_scans=${result.groups.some(g => g.matrix.include.length > 0) ? 'true' : 'false'}`,
+        `total_scan_count=${result.groups.reduce((sum, g) => sum + g.matrix.include.length, 0)}`,
+        // Global settings
+        `post_pr_comment=${config.post_pr_comment === true ? 'true' : 'false'}`,
+        `enable_code_security=${config.enable_code_security === true ? 'true' : 'false'}`
       ];
+
+      // Output each group's matrix and target settings
+      result.groups.forEach((group, index) => {
+        const prefix = result.groups.length === 1 ? '' : `group_${index}_`;
+        outputs.push(`${prefix}matrix=${JSON.stringify(group.matrix)}`);
+        outputs.push(`${prefix}name=${group.name}`);
+        outputs.push(`${prefix}description=${group.description}`);
+        outputs.push(`${prefix}mode=${group.target.mode}`);
+        outputs.push(`${prefix}image=${group.target.image}`);
+        outputs.push(`${prefix}ports=${group.target.ports}`);
+        outputs.push(`${prefix}scan_count=${group.matrix.include.length}`);
+      });
 
       outputs.forEach(output => {
         fs.appendFileSync(process.env.GITHUB_OUTPUT, `${output}\n`);
@@ -302,12 +350,17 @@ function main() {
 
     // Print summary
     console.log('\n--- Configuration Summary ---');
-    console.log(`Target mode: ${targetOutputs.mode}`);
-    if (targetOutputs.image) console.log(`Target image: ${targetOutputs.image}`);
-    console.log(`Scans configured: ${matrix.include.length}`);
-    matrix.include.forEach(scan => {
-      const target = scan.scan_type === 'api' ? scan.api_spec : scan.target_url;
-      console.log(`  - ${scan.name}: ${scan.scan_type} scan -> ${target}`);
+    console.log(`Config style: ${config.scan_groups ? 'grouped' : 'flat'}`);
+    console.log(`Total groups: ${result.groups.length}`);
+    result.groups.forEach(group => {
+      console.log(`\n  Group: ${group.name}`);
+      console.log(`    Mode: ${group.target.mode}`);
+      if (group.target.image) console.log(`    Image: ${group.target.image}`);
+      console.log(`    Scans: ${group.matrix.include.length}`);
+      group.matrix.include.forEach(scan => {
+        const target = scan.scan_type === 'api' ? scan.api_spec : scan.target_url;
+        console.log(`      - ${scan.name}: ${scan.scan_type} -> ${target}`);
+      });
     });
 
     process.exit(0);
@@ -322,4 +375,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { loadConfig, validateConfig, generateMatrix, buildImageReference };
+module.exports = { loadConfig, validateConfig, generateMatrices, buildImageReference };

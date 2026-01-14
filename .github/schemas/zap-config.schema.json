@@ -4,13 +4,10 @@
   "title": "ZAP DAST Scanner Configuration",
   "description": "Configuration schema for ZAP dynamic application security testing",
   "type": "object",
-  "required": [
-    "scans"
-  ],
-  "properties": {
+  "definitions": {
     "target": {
       "type": "object",
-      "description": "Target application configuration - shared across all scans",
+      "description": "Target application configuration",
       "properties": {
         "mode": {
           "type": "string",
@@ -137,149 +134,144 @@
       },
       "additionalProperties": false
     },
-    "scans": {
-      "type": "array",
-      "description": "List of ZAP scans to run",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "required": [
-          "name",
-          "type"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Unique identifier for this scan (used in artifacts)",
-            "pattern": "^[a-zA-Z0-9_-]+$",
-            "minLength": 1,
-            "maxLength": 50
-          },
-          "type": {
-            "type": "string",
-            "description": "ZAP scan type",
-            "enum": [
-              "baseline",
-              "full",
-              "api"
-            ]
-          },
-          "target_url": {
-            "type": "string",
-            "description": "Target URL for baseline/full scans",
-            "format": "uri"
-          },
-          "api_spec": {
-            "type": "string",
-            "description": "OpenAPI/Swagger spec URL or file path (required for api scans)"
-          },
-          "healthcheck_url": {
-            "type": "string",
-            "description": "Override target healthcheck URL for this scan",
-            "format": "uri"
-          },
-          "max_duration_minutes": {
-            "type": "integer",
-            "description": "Maximum scan duration in minutes",
-            "minimum": 1,
-            "maximum": 120,
-            "default": 10
-          },
-          "rules_file": {
-            "type": "string",
-            "description": "Path to ZAP rules file (.tsv) to ignore alerts"
-          },
-          "context_file": {
-            "type": "string",
-            "description": "Path to ZAP context file for authentication"
-          },
-          "auth": {
-            "type": "object",
-            "description": "Header-based authentication for the scan. ZAP will include this header in all requests.",
-            "properties": {
-              "header_name": {
-                "type": "string",
-                "description": "HTTP header name (e.g., Authorization, X-API-Key, X-Auth-Token)",
-                "default": "Authorization"
-              },
-              "header_value": {
-                "type": "string",
-                "description": "Header value - supports ${VAR_NAME} syntax for non-secret values (e.g., 'Bearer ${TOKEN}')"
-              },
-              "header_secret": {
-                "type": "string",
-                "description": "Name of GitHub secret containing the header value (e.g., API_KEY, AUTH_TOKEN). Use this instead of header_value for sensitive tokens.",
-                "pattern": "^[A-Z0-9_]+$"
-              },
-              "site": {
-                "type": "string",
-                "description": "Site pattern to apply auth header to (e.g., 'example.com'). If not set, applies to target URL host."
-              }
+    "scan": {
+      "type": "object",
+      "required": [
+        "name",
+        "type"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique identifier for this scan (used in artifacts)",
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "type": {
+          "type": "string",
+          "description": "ZAP scan type",
+          "enum": [
+            "baseline",
+            "full",
+            "api"
+          ]
+        },
+        "target_url": {
+          "type": "string",
+          "description": "Target URL for baseline/full scans",
+          "format": "uri"
+        },
+        "api_spec": {
+          "type": "string",
+          "description": "OpenAPI/Swagger spec URL or file path (required for api scans)"
+        },
+        "healthcheck_url": {
+          "type": "string",
+          "description": "Override target healthcheck URL for this scan",
+          "format": "uri"
+        },
+        "max_duration_minutes": {
+          "type": "integer",
+          "description": "Maximum scan duration in minutes",
+          "minimum": 1,
+          "maximum": 120,
+          "default": 10
+        },
+        "rules_file": {
+          "type": "string",
+          "description": "Path to ZAP rules file (.tsv) to ignore alerts"
+        },
+        "context_file": {
+          "type": "string",
+          "description": "Path to ZAP context file for authentication"
+        },
+        "auth": {
+          "type": "object",
+          "description": "Header-based authentication for the scan",
+          "properties": {
+            "header_name": {
+              "type": "string",
+              "description": "HTTP header name (e.g., Authorization, X-API-Key)",
+              "default": "Authorization"
             },
-            "additionalProperties": false
+            "header_value": {
+              "type": "string",
+              "description": "Header value - supports ${VAR_NAME} syntax"
+            },
+            "header_secret": {
+              "type": "string",
+              "description": "Name of GitHub secret containing the header value",
+              "pattern": "^[A-Z0-9_]+$"
+            },
+            "site": {
+              "type": "string",
+              "description": "Site pattern to apply auth header to"
+            }
           },
-          "cmd_options": {
-            "type": "string",
-            "description": "Additional ZAP command-line options"
+          "additionalProperties": false
+        },
+        "cmd_options": {
+          "type": "string",
+          "description": "Additional ZAP command-line options"
+        },
+        "fail_on_severity": {
+          "type": "string",
+          "description": "Fail if findings at or above this severity",
+          "enum": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "default": "none"
+        },
+        "allow_failure": {
+          "type": "boolean",
+          "description": "Allow workflow to continue if scan fails",
+          "default": false
+        },
+        "post_pr_comment": {
+          "type": "boolean",
+          "description": "Post this scan's results as PR comment",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "api"
+              }
+            }
           },
-          "fail_on_severity": {
-            "type": "string",
-            "description": "Fail if findings at or above this severity",
-            "enum": [
-              "none",
-              "low",
-              "medium",
-              "high",
-              "critical"
-            ],
-            "default": "none"
-          },
-          "allow_failure": {
-            "type": "boolean",
-            "description": "Allow workflow to continue if scan fails",
-            "default": false
-          },
-          "post_pr_comment": {
-            "type": "boolean",
-            "description": "Post this scan's results as PR comment (overrides default)",
-            "default": false
+          "then": {
+            "required": [
+              "api_spec"
+            ]
           }
         },
-        "additionalProperties": false,
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "type": {
-                  "const": "api"
-                }
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "baseline",
+                  "full"
+                ]
               }
-            },
-            "then": {
-              "required": [
-                "api_spec"
-              ]
             }
           },
-          {
-            "if": {
-              "properties": {
-                "type": {
-                  "enum": [
-                    "baseline",
-                    "full"
-                  ]
-                }
-              }
-            },
-            "then": {
-              "required": [
-                "target_url"
-              ]
-            }
+          "then": {
+            "required": [
+              "target_url"
+            ]
           }
-        ]
-      }
+        }
+      ]
     },
     "defaults": {
       "type": "object",
@@ -292,7 +284,7 @@
         },
         "api_spec": {
           "type": "string",
-          "description": "Default OpenAPI/Swagger spec URL or file path for api scans"
+          "description": "Default OpenAPI/Swagger spec URL or file path"
         },
         "healthcheck_url": {
           "type": "string",
@@ -322,11 +314,11 @@
         },
         "rules_file": {
           "type": "string",
-          "description": "Default path to ZAP rules file (.tsv) to ignore alerts"
+          "description": "Default path to ZAP rules file (.tsv)"
         },
         "context_file": {
           "type": "string",
-          "description": "Default path to ZAP context file for authentication"
+          "description": "Default path to ZAP context file"
         },
         "cmd_options": {
           "type": "string",
@@ -338,32 +330,84 @@
           "properties": {
             "header_name": {
               "type": "string",
-              "description": "HTTP header name (e.g., Authorization, X-API-Key)",
               "default": "Authorization"
             },
             "header_value": {
-              "type": "string",
-              "description": "Header value - supports ${VAR_NAME} syntax"
+              "type": "string"
             },
             "header_secret": {
               "type": "string",
-              "description": "Name of GitHub secret containing the header value",
               "pattern": "^[A-Z0-9_]+$"
             },
             "site": {
-              "type": "string",
-              "description": "Site pattern to apply auth header to"
+              "type": "string"
             }
           },
           "additionalProperties": false
         },
         "post_pr_comment": {
           "type": "boolean",
-          "description": "Post scan results as PR comment",
           "default": false
         }
       },
       "additionalProperties": false
+    }
+  },
+  "properties": {
+    "target": {
+      "$ref": "#/definitions/target",
+      "description": "Target application configuration - shared across all scans (for flat config)"
+    },
+    "scans": {
+      "type": "array",
+      "description": "List of ZAP scans to run (flat structure, all share root target)",
+      "items": {
+        "$ref": "#/definitions/scan"
+      }
+    },
+    "scan_groups": {
+      "type": "array",
+      "description": "Groups of scans, each with their own target configuration (enables parallel pipelines)",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "scans"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Group name (used for pipeline identification)",
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of this scan group"
+          },
+          "target": {
+            "$ref": "#/definitions/target",
+            "description": "Target configuration for this group"
+          },
+          "defaults": {
+            "$ref": "#/definitions/defaults",
+            "description": "Default settings for scans in this group (merged with root defaults)"
+          },
+          "scans": {
+            "type": "array",
+            "description": "Scans in this group",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/definitions/scan"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "defaults": {
+      "$ref": "#/definitions/defaults"
     },
     "post_pr_comment": {
       "type": "boolean",
@@ -372,9 +416,31 @@
     },
     "enable_code_security": {
       "type": "boolean",
-      "description": "Upload SARIF to GitHub Security tab (reserved for future use)",
+      "description": "Upload SARIF to GitHub Security tab",
       "default": false
     }
   },
+  "oneOf": [
+    {
+      "required": [
+        "scans"
+      ],
+      "not": {
+        "required": [
+          "scan_groups"
+        ]
+      }
+    },
+    {
+      "required": [
+        "scan_groups"
+      ],
+      "not": {
+        "required": [
+          "scans"
+        ]
+      }
+    }
+  ],
   "additionalProperties": false
 }

@@ -24,12 +24,17 @@ Complete configuration reference for all available security scanners.
   - [ClamAV](#clamav)
 - [DAST Scanners](#dast-scanners)
   - [ZAP](#zap)
-
+- [Common Configuration Patterns](#common-configuration-patterns)
 ## SAST Scanners
 
 ### CodeQL
 
 GitHub's semantic code analysis engine for finding security vulnerabilities and coding errors.
+
+**Supported languages:** `python`, `javascript`, `typescript`, `java`, `csharp`, `cpp`, `go`, `ruby`
+
+<details>
+<summary><strong>Configuration & Examples</strong></summary>
 
 **Configuration:**
 
@@ -38,8 +43,6 @@ GitHub's semantic code analysis engine for finding security vulnerabilities and 
 | `codeql_languages` | Comma-separated list of languages | `python,javascript` | No |
 | `enable_code_security` | Upload to GitHub Security tab | `false` | No |
 | `post_pr_comment` | Post findings as PR comments | `true` | No |
-
-**Supported languages:** `python`, `javascript`, `typescript`, `java`, `csharp`, `cpp`, `go`, `ruby`
 
 **Example:**
 
@@ -50,9 +53,16 @@ with:
   enable_code_security: true
 ```
 
+</details>
+
 ### Gitleaks
 
 Scans git history and code for hardcoded secrets, API keys, passwords, and tokens.
+
+**Scan behavior:** Scans PR changes, new commits, or full history depending on event type.
+
+<details>
+<summary><strong>Configuration & Examples</strong></summary>
 
 **Configuration:**
 
@@ -89,9 +99,16 @@ secrets:
   GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
 ```
 
+</details>
+
 ### Bandit
 
 Python security linter for finding common security issues using static analysis.
+
+**Severity levels:** LOW, MEDIUM, HIGH
+
+<details>
+<summary><strong>Configuration & Examples</strong></summary>
 
 **Configuration:**
 
@@ -100,8 +117,6 @@ Python security linter for finding common security issues using static analysis.
 | `enable_code_security` | Upload to GitHub Security tab | `false` | No |
 | `post_pr_comment` | Post findings as PR comments | `true` | No |
 | `fail_on_severity` | Fail on any finding | `none` | No |
-
-**Severity levels:** LOW, MEDIUM, HIGH
 
 **Example:**
 
@@ -112,9 +127,14 @@ with:
   fail_on_severity: high
 ```
 
+</details>
+
 ### OpenGrep (Semgrep)
 
 Fast, customizable static analysis with extensive rule sets for multiple languages.
+
+<details>
+<summary><strong>Configuration & Examples</strong></summary>
 
 **Configuration:**
 
@@ -133,12 +153,17 @@ with:
   fail_on_severity: medium
 ```
 
+</details>
+
 ## Container Scanners
 
 ### Trivy Container
 
 Comprehensive vulnerability scanner for container images and filesystems.
 
+<details>
+<summary><strong>Configuration & Examples</strong></summary>
+
 **Configuration:**
 
 | Input | Description | Default | Required |
@@ -175,11 +200,16 @@ with:
 secrets:
   registry_password: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+</details>
 
 ### Grype
 
 Fast, accurate vulnerability scanner with excellent detection rates.
 
+<details>
+<summary><strong>Configuration & Examples</strong></summary>
+
 **Configuration:**
 
 | Input | Description | Default | Required |
@@ -215,9 +245,14 @@ secrets:
   registry_password: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+</details>
+
 ### Syft (SBOM)
 
 Generates detailed Software Bill of Materials (SBOM) for images and filesystems.
+
+<details>
+<summary><strong>Configuration & Examples</strong></summary>
 
 **Configuration:**
 
@@ -256,11 +291,18 @@ secrets:
   registry_password: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+</details>
+
 ## Infrastructure Scanners
 
 ### Trivy IaC
 
 Scans Infrastructure as Code files for misconfigurations and security issues.
+
+**Supported frameworks:** Terraform, CloudFormation, Kubernetes, Dockerfile
+
+<details>
+<summary><strong>Configuration & Examples</strong></summary>
 
 **Configuration:**
 
@@ -270,8 +312,6 @@ Scans Infrastructure as Code files for misconfigurations and security issues.
 | `enable_code_security` | Upload to GitHub Security tab | `false` | No |
 | `post_pr_comment` | Post findings as PR comments | `false` | No |
 | `fail_on_severity` | Severity threshold | `none` | No |
-
-**Supported frameworks:** Terraform, CloudFormation, Kubernetes, Dockerfile
 
 **Example:**
 
@@ -283,9 +323,14 @@ with:
   fail_on_severity: high
 ```
 
+</details>
+
 ### Checkov
 
 Policy as Code scanner for cloud infrastructure configurations.
+
+<details>
+<summary><strong>Configuration & Examples</strong></summary>
 
 **Configuration:**
 
@@ -307,11 +352,16 @@ with:
   enable_code_security: true
 ```
 
+</details>
+
 ## Malware Scanner
 
 ### ClamAV
 
 Open-source antivirus engine for detecting trojans, viruses, and malware.
+
+<details>
+<summary><strong>Configuration & Examples</strong></summary>
 
 **Configuration:**
 
@@ -335,6 +385,406 @@ with:
   clamav_scan_path: 'uploads/'
   fail_on_severity: critical
 ```
+
+</details>
+
+
+## DAST Scanners
+
+### ZAP
+
+ZAP (Zed Attack Proxy) provides Dynamic Application Security Testing (DAST) for running web applications and APIs.
+
+**Key Features:**
+- **Config-file driven**: Define multiple scans with different targets, types, and settings in a single YAML/JSON file
+- **Parallel scan groups**: Run URL-based and container-based scans in parallel pipelines
+- **Flexible defaults**: Set defaults once, override per-scan as needed
+- **Multiple target modes**: URL (already running), docker-run (single container), or compose (multi-container)
+- **Multiple scan types**: baseline, full, or API scans with OpenAPI/Swagger specs
+
+---
+
+#### Quick Start (Recommended: Config File)
+
+**1. Create a ZAP config file** (e.g., `.github/zap-config.yml`):
+
+```yaml
+# Simple flat config - single target mode
+defaults:
+  max_duration_minutes: 10
+  fail_on_severity: medium
+  allow_failure: false
+
+target:
+  mode: url
+
+scans:
+  - name: baseline-scan
+    type: baseline
+    target_url: https://example.com
+
+  - name: api-scan
+    type: api
+    target_url: https://api.example.com
+    api_spec: https://api.example.com/openapi.json
+```
+
+**2. Call the workflow**:
+
+```yaml
+jobs:
+  security:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
+    with:
+      scanners: zap
+      zap_config_file: .github/zap-config.yml
+```
+
+---
+
+<details>
+<summary><strong>Configuration Options</strong></summary>
+
+#### Configuration Options
+
+**Via workflow inputs (legacy/simple mode):**
+
+| Input | Description | Default | Required |
+|-------|-------------|---------|----------|
+| `scanners` | Include `zap` (opt-in; not included in `all`) | - | Yes |
+| `zap_config_file` | Path to ZAP config file (YAML/JSON). **Recommended approach** - drives all scan configuration. | `''` | No |
+| `zap_scan_mode` | `url`, `docker-run`, or `compose` (ignored if `zap_config_file` set) | `url` | No |
+| `zap_target_urls` | Comma-separated URLs to scan (ignored if `zap_config_file` set) | `''` | Conditional |
+| `zap_scan_type` | `baseline`, `full`, or `api` (ignored if `zap_config_file` set) | `baseline` | No |
+| `zap_api_spec` | OpenAPI/Swagger spec URL or path (ignored if `zap_config_file` set) | `''` | Conditional |
+| `allow_failure` | Allow workflow to continue on failures | `true` | No |
+| `severity_threshold` | Minimum severity to fail (`none`, `low`, `medium`, `high`, `critical`) | `high` | No |
+
+> **Note**: When `zap_config_file` is provided, it takes precedence and other `zap_*` inputs are ignored.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Config File Reference</strong></summary>
+
+#### Config File Reference
+
+**Schema URL**: [`zap-config.schema.json`](../.github/schemas/zap-config.schema.json)
+
+**Two config styles supported:**
+
+1. **Flat** - single target, multiple scans
+2. **Grouped** - multiple scan groups with different targets (enables parallel pipelines)
+
+##### Flat Config Example
+
+All scans share the same target configuration:
+
+```yaml
+target:
+  mode: url  # or docker-run, compose
+
+defaults:
+  max_duration_minutes: 10
+  fail_on_severity: medium
+  allow_failure: false
+  post_pr_comment: true
+
+scans:
+  - name: baseline-scan
+    type: baseline
+    target_url: https://app.example.com
+
+  - name: api-scan
+    type: api
+    target_url: https://api.example.com
+    api_spec: https://api.example.com/openapi.json
+    fail_on_severity: high  # Override default
+```
+
+##### Grouped Config Example (Parallel Pipelines)
+
+Create separate scan groups with their own targets - ideal for running URL scans and container scans in parallel:
+
+```yaml
+defaults:
+  max_duration_minutes: 10
+  fail_on_severity: medium
+  allow_failure: true
+
+scan_groups:
+  # Group 1: URL-based scans (external targets)
+  - name: url-scans
+    description: "External URL Scans"
+    target:
+      mode: url
+    scans:
+      - name: baseline-prod
+        type: baseline
+        target_url: https://example.com
+
+      - name: api-prod
+        type: api
+        target_url: https://api.example.com
+        api_spec: https://api.example.com/openapi.json
+
+  # Group 2: Container scans (start app, then scan)
+  - name: docker-scans
+    description: "Container-based Scans"
+    target:
+      mode: docker-run
+      image: ghcr.io/myorg/myapp:latest
+      ports: "8080:8080"
+    defaults:
+      target_url: http://localhost:8080
+    scans:
+      - name: baseline-container
+        type: baseline
+
+      - name: full-container
+        type: full
+        max_duration_minutes: 20
+```
+
+##### Target Configuration
+
+**`target.mode`** options:
+
+- **`url`** (default): Scan already-running endpoints
+- **`docker-run`**: Start a single container, then scan
+- **`compose`**: Start a docker-compose stack, then scan
+
+**Docker-run mode example:**
+
+```yaml
+target:
+  mode: docker-run
+  image: myapp:latest
+  ports: "3000:3000,8080:8080"
+  healthcheck_url: http://localhost:3000/health
+  
+  # Optional: build from local Dockerfile
+  build:
+    context: .
+    dockerfile: ./Dockerfile
+    tag: myapp:test
+  
+  # Optional: private registry auth
+  registry:
+    host: ghcr.io
+    username: ${{ github.actor }}
+    auth_secret: GITHUB_TOKEN  # Secret name
+```
+
+**Compose mode example:**
+
+```yaml
+target:
+  mode: compose
+  compose_file: docker-compose.test.yml
+  compose_build: true
+  healthcheck_url: http://localhost:8080/health
+```
+
+##### Scan Configuration
+
+**Required fields:**
+- `name`: Unique scan identifier (alphanumeric, hyphens, underscores)
+- `type`: `baseline`, `full`, or `api`
+
+**Common fields:**
+- `target_url`: Target URL to scan (required for baseline/full scans)
+- `api_spec`: OpenAPI/Swagger spec URL or file path (required for api scans)
+- `max_duration_minutes`: Maximum scan duration (1-120, default: 10)
+- `fail_on_severity`: Fail threshold - `none`, `low`, `medium`, `high`, `critical` (default: `none`)
+- `allow_failure`: Continue workflow on failure (default: `false`)
+- `post_pr_comment`: Post scan results as PR comment (default: `false`)
+
+**Advanced fields:**
+- `healthcheck_url`: Override target healthcheck (waits for 200 response before scanning)
+- `rules_file`: Path to ZAP rules file (.tsv) to ignore specific alerts
+- `context_file`: Path to ZAP context file for session/auth
+- `cmd_options`: Additional ZAP CLI options (e.g., `-z "-config api.addrs.addr.name=.*"`)
+
+**Authentication (header-based):**
+
+```yaml
+scans:
+  - name: authenticated-scan
+    type: baseline
+    target_url: https://app.example.com
+    auth:
+      header_name: Authorization
+      header_secret: API_TOKEN  # GitHub secret name
+      # OR for non-secret values:
+      # header_value: "Bearer ${MY_TOKEN}"
+```
+
+##### Defaults
+
+Set defaults at root or per-group that apply to all scans (scans can override):
+
+```yaml
+defaults:
+  max_duration_minutes: 15
+  fail_on_severity: medium
+  allow_failure: false
+  post_pr_comment: true
+  target_url: http://localhost:8080  # Default target
+  rules_file: .zap/rules.tsv
+  auth:
+    header_name: X-API-Key
+    header_secret: API_KEY
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Complete Examples</strong></summary>
+
+#### Complete Examples
+
+##### Example 1: Simple URL Scan
+
+```yaml
+# .github/zap-config.yml
+target:
+  mode: url
+
+scans:
+  - name: baseline
+    type: baseline
+    target_url: https://example.com
+    max_duration_minutes: 5
+    fail_on_severity: high
+```
+
+```yaml
+# .github/workflows/security.yml
+jobs:
+  zap-scan:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
+    with:
+      scanners: zap
+      zap_config_file: .github/zap-config.yml
+```
+
+##### Example 2: Container Scan with Build
+
+```yaml
+# .github/zap-config.yml
+target:
+  mode: docker-run
+  build:
+    context: .
+    dockerfile: Dockerfile
+    tag: app:test
+  ports: "8080:8080"
+  healthcheck_url: http://localhost:8080/health
+
+defaults:
+  max_duration_minutes: 10
+  fail_on_severity: medium
+  target_url: http://localhost:8080
+
+scans:
+  - name: baseline
+    type: baseline
+
+  - name: api
+    type: api
+    api_spec: http://localhost:8080/openapi.json
+```
+
+##### Example 3: Parallel Pipelines (Grouped)
+
+```yaml
+# .github/zap-config.yml
+defaults:
+  max_duration_minutes: 10
+  fail_on_severity: medium
+
+scan_groups:
+  - name: url-scans
+    description: "Production URL Scans"
+    target:
+      mode: url
+    scans:
+      - name: prod-baseline
+        type: baseline
+        target_url: https://example.com
+
+      - name: prod-api
+        type: api
+        target_url: https://api.example.com
+        api_spec: https://api.example.com/openapi.json
+
+  - name: container-scans
+    description: "Local Container Scans"
+    target:
+      mode: docker-run
+      image: myapp:latest
+      ports: "3000:3000"
+    defaults:
+      target_url: http://localhost:3000
+    scans:
+      - name: container-baseline
+        type: baseline
+
+      - name: container-full
+        type: full
+        max_duration_minutes: 20
+```
+
+This creates two parallel scan pipelines in your GitHub Actions workflow - one for URL scans and one for container scans.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Legacy Input-Based Configuration</strong></summary>
+
+#### Legacy Input-Based Configuration
+
+For simple single-scan scenarios, you can still use workflow inputs directly (no config file):
+
+**URL-only scan:**
+
+```yaml
+jobs:
+  security:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
+    with:
+      scanners: zap
+      zap_scan_mode: url
+      zap_target_urls: https://example.com
+      allow_failure: false
+      severity_threshold: medium
+```
+
+**Container scan:**
+
+```yaml
+jobs:
+  security:
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
+    with:
+      scanners: zap
+      zap_scan_mode: docker-run
+      zap_app_image_ref: ghcr.io/myorg/app:latest
+      zap_app_ports: "8080:8080"
+      allow_failure: false
+```
+
+> **Note**: Input-based configuration is limited to single scans. Use config files for multiple scans, matrix execution, or advanced features.
+
+</details>
+
 
 ## Common Configuration Patterns
 
@@ -362,130 +812,7 @@ with:
 
 - Full coverage: `scanners: all`
 - SAST only: `scanners: codeql,opengrep,bandit,gitleaks`
+- DAST only: `scanners: zap`
 - Infrastructure only: `scanners: trivy-iac,checkov`
 - Container only: `scanners: trivy-container,grype,sbom`
 - Focused mix: `scanners: container,infrastructure,gitleaks`
-
-## DAST Scanners
-
-### ZAP
-
-ZAP provides Dynamic Application Security Testing (DAST) for running web applications and APIs.
-
-This integration supports:
-- **URL-only**: scan endpoints that are already running
-- **Single container**: start one container on the GitHub runner and scan its exposed port(s)
-- **Docker Compose**: start a multi-container stack and scan one or more published endpoints
-
-**Configuration (via the reusable workflow):**
-
-| Input | Description | Default | Required |
-|-------|-------------|---------|----------|
-| `scanners` | Include `zap` (opt-in; not included in `all`) | - | Yes (to run ZAP) |
-| `zap_config_file` | Path to a ZAP config file (YAML/JSON). When set, it drives targets/matrixing and overrides other `zap_*` inputs. | `''` | No |
-| `zap_scan_mode` | `url`, `docker-run`, or `compose` | `url` | No |
-| `zap_target_urls` | Comma-separated list of URLs to scan | `''` | Yes (unless `docker-run` derives targets) |
-| `zap_healthcheck_url` | Optional URL to wait on before scanning | `''` | No |
-| `zap_scan_type` | `baseline`, `full`, or `api` | `baseline` | No |
-| `zap_api_spec` | URL or file path to OpenAPI/Swagger spec | `''` | Yes (when `zap_scan_type=api`) |
-| `zap_max_duration_minutes` | Max minutes for ZAP per scan | `10` | No |
-| `zap_app_image_ref` | Image to run (when `zap_scan_mode=docker-run`) | `''` | Yes (when `docker-run`) |
-| `zap_app_ports` | Port mappings (when `zap_scan_mode=docker-run`) | `8080:8080` | No |
-| `zap_compose_file` | Compose file path (when `zap_scan_mode=compose`) | `docker-compose.yml` | Yes (when `compose`) |
-| `allow_failure` + `severity_threshold` | Controls failing the workflow on ZAP findings | `true` + `high` | No |
-
-**Recommended: config-file driven ZAP**
-
-Use a config file to avoid passing many inputs and to define multiple targets for matrix scanning.
-
-Example config file (YAML or JSON), e.g. `.zap/zap.yml`:
-
-```yaml
-zap:
-  scan_mode: url
-  # targets can be a list or a comma-separated string
-  target_urls:
-    - http://127.0.0.1:8080
-    - http://127.0.0.1:3000
-  healthcheck_url: http://127.0.0.1:8080/health
-  scan_type: baseline
-  zap_max_duration_minutes: 10
-  # Optional: pass-through to official zaproxy/action-* rules_file_name
-  rules_file_name: .zap/rules.tsv
-  # Optional: additional pass-through to ZAP scripts
-  cmd_options: "-a"
-```
-
-For `scan_mode: docker-run`, the config can build a local Dockerfile from the caller repo (no assumptions; you must point to it):
-
-```yaml
-zap:
-  scan_mode: docker-run
-  # Either set app_image_ref to a prebuilt image, OR set these two to build locally
-  app_build_context: .
-  app_dockerfile: ./Dockerfile
-  # Optional; defaults to local-dast-app:${GITHUB_SHA}
-  app_image_tag: my-app-dast:${GITHUB_SHA}
-  app_ports: "8080:8080"
-  target_urls:
-    - http://127.0.0.1:8080
-  scan_type: baseline
-```
-
-And call the workflow like:
-
-```yaml
-jobs:
-  security:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.10.0
-    with:
-      scanners: zap
-      zap_config_file: .zap/zap.yml
-      allow_failure: false
-      severity_threshold: medium
-```
-
-**Example: URL-only (caller starts containers/services)**
-
-```yaml
-jobs:
-  security:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.10.0
-    with:
-      scanners: zap
-      zap_scan_mode: url
-      zap_target_urls: http://127.0.0.1:8080
-      allow_failure: false
-      severity_threshold: medium
-```
-
-**Example: Single container (run and scan)**
-
-```yaml
-jobs:
-  security:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.10.0
-    with:
-      scanners: zap
-      zap_scan_mode: docker-run
-      zap_app_image_ref: ghcr.io/myorg/myapp:latest
-      zap_app_ports: 8080:8080
-      allow_failure: false
-      severity_threshold: high
-```
-
-**Example: Multi-container via docker compose**
-
-```yaml
-jobs:
-  security:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.10.0
-    with:
-      scanners: zap
-      zap_scan_mode: compose
-      zap_compose_file: docker-compose.yml
-      zap_target_urls: http://127.0.0.1:8080,http://127.0.0.1:3000
-      zap_healthcheck_url: http://127.0.0.1:8080/health
-      allow_failure: false
-      severity_threshold: medium
-```
