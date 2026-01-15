@@ -1,2 +1,18 @@
 echo "Running .husky pre-commit hook"
-pre-commit run --all-files --show-diff-on-failure
+
+# Add common paths that VSCode might not have
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
+
+# Activate virtual environment if it exists
+if [ -f ".venv/bin/activate" ]; then
+  source .venv/bin/activate
+fi
+
+# Try to find pre-commit
+if command -v pre-commit &> /dev/null; then
+  pre-commit run --all-files --show-diff-on-failure
+else
+  echo "Warning: pre-commit not found, skipping hooks"
+  echo "Install with: pip install pre-commit"
+  exit 0  # Don't fail if pre-commit is not installed
+fi

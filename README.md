@@ -52,6 +52,7 @@ jobs:
 | **Infrastructure** | Trivy IaC | Infrastructure as Code scanner |
 | | Checkov | Policy as Code for cloud configs |
 | **Malware** | ClamAV | Open-source antivirus engine |
+| **DAST** | ZAP | Dynamic testing of running web/API endpoints (opt-in) |
 
 For detailed scanner configuration, see [Scanner Reference](docs/scanners.md).
 
