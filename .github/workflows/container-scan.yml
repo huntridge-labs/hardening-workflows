@@ -141,6 +141,11 @@ jobs:
           dir=$(dirname "$dockerfile")
           name=$(basename "$dir")
 
+          # Handle root directory case - use repo/project name
+          if [ "$name" = "." ]; then
+            name=$(basename "$(pwd)")
+          fi
+
           # Handle special cases for naming
           if [[ "$dockerfile" == *"vulnerable"* ]]; then
             name="${name}-vulnerable"
