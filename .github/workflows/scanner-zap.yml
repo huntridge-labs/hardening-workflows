@@ -385,25 +385,26 @@ jobs:
             exit 0
           fi
 
-          # ZAP risk codes mapped to severity levels (matches parse-zap-results.sh):
-          #   riskcode 3 (ZAP High)          -> Critical
-          #   riskcode 2 (ZAP Medium)        -> High
-          #   riskcode 1 (ZAP Low)           -> Medium
-          #   riskcode 0 (ZAP Informational) -> Low
-          critical=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "3")] | length' "$report" 2>/dev/null || echo "0")
-          high=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "2")] | length' "$report" 2>/dev/null || echo "0")
-          medium=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "1")] | length' "$report" 2>/dev/null || echo "0")
-          low=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "0")] | length' "$report" 2>/dev/null || echo "0")
+          # ZAP risk codes use 1:1 mapping (matches parse-zap-results.sh):
+          #   riskcode 3 (ZAP High)          -> High
+          #   riskcode 2 (ZAP Medium)        -> Medium
+          #   riskcode 1 (ZAP Low)           -> Low
+          #   riskcode 0 (ZAP Informational) -> Informational
+          # Note: ZAP has no "Critical" level. When fail_on_severity=critical, we check High.
+          high=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "3")] | length' "$report" 2>/dev/null || echo "0")
+          medium=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "2")] | length' "$report" 2>/dev/null || echo "0")
+          low=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "1")] | length' "$report" 2>/dev/null || echo "0")
+          info=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "0")] | length' "$report" 2>/dev/null || echo "0")
 
           fail_on="${{ inputs.fail_on_severity }}"
-          echo "Alerts: Critical=$critical High=$high Medium=$medium Low=$low (threshold: $fail_on)"
+          echo "Alerts: High=$high Medium=$medium Low=$low Informational=$info (threshold: $fail_on)"
 
           should_fail=false
           case "$fail_on" in
-            low) [[ $((critical+high+medium+low)) -gt 0 ]] && should_fail=true ;;
-            medium) [[ $((critical+high+medium)) -gt 0 ]] && should_fail=true ;;
-            high) [[ $((critical+high)) -gt 0 ]] && should_fail=true ;;
-            critical) [[ $critical -gt 0 ]] && should_fail=true ;;
+            low) [[ $((high+medium+low)) -gt 0 ]] && should_fail=true ;;
+            medium) [[ $((high+medium)) -gt 0 ]] && should_fail=true ;;
+            high) [[ $high -gt 0 ]] && should_fail=true ;;
+            critical) [[ $high -gt 0 ]] && should_fail=true ;;  # ZAP has no critical, check High
           esac
 
           if [[ "$should_fail" == "true" ]]; then

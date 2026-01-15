@@ -17,11 +17,12 @@
 #   -l, --limit N       - Limit output rows (default: 50 for table)
 #   -h, --help          - Show this help message
 #
-# Note: ZAP severities are mapped as follows:
-#   ZAP High (riskcode 3)         -> Critical
-#   ZAP Medium (riskcode 2)       -> High
-#   ZAP Low (riskcode 1)          -> Medium
-#   ZAP Informational (riskcode 0) -> Low
+# Note: ZAP severities use 1:1 mapping:
+#   ZAP High (riskcode 3)          -> High
+#   ZAP Medium (riskcode 2)        -> Medium
+#   ZAP Low (riskcode 1)           -> Low
+#   ZAP Informational (riskcode 0) -> Informational
+# Note: ZAP has no "Critical" level. When fail_on_severity=critical, ZAP High is checked.
 
 set -euo pipefail
 
@@ -39,8 +40,8 @@ validate_file() {
     return 0
 }
 
-# Get alert counts by mapped severity: "crit high med low"
-# Maps ZAP riskcode: 3->Critical, 2->High, 1->Medium, 0->Low
+# Get alert counts by severity: "crit high med low"
+# Uses 1:1 mapping - ZAP has no critical, so critical is always 0
 get_counts() {
     local file="$1"
     if ! validate_file "$file"; then
@@ -49,10 +50,11 @@ get_counts() {
     fi
 
     local critical high medium low
-    critical=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "3")] | length' "$file" 2>/dev/null || echo "0")
-    high=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "2")] | length' "$file" 2>/dev/null || echo "0")
-    medium=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "1")] | length' "$file" 2>/dev/null || echo "0")
-    low=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "0")] | length' "$file" 2>/dev/null || echo "0")
+    critical=0  # ZAP has no critical severity
+    high=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "3")] | length' "$file" 2>/dev/null || echo "0")
+    medium=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "2")] | length' "$file" 2>/dev/null || echo "0")
+    low=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "1")] | length' "$file" 2>/dev/null || echo "0")
+    # Note: riskcode 0 (Informational) is not counted in the standard 4-level output
 
     echo "$critical $high $medium $low"
 }
@@ -86,7 +88,7 @@ get_alerts() {
     jq -r '.site[]?.alerts[]?.name' "$file" 2>/dev/null | sort -u
 }
 
-# Get alerts by severity (using mapped severity)
+# Get alerts by severity (1:1 mapping, critical maps to ZAP High since ZAP has no critical)
 get_alerts_by_severity() {
     local file="$1"
     local severity="$2"
@@ -97,10 +99,11 @@ get_alerts_by_severity() {
 
     local riskcode
     case "${severity,,}" in
-        critical) riskcode="3" ;;
-        high) riskcode="2" ;;
-        medium) riskcode="1" ;;
-        low) riskcode="0" ;;
+        critical) riskcode="3" ;;  # ZAP has no critical, use High
+        high) riskcode="3" ;;
+        medium) riskcode="2" ;;
+        low) riskcode="1" ;;
+        informational|info) riskcode="0" ;;
         *) echo "Invalid severity: $severity" >&2; return 1 ;;
     esac
 
@@ -129,12 +132,12 @@ generate_table() {
         sort_by(-.riskcode) |
         .[:$limit] |
         .[] |
-        # Map severity
+        # Map severity (1:1 with ZAP levels)
         .severity = (
-            if .riskcode == 3 then "🚨 Critical"
-            elif .riskcode == 2 then "⚠️ High"
-            elif .riskcode == 1 then "🟡 Medium"
-            elif .riskcode == 0 then "🔵 Low"
+            if .riskcode == 3 then "⚠️ High"
+            elif .riskcode == 2 then "🟡 Medium"
+            elif .riskcode == 1 then "🔵 Low"
+            elif .riskcode == 0 then "ℹ️ Info"
             else "❓ Unknown" end
         ) |
         .conf = (
@@ -169,10 +172,11 @@ generate_details() {
 
     local riskcode
     case "${severity,,}" in
-        critical) riskcode="3" ;;
-        high) riskcode="2" ;;
-        medium) riskcode="1" ;;
-        low) riskcode="0" ;;
+        critical) riskcode="3" ;;  # ZAP has no critical, use High
+        high) riskcode="3" ;;
+        medium) riskcode="2" ;;
+        low) riskcode="1" ;;
+        informational|info) riskcode="0" ;;
         *) echo "Invalid severity: $severity" >&2; return 1 ;;
     esac
 
@@ -219,10 +223,11 @@ generate_compact_table() {
 
     local riskcode
     case "${severity,,}" in
-        critical) riskcode="3" ;;
-        high) riskcode="2" ;;
-        medium) riskcode="1" ;;
-        low) riskcode="0" ;;
+        critical) riskcode="3" ;;  # ZAP has no critical, use High
+        high) riskcode="3" ;;
+        medium) riskcode="2" ;;
+        low) riskcode="1" ;;
+        informational|info) riskcode="0" ;;
         *) echo "Invalid severity: $severity" >&2; return 1 ;;
     esac
 
