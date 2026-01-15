@@ -186,7 +186,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Validate inputs
         id: validate
@@ -430,7 +430,7 @@ jobs:
 
       - name: Checkout hardening-workflows scripts
         if: always()
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ env.HARDENING_WORKFLOWS_REPO_PATH }}
           ref: ${{ inputs.hardening_workflows_ref || env.HARDENING_WORKFLOWS_REF }}
@@ -458,7 +458,7 @@ jobs:
 
       - name: Upload scan summary
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: scanner-summary-zap-${{ steps.validate.outputs.artifact_prefix }}
           path: scanner-summaries/zap.md
