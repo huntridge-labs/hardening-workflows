@@ -160,10 +160,6 @@ on:
         required: false
         type: boolean
         default: false
-      hardening_workflows_ref:
-        description: 'Git ref for hardening-workflows repo'
-        required: false
-        type: string
     secrets:
       registry_password:
         description: 'Registry password/token for private images'
@@ -175,8 +171,8 @@ permissions:
   pull-requests: write
 
 env:
-  HARDENING_WORKFLOWS_REPO_PATH: huntridge-labs/hardening-workflows
-  HARDENING_WORKFLOWS_REF: 2.11.0 # RELEASE-IT-VERSION-PLACEHOLDER
+  # Use current branch/PR when testing in hardening-workflows repo, otherwise use release tag
+  HRL_REF: ${{ github.repository == 'huntridge-labs/hardening-workflows' && (github.head_ref || github.ref_name) || '2.11.0' }}
 
 jobs:
   zap-scan:
@@ -432,8 +428,8 @@ jobs:
         if: always()
         uses: actions/checkout@v6
         with:
-          repository: ${{ env.HARDENING_WORKFLOWS_REPO_PATH }}
-          ref: ${{ inputs.hardening_workflows_ref || env.HARDENING_WORKFLOWS_REF }}
+          repository: huntridge-labs/hardening-workflows
+          ref: ${{ env.HRL_REF }}
           path: .hardening-workflows
           token: ${{ github.token }}
           sparse-checkout: |

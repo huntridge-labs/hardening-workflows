@@ -157,6 +157,8 @@ env:
   AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
   AWS_REGION: ${{ inputs.aws_region }}
   PYTHON_VERSION: ${{ inputs.python_version }}
+  # Use current branch/PR when testing in hardening-workflows repo, otherwise use release tag
+  HRL_REF: ${{ github.repository == 'huntridge-labs/hardening-workflows' && (github.head_ref || github.ref_name) || '2.11.0' }}
 
 jobs:
   scan-coordinator:
@@ -492,7 +494,7 @@ jobs:
     name: Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_container == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@fix/checkout-hardening-workflows
     with:
       # Disable individual container PR comments - security-summary job provides comprehensive reporting
       post_pr_comment: false
@@ -829,7 +831,7 @@ jobs:
       uses: actions/checkout@v6
       with:
         repository: huntridge-labs/hardening-workflows
-        ref: 2.11.0
+        ref: ${{ env.HRL_REF }}
         path: .hardening-workflows
         token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |

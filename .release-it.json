@@ -135,7 +135,6 @@
         {
           "files": [
             ".github/workflows/scanner-clamav.yml",
-            ".github/workflows/linting.yml",
             ".github/workflows/reusable-security-hardening.yml"
           ],
           "search": {
@@ -146,29 +145,17 @@
         },
         {
           "files": [
-            ".github/workflows/container-scan.yml"
-          ],
-          "search": {
-            "pattern": "(hardening_workflows_ref:[\\s\\S]*?default: ')[^']+('.*# RELEASE-IT-VERSION-PLACEHOLDER)"
-          },
-          "replace": "${1}{{version}}${2}"
-        },
-        {
-          "files": [
-            ".github/workflows/container-scan-from-config.yml"
-          ],
-          "search": {
-            "pattern": "(hardening_workflows_ref: \\$\\{\\{ inputs\\.hardening_workflows_ref \\|\\| ')[^']+('.*# RELEASE-IT-VERSION-PLACEHOLDER)"
-          },
-          "replace": "${1}{{version}}${2}"
-        },
-        {
-          "files": [
+            ".github/workflows/scanner-zap.yml",
+            ".github/workflows/linting.yml",
+            ".github/workflows/container-scan.yml",
             ".github/workflows/container-scan-from-config.yml",
-            ".github/workflows/scanner-zap.yml"
+            ".github/workflows/reusable-security-hardening.yml",
+            ".github/workflows/pr-reusable-security-hardening.yml",
+            ".github/workflows/scanner-clamav.yml"
           ],
           "search": {
-            "pattern": "(HARDENING_WORKFLOWS_REF: )[^\\s]+( # RELEASE-IT-VERSION-PLACEHOLDER)"
+            "pattern": "(HRL_REF:.*\\|\\| ')[^']+('.*}})",
+            "flags": "g"
           },
           "replace": "${1}{{version}}${2}"
         },
