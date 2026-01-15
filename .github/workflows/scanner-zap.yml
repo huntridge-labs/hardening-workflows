@@ -176,7 +176,7 @@ permissions:
 
 env:
   HARDENING_WORKFLOWS_REPO_PATH: huntridge-labs/hardening-workflows
-  HARDENING_WORKFLOWS_REF: feat/zap-scanner
+  HARDENING_WORKFLOWS_REF: feat/zap-scanner # RELEASE-IT-VERSION-PLACEHOLDER
 
 jobs:
   zap-scan:

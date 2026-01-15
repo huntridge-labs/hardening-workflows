@@ -165,7 +165,8 @@
         },
         {
           "files": [
-            ".github/workflows/container-scan-from-config.yml"
+            ".github/workflows/container-scan-from-config.yml",
+            ".github/workflows/scanner-zap.yml"
           ],
           "search": {
             "pattern": "(HARDENING_WORKFLOWS_REF: )[^\\s]+( # RELEASE-IT-VERSION-PLACEHOLDER)"
