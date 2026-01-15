@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.11.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.10.0...2.11.0) (2026-01-15)
+
+### Features
+
+* Enhance ZAP scanning workflows with multiple methods and configuration options ([a8ee3fa](https://github.com/huntridge-labs/hardening-workflows/commit/a8ee3fa9ba44053ca294cf4fe3f30c64e13acb4d))
+* **husky:** enhance commit hooks with environment checks and improved error handling ([af495b0](https://github.com/huntridge-labs/hardening-workflows/commit/af495b0b80b857598bc45e7173d6eebcc46e95ca))
+* **zap:** add ZAP DAST scanner with config-file support ([79dbc29](https://github.com/huntridge-labs/hardening-workflows/commit/79dbc2998a0c6f83e77d44176ea38fc67bd15fe0))
+
+### Bug Fixes
+
+* **release-it.json:** scanner-zap.yml version not updaing ([0c90612](https://github.com/huntridge-labs/hardening-workflows/commit/0c90612a2e82a418ff795084dc6bbf9fcef18837))
+
+### Maintenance
+
+* **dependencies:** update ajv, ajv-formats, and js-yaml versions ([83a617a](https://github.com/huntridge-labs/hardening-workflows/commit/83a617a972eaaa4f268d9eb083594c37ac2d3d83))
+* **example-zap:** update workflow to default to 'all' scan type and enhance condition checks ([7f2b5ec](https://github.com/huntridge-labs/hardening-workflows/commit/7f2b5ec147b2e10d4f546e29e22a4c9ecf7de45f))
+* **release-it.json:** remove extra scanner-zap config ([b17a6f9](https://github.com/huntridge-labs/hardening-workflows/commit/b17a6f9c978fe39da0774c3ac4130ff4ab647b3a))
+* **scanner-zap:** add example workflow for ZAP scanning methods and update config examples ([4987a9a](https://github.com/huntridge-labs/hardening-workflows/commit/4987a9aa27bdbf61c2f3304ff86dc4a7bb881c11))
+* **scanner-zap:** enhance matrix output with combined group metadata ([eee09f5](https://github.com/huntridge-labs/hardening-workflows/commit/eee09f5a9d5f227e0fe33d4fd159e1c422596cb3))
+* **scanner-zap:** generate unique prefix from all inputs ([c5a663f](https://github.com/huntridge-labs/hardening-workflows/commit/c5a663f0283b4342f126c453af7f78cbce7adeac))
+* **scanner-zap:** refactor matrix variable usage in workflow and parser ([fcb64d0](https://github.com/huntridge-labs/hardening-workflows/commit/fcb64d0469bb8441b37e2f2550c0364c6265c2e0))
+* **scanner-zap:** rename output variable for post PR comment in ZAP workflow ([8748562](https://github.com/huntridge-labs/hardening-workflows/commit/874856229a7816c3593a9c5bbbc8060ef6163ac1))
+* **scanner-zap:** update ZAP risk code handling to match severity levels ([681011b](https://github.com/huntridge-labs/hardening-workflows/commit/681011b88c189f26f1198708ae650bfb6176dca0))
+* **scanner-zap:** update ZAP risk code mapping to reflect 1:1 severity levels ([1257c3a](https://github.com/huntridge-labs/hardening-workflows/commit/1257c3aa84d53c5b0f36987405246cfc1519239b))
+* **test-zap:** add security-events permission for enhanced security handling ([a79b7c0](https://github.com/huntridge-labs/hardening-workflows/commit/a79b7c0178758c0e57765988ecb8a70d08b80723))
+* **zap-config.example:** update fail_on_severity settings to 'none' for all scans ([683fd64](https://github.com/huntridge-labs/hardening-workflows/commit/683fd64d30916e0a15371e3cb1c33b08ef799a54))
+* **zap-config:** add inputs to defaults w/override options ([7f4023e](https://github.com/huntridge-labs/hardening-workflows/commit/7f4023e430e727344b0e4bffed9382d2f3d68056))
+* **zap:** add example ZAP DAST scan workflow for Podinfo application ([8bb9b3f](https://github.com/huntridge-labs/hardening-workflows/commit/8bb9b3f2f58be2a23476f28fe8b8dee83c8c3394))
+
+
+### Documentation
+
+* add security policy and reporting guidelines ([07ad4c8](https://github.com/huntridge-labs/hardening-workflows/commit/07ad4c8f82aa2bdba8b86ca4b96992e19832143f))
+* update license information from MIT to AGPL v3 ([68a6dcc](https://github.com/huntridge-labs/hardening-workflows/commit/68a6dcc93460e51dd478893a4597e4fd610b7fd4))
+
 ## [2.10.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.9.1...2.10.0) (2026-01-05)
 
 ### Features

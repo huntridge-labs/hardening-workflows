@@ -84,7 +84,7 @@ on:
         description: 'Ref (branch/tag) of hardening-workflows to use for composite actions. Pass github.action_ref from calling workflow for nested calls.'
         required: false
         type: string
-        default: '2.10.0'  # RELEASE-IT-VERSION-PLACEHOLDER
+        default: '2.11.0'  # RELEASE-IT-VERSION-PLACEHOLDER
     secrets:
       registry_password:
         description: 'Password or token for authenticating to private container registry'
