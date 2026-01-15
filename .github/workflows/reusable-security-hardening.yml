@@ -399,6 +399,7 @@ jobs:
       actions: read
       pull-requests: write
       checks: write
+    secrets: inherit
 
   scanner-codeql:
     name: CodeQL Scanner

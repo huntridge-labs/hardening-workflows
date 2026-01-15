@@ -191,6 +191,7 @@ jobs:
         repository: huntridge-labs/hardening-workflows
         ref: ${{ inputs.hardening_workflows_ref }}
         path: .hardening-workflows
+        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |
           .github/actions/container-scanners
 
@@ -311,6 +312,7 @@ jobs:
         repository: huntridge-labs/hardening-workflows
         ref: ${{ inputs.hardening_workflows_ref }}
         path: .hardening-workflows
+        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |
           .github/actions/container-scanners
 
