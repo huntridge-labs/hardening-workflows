@@ -385,23 +385,29 @@ jobs:
             exit 0
           fi
 
-          # ZAP risk codes: 3=High, 2=Medium, 1=Low, 0=Informational
-          zap_high=$(jq -r '[..|objects|select(has("riskcode"))|.riskcode|tonumber] | map(select(.==3)) | length' "$report" 2>/dev/null || echo "0")
-          zap_med=$(jq -r '[..|objects|select(has("riskcode"))|.riskcode|tonumber] | map(select(.==2)) | length' "$report" 2>/dev/null || echo "0")
-          zap_low=$(jq -r '[..|objects|select(has("riskcode"))|.riskcode|tonumber] | map(select(.==1)) | length' "$report" 2>/dev/null || echo "0")
+          # ZAP risk codes mapped to severity levels (matches parse-zap-results.sh):
+          #   riskcode 3 (ZAP High)          -> Critical
+          #   riskcode 2 (ZAP Medium)        -> High
+          #   riskcode 1 (ZAP Low)           -> Medium
+          #   riskcode 0 (ZAP Informational) -> Low
+          critical=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "3")] | length' "$report" 2>/dev/null || echo "0")
+          high=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "2")] | length' "$report" 2>/dev/null || echo "0")
+          medium=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "1")] | length' "$report" 2>/dev/null || echo "0")
+          low=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "0")] | length' "$report" 2>/dev/null || echo "0")
 
           fail_on="${{ inputs.fail_on_severity }}"
-          echo "ZAP alerts: High=$zap_high Medium=$zap_med Low=$zap_low (threshold: $fail_on)"
+          echo "Alerts: Critical=$critical High=$high Medium=$medium Low=$low (threshold: $fail_on)"
 
           should_fail=false
           case "$fail_on" in
-            low) [[ $((zap_high+zap_med+zap_low)) -gt 0 ]] && should_fail=true ;;
-            medium) [[ $((zap_high+zap_med)) -gt 0 ]] && should_fail=true ;;
-            high|critical) [[ $zap_high -gt 0 ]] && should_fail=true ;;
+            low) [[ $((critical+high+medium+low)) -gt 0 ]] && should_fail=true ;;
+            medium) [[ $((critical+high+medium)) -gt 0 ]] && should_fail=true ;;
+            high) [[ $((critical+high)) -gt 0 ]] && should_fail=true ;;
+            critical) [[ $critical -gt 0 ]] && should_fail=true ;;
           esac
 
           if [[ "$should_fail" == "true" ]]; then
-            echo "ZAP findings at or above '$fail_on' detected"
+            echo "Findings at or above '$fail_on' detected"
             exit 1
           fi
           echo "No findings at or above '$fail_on'"
