@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.11.1](https://github.com/huntridge-labs/hardening-workflows/compare/2.11.0...2.11.1) (2026-01-16)
+
+### Bug Fixes
+
+* **checkout hardening-worflows:** missing checkout token ([547e773](https://github.com/huntridge-labs/hardening-workflows/commit/547e7738a7dd899b2cec5313bd56d5f46bd2836a))
+* **container-scan.yml:** handle root directory case in Dockerfile naming ([e1b6f0d](https://github.com/huntridge-labs/hardening-workflows/commit/e1b6f0d4b1b094f602aa42b56a5f149357a4a669))
+* **scanner-zap:** missing use of secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN ([544b7f0](https://github.com/huntridge-labs/hardening-workflows/commit/544b7f0c00f49dedf3fe4ccc494fd36f8884f96b))
+
+### Security Tools
+
+* **deps:** bump anchore/sbom-action from 0.21.0 to 0.21.1 ([0fec108](https://github.com/huntridge-labs/hardening-workflows/commit/0fec1088c835be00bf40977f3d433ffa6b9bcefd))
+
+### Dependencies
+
+* **deps:** bump the github-actions-major group across 1 directory with 4 updates ([cc81382](https://github.com/huntridge-labs/hardening-workflows/commit/cc81382e83faaedcce1673971346fbebf833925c))
+
+### Maintenance
+
+* **release-it.json:** remove deprecated version replacement ([7290611](https://github.com/huntridge-labs/hardening-workflows/commit/7290611a480a3532d8dafdcad133b011d792e641))
+
+
+### Code Refactoring
+
+* **workflows:** simplify hardening workflows checkout ref ([8e289c6](https://github.com/huntridge-labs/hardening-workflows/commit/8e289c6301a4c58d9c79f62ea1582e0974fcb0be))
+
 ## [2.11.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.10.0...2.11.0) (2026-01-15)
 
 ### Features

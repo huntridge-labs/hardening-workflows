@@ -158,7 +158,7 @@ env:
   AWS_REGION: ${{ inputs.aws_region }}
   PYTHON_VERSION: ${{ inputs.python_version }}
   # Use current branch/PR when testing in hardening-workflows repo, otherwise use release tag
-  HRL_REF: ${{ github.repository == 'huntridge-labs/hardening-workflows' && (github.head_ref || github.ref_name) || '2.11.0' }}
+  HRL_REF: ${{ github.repository == 'huntridge-labs/hardening-workflows' && (github.head_ref || github.ref_name) || '2.11.1' }}
 
 jobs:
   scan-coordinator:
@@ -395,7 +395,7 @@ jobs:
     name: Code Quality & Linting
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_lint == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@2.11.1
     permissions:
       contents: read
       actions: read
@@ -407,7 +407,7 @@ jobs:
     name: CodeQL Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_codeql == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@2.11.1
     with:
       codeql_languages: ${{ inputs.codeql_languages }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -423,7 +423,7 @@ jobs:
     name: OpenGrep Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_opengrep == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@2.11.1
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -439,7 +439,7 @@ jobs:
     name: Bandit Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_bandit == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@2.11.1
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -455,7 +455,7 @@ jobs:
     name: Gitleaks Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_gitleaks == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@2.11.1
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -477,7 +477,7 @@ jobs:
     name: ClamAV Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_clamav == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-clamav.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-clamav.yml@2.11.1
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -494,7 +494,7 @@ jobs:
     name: Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_container == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@fix/checkout-hardening-workflows
+    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@2.11.1
     with:
       # Disable individual container PR comments - security-summary job provides comprehensive reporting
       post_pr_comment: false
@@ -511,7 +511,7 @@ jobs:
     name: Infrastructure Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_infrastructure == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/infrastructure-scan.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/infrastructure-scan.yml@2.11.1
     with:
       iac_path: ${{ inputs.iac_path }}
       python_version: ${{ inputs.python_version }}
@@ -529,7 +529,7 @@ jobs:
     name: SBOM Generator
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_sbom == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@2.11.1
     with:
       enable_code_security: ${{ inputs.enable_code_security }}
     permissions:
@@ -543,7 +543,7 @@ jobs:
     name: Trivy IaC Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_trivy_iac == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@2.11.1
     with:
       iac_path: ${{ inputs.iac_path }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -560,7 +560,7 @@ jobs:
     name: Checkov Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_checkov == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@2.11.1
     with:
       iac_path: ${{ inputs.iac_path }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -577,7 +577,7 @@ jobs:
     name: Trivy Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_trivy_container == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@2.11.1
     with:
       image_ref: 'nginx:latest'
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -594,7 +594,7 @@ jobs:
     name: Grype Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_grype == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@2.11.1
     with:
       image_ref: 'nginx:latest'
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -611,7 +611,7 @@ jobs:
     name: ZAP (DAST) Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_zap == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-zap.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-zap.yml@2.11.1
     with:
       scan_mode: ${{ inputs.zap_scan_mode }}
       scan_type: ${{ inputs.zap_scan_type }}

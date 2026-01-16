@@ -10,7 +10,7 @@ on: [push]
 
 jobs:
   sast:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.11.1
     with:
       scanners: codeql
     permissions:
@@ -26,7 +26,7 @@ on: [pull_request]
 
 jobs:
   hardening:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.11.1
     with:
       scanners: all
       post_pr_comment: true
@@ -46,7 +46,7 @@ on: [pull_request]
 
 jobs:
   hardening:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.11.1
     with:
       scanners: all
       allow_failure: false        # Enable failure mode
@@ -68,7 +68,7 @@ on: [push]
 
 jobs:
   security:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.11.1
     with:
       scanners: container,infrastructure,gitleaks
       aws_region: us-west-2
@@ -89,7 +89,7 @@ on:
 
 jobs:
   nightly:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.11.1
     with:
       scanners: all
       post_pr_comment: false
@@ -107,14 +107,14 @@ on: [pull_request]
 
 jobs:
   trivy-iac:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@2.11.1
     with:
       iac_path: 'infrastructure'
       enable_code_security: true
       fail_on_severity: high  # Fail on high or critical
 
   checkov:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@2.11.1
     with:
       iac_path: 'infrastructure'
       fail_on_severity: medium  # Stricter threshold
@@ -130,7 +130,7 @@ on:
 
 jobs:
   scan-image:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@2.11.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@2.11.1
     with:
       image_ref: 'myapp:${{ github.sha }}'
       enable_code_security: true
