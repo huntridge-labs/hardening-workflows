@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
-* **release-it.json:** scanner-zap.yml version not updaing ([0c90612](https://github.com/huntridge-labs/hardening-workflows/commit/0c90612a2e82a418ff795084dc6bbf9fcef18837))
+* **release-it.json:** scanner-zap.yml version not updating ([0c90612](https://github.com/huntridge-labs/hardening-workflows/commit/0c90612a2e82a418ff795084dc6bbf9fcef18837))
 
 ### Maintenance
 

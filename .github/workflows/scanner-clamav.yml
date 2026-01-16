@@ -3,10 +3,6 @@ name: ClamAV Malware Scanner
 on:
   workflow_dispatch:
   workflow_call:
-    secrets:
-      HARDENING_WORKFLOWS_CHECKOUT_TOKEN:
-        description: 'Token for checking out hardening-workflows repo (required for private GHE servers)'
-        required: false
     inputs:
       post_pr_comment:
         description: 'Whether to post PR comments'
@@ -28,12 +24,20 @@ on:
         required: false
         type: string
         default: 'none'
+    secrets:
+      HARDENING_WORKFLOWS_CHECKOUT_TOKEN:
+        description: 'Token for checking out hardening-workflows repo (required for private GHE servers)'
+        required: false
 
 permissions:
   contents: read
   security-events: write
   actions: read
   pull-requests: write
+
+env:
+  # Use current branch/PR when testing in hardening-workflows repo, otherwise use release tag
+  HRL_REF: ${{ github.repository == 'huntridge-labs/hardening-workflows' && (github.head_ref || github.ref_name) || '2.11.0' }}
 
 jobs:
   malware-detection:
@@ -52,7 +56,7 @@ jobs:
       uses: actions/checkout@v6
       with:
         repository: huntridge-labs/hardening-workflows
-        ref: 2.11.0
+        ref: ${{ env.HRL_REF }}
         path: .hardening-workflows
         token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |

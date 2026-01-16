@@ -69,7 +69,6 @@ jobs:
     uses: ./.github/workflows/container-scan-from-config.yml
     with:
       config_file: 'examples/container-config.example.yml'
-      hardening_workflows_ref: ${{ github.sha }}
     secrets: inherit
 
   # Test 3: Validate results

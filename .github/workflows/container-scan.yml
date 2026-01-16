@@ -80,11 +80,6 @@ on:
         required: false
         type: boolean
         default: false
-      hardening_workflows_ref:
-        description: 'Ref (branch/tag) of hardening-workflows to use for composite actions. Pass github.action_ref from calling workflow for nested calls.'
-        required: false
-        type: string
-        default: '2.11.0'  # RELEASE-IT-VERSION-PLACEHOLDER
     secrets:
       registry_password:
         description: 'Password or token for authenticating to private container registry'
@@ -98,6 +93,10 @@ permissions:
   security-events: write
   actions: read
   pull-requests: write
+
+env:
+  # Use current branch/PR when testing in hardening-workflows repo, otherwise use release tag
+  HRL_REF: ${{ github.repository == 'huntridge-labs/hardening-workflows' && (github.head_ref || github.ref_name) || '2.11.0' }}
 
 jobs:
   # Discover containers in this repository (skipped in remote mode)
@@ -140,6 +139,11 @@ jobs:
           # Extract directory and create container info
           dir=$(dirname "$dockerfile")
           name=$(basename "$dir")
+
+          # Handle root directory case - use repo/project name
+          if [ "$name" = "." ]; then
+            name=$(basename "$(pwd)")
+          fi
 
           # Handle special cases for naming
           if [[ "$dockerfile" == *"vulnerable"* ]]; then
@@ -189,8 +193,9 @@ jobs:
       uses: actions/checkout@v6
       with:
         repository: huntridge-labs/hardening-workflows
-        ref: ${{ inputs.hardening_workflows_ref }}
+        ref: ${{ env.HRL_REF }}
         path: .hardening-workflows
+        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |
           .github/actions/container-scanners
 
@@ -309,8 +314,9 @@ jobs:
       uses: actions/checkout@v6
       with:
         repository: huntridge-labs/hardening-workflows
-        ref: ${{ inputs.hardening_workflows_ref }}
+        ref: ${{ env.HRL_REF }}
         path: .hardening-workflows
+        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |
           .github/actions/container-scanners
 
@@ -400,7 +406,7 @@ jobs:
       uses: actions/checkout@v6
       with:
         repository: huntridge-labs/hardening-workflows
-        ref: ${{ inputs.hardening_workflows_ref }}
+        ref: ${{ env.HRL_REF }}
         path: .hardening-workflows
         token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |

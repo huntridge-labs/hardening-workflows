@@ -27,11 +27,6 @@ name: Container Scan from Config
 #
 # IMPORTANT: You MUST use 'secrets: inherit' for this to work.
 # This allows the workflow to dynamically access whichever secret your config references.
-#
-# For GHE/forked repos:
-# - Update HARDENING_WORKFLOWS_REPO_PATH env var to your fork
-# - Update HARDENING_WORKFLOWS_REF to your desired version
-# - Update the 'uses:' line in scan-containers job (can't use env vars there)
 
 on:
   workflow_dispatch:
@@ -48,10 +43,6 @@ on:
         required: false
         default: 'examples/container-config.example.yml'
         type: string
-      hardening_workflows_ref:
-        description: 'Git ref for hardening-workflows repo (for testing PRs)'
-        required: false
-        type: string
     # No explicit secrets declared - callers MUST use 'secrets: inherit'
     # This allows dynamic secret resolution via secrets[matrix.registry_auth_secret]
 
@@ -62,11 +53,8 @@ permissions:
   pull-requests: write
 
 env:
-  # ⚠️ GHE FORKS: Update this to your forked repo path (e.g., 'my-org/hardening-workflows')
-  #               You must also update the 'uses:' line in scan-containers job below
-  HARDENING_WORKFLOWS_REPO_PATH: huntridge-labs/hardening-workflows
-  # For GHE forks: Update this to your desired ref/tag
-  HARDENING_WORKFLOWS_REF: 2.11.0 # RELEASE-IT-VERSION-PLACEHOLDER
+  # Use current branch/PR when testing in hardening-workflows repo, otherwise use release tag
+  HRL_REF: ${{ github.repository == 'huntridge-labs/hardening-workflows' && (github.head_ref || github.ref_name) || '2.11.0' }}
 
 jobs:
   parse-config:
@@ -82,8 +70,8 @@ jobs:
       - name: Checkout hardening-workflows for parser script
         uses: actions/checkout@v6
         with:
-          repository: ${{ env.HARDENING_WORKFLOWS_REPO_PATH }}
-          ref: ${{ env.HARDENING_WORKFLOWS_REF }}
+          repository: huntridge-labs/hardening-workflows
+          ref: ${{ env.HRL_REF }}
           path: .hardening-workflows
           token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
           sparse-checkout: |
@@ -128,7 +116,7 @@ jobs:
       max-parallel: 5
       matrix: ${{ fromJson(needs.parse-config.outputs.matrix) }}
     # ⚠️ GHE FORKS: Update this path manually - 'uses:' cannot use env vars (GitHub limitation)
-    # Keep in sync with HARDENING_WORKFLOWS_REPO_PATH and HARDENING_WORKFLOWS_REF above
+    # Keep in sync with HRL_REF above
     uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@2.11.0
     with:
       scan_mode: 'remote'
@@ -140,9 +128,6 @@ jobs:
       enable_code_security: ${{ matrix.enable_code_security }}
       # Disable individual PR comments - the summary job posts a comprehensive comment for all containers
       post_pr_comment: false
-      # Pass caller's ref or our ref so nested workflow can checkout the same version
-      # Note: github.action_ref doesn't work for nested reusable workflows - use hardcoded fallback
-      hardening_workflows_ref: ${{ inputs.hardening_workflows_ref || '2.11.0' }}  # RELEASE-IT-VERSION-PLACEHOLDER
     secrets:
       registry_password: ${{ secrets[matrix.registry_auth_secret] }}
 
@@ -163,8 +148,8 @@ jobs:
       - name: Checkout hardening-workflows for scripts
         uses: actions/checkout@v6
         with:
-          repository: ${{ env.HARDENING_WORKFLOWS_REPO_PATH }}
-          ref: ${{ env.HARDENING_WORKFLOWS_REF }}
+          repository: huntridge-labs/hardening-workflows
+          ref: ${{ env.HRL_REF }}
           path: .hardening-workflows
           token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
           sparse-checkout: |

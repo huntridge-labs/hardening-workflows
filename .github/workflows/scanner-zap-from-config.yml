@@ -45,10 +45,6 @@ on:
         description: 'Path to ZAP config file (YAML, JSON, or JS)'
         required: true
         type: string
-      hardening_workflows_ref:
-        description: 'Git ref for hardening-workflows repo (for testing PRs)'
-        required: false
-        type: string
     # No explicit secrets declared - callers MUST use 'secrets: inherit'
 
 permissions:
@@ -58,8 +54,8 @@ permissions:
   pull-requests: write
 
 env:
-  HARDENING_WORKFLOWS_REPO_PATH: huntridge-labs/hardening-workflows
-  HARDENING_WORKFLOWS_REF: feat/zap-scanner
+  # Use current branch/PR when testing in hardening-workflows repo, otherwise use release tag
+  HRL_REF: ${{ github.repository == 'huntridge-labs/hardening-workflows' && (github.head_ref || github.ref_name) || '2.11.0' }}
 
 jobs:
   parse-config:
@@ -90,8 +86,8 @@ jobs:
       - name: Checkout hardening-workflows for parser
         uses: actions/checkout@v6
         with:
-          repository: ${{ env.HARDENING_WORKFLOWS_REPO_PATH }}
-          ref: ${{ inputs.hardening_workflows_ref || env.HARDENING_WORKFLOWS_REF }}
+          repository: huntridge-labs/hardening-workflows
+          ref: ${{ env.HRL_REF }}
           path: .hardening-workflows
           token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
           sparse-checkout: |
@@ -348,8 +344,8 @@ jobs:
       - name: Checkout hardening-workflows scripts
         uses: actions/checkout@v6
         with:
-          repository: ${{ env.HARDENING_WORKFLOWS_REPO_PATH }}
-          ref: ${{ inputs.hardening_workflows_ref || env.HARDENING_WORKFLOWS_REF }}
+          repository: huntridge-labs/hardening-workflows
+          ref: ${{ env.HRL_REF }}
           path: .hardening-workflows
           token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
           sparse-checkout: |
