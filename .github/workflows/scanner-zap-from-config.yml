@@ -85,10 +85,10 @@ jobs:
       config_hash: ${{ steps.parse.outputs.config_hash }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Checkout hardening-workflows for parser
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ env.HARDENING_WORKFLOWS_REPO_PATH }}
           ref: ${{ inputs.hardening_workflows_ref || env.HARDENING_WORKFLOWS_REF }}
@@ -99,7 +99,7 @@ jobs:
             .github/schemas/zap-config.schema.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
 
@@ -133,7 +133,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Login to registry
         if: matrix.registry_auth_secret != ''
@@ -346,7 +346,7 @@ jobs:
     if: always()
     steps:
       - name: Checkout hardening-workflows scripts
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ env.HARDENING_WORKFLOWS_REPO_PATH }}
           ref: ${{ inputs.hardening_workflows_ref || env.HARDENING_WORKFLOWS_REF }}
@@ -357,7 +357,7 @@ jobs:
             .github/scripts/generate-zap-summary.sh
 
       - name: Download ZAP artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: zap-reports-${{ needs.parse-config.outputs.config_hash }}-*
           path: zap-downloads
@@ -375,7 +375,7 @@ jobs:
 
       - name: Upload scanner summary
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: scanner-summary-zap-${{ needs.parse-config.outputs.config_hash }}
           path: scanner-summaries/zap.md

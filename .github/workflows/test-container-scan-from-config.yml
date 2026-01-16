@@ -28,10 +28,10 @@ jobs:
       has_containers: ${{ steps.parse.outputs.has_containers }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
 
@@ -80,7 +80,7 @@ jobs:
     if: always()
     steps:
       - name: Download scan artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         continue-on-error: true
         with:
           pattern: container-scan-results-*
