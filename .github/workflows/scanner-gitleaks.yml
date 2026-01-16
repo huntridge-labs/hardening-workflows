@@ -69,6 +69,7 @@ jobs:
         fetch-depth: 0
 
     - name: Run Gitleaks Secrets Detection
+      id: gitleaks-scan
       uses: gitleaks/gitleaks-action@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -78,7 +79,7 @@ jobs:
         GITLEAKS_ENABLE_SUMMARY: ${{ inputs.gitleaks_enable_summary }}
         GITLEAKS_ENABLE_UPLOAD_ARTIFACT: ${{ inputs.gitleaks_enable_upload_artifact }}
         GITLEAKS_CONFIG: ${{ inputs.gitleaks_config }}
-      continue-on-error: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
+      continue-on-error: true
 
     - name: Organize Gitleaks results
       run: |
@@ -92,7 +93,6 @@ jobs:
         fi
         echo "Generated Gitleaks files:"
         ls -la gitleaks-reports/ || echo "No files generated"
-      continue-on-error: true
 
     - name: Upload Gitleaks artifacts
       uses: actions/upload-artifact@v6
@@ -159,3 +159,28 @@ jobs:
         path: scanner-summaries/gitleaks.md
         retention-days: 7
       continue-on-error: true
+
+    - name: Analyze Gitleaks findings
+      if: always()
+      run: |
+        echo "📊 Analyzing Gitleaks scan results..."
+
+        SECRET_COUNT=0
+
+        # Count secrets from results files
+        if [ -f "gitleaks-reports/results.json" ]; then
+          SECRET_COUNT=$(jq 'length' gitleaks-reports/results.json 2>/dev/null || echo "0")
+        elif [ -f "gitleaks-reports/results.sarif" ]; then
+          SECRET_COUNT=$(jq '[.runs[]?.results[]?] | length' gitleaks-reports/results.sarif 2>/dev/null || echo "0")
+        fi
+
+        echo "Secrets detected: $SECRET_COUNT"
+
+        if [ "$SECRET_COUNT" -gt 0 ]; then
+          echo "⚠️ WARNING: $SECRET_COUNT potential secret(s) detected!"
+          echo "::warning title=Secrets Detected::Gitleaks found $SECRET_COUNT potential secret(s) in the repository"
+          exit 1
+        else
+          echo "✅ No secrets detected"
+        fi
+      continue-on-error: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
