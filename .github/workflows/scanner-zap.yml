@@ -164,6 +164,9 @@ on:
       registry_password:
         description: 'Registry password/token for private images'
         required: false
+      HARDENING_WORKFLOWS_CHECKOUT_TOKEN:
+        description: 'Token for checking out hardening-workflows repo (required for private GHE servers)'
+        required: false
 
 permissions:
   contents: read
@@ -431,7 +434,7 @@ jobs:
           repository: huntridge-labs/hardening-workflows
           ref: ${{ env.HRL_REF }}
           path: .hardening-workflows
-          token: ${{ github.token }}
+          token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
           sparse-checkout: |
             .github/scripts/parse-zap-results.sh
             .github/scripts/generate-zap-summary.sh
