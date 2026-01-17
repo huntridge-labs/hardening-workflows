@@ -28,8 +28,11 @@ class ATOComplianceReportGenerator:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.output_format = output_format.lower()
 
-        if self.output_format not in self.SUPPORTED_FORMATS:
-            raise ValueError(f"Unsupported format: {output_format}. Supported: {', '.join(self.SUPPORTED_FORMATS)}")
+        # Validate each format in comma-separated list
+        formats = [f.strip() for f in self.output_format.split(',')]
+        for fmt in formats:
+            if fmt not in self.SUPPORTED_FORMATS:
+                raise ValueError(f"Unsupported format: {fmt}. Supported: {', '.join(self.SUPPORTED_FORMATS)}")
 
         with open(mapping_file, 'r') as f:
             self.mapping = json.load(f)
