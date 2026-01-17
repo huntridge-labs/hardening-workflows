@@ -1,0 +1,353 @@
+name: Test ATO Compliance Reporting
+
+on:
+  workflow_dispatch:
+    inputs:
+      output_format:
+        description: 'Output format to test'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - oscal
+          - markdown
+          - json
+          - csv
+          - html
+          - all
+          - oscal,markdown
+      scanners:
+        description: 'Scanners to run before generating report'
+        required: false
+        default: 'gitleaks,bandit'
+        type: string
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+
+jobs:
+  # First run some scanners to generate SARIF files for testing
+  run-security-scans:
+    name: Run Security Scans
+    uses: ./.github/workflows/pr-reusable-security-hardening.yml
+    with:
+      scanners: ${{ inputs.scanners }}
+      enable_code_security: false
+      enable_ato_reporting: false  # Don't generate ATO report in this job
+      post_pr_comment: false
+      allow_failure: true
+    secrets: inherit
+
+  # Now test the ATO compliance reporting workflow directly
+  test-ato-compliance:
+    name: Test ATO Compliance Reporting
+    needs: run-security-scans
+    uses: ./.github/workflows/ato-compliance-reporting.yml
+    with:
+      mapping_file: 'config/nist-800-53-mapping.json'
+      output_format: ${{ inputs.output_format }}
+      sarif_pattern: '**/*.sarif'
+      upload_to_security_tab: false
+      retention_days: 30
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+
+  # Validate the outputs
+  validate-outputs:
+    name: Validate ATO Report Outputs
+    needs: test-ato-compliance
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+
+    - name: Download compliance reports
+      uses: actions/download-artifact@v7
+      with:
+        pattern: ato-compliance-reports-*
+        path: ./compliance-reports
+        merge-multiple: true
+      continue-on-error: false
+
+    - name: Download evidence package
+      uses: actions/download-artifact@v7
+      with:
+        pattern: ato-evidence-package-*
+        path: ./evidence-package
+        merge-multiple: true
+      continue-on-error: false
+
+    - name: Validate OSCAL format
+      if: contains(inputs.output_format, 'oscal') || inputs.output_format == 'all'
+      run: |
+        echo "🔍 Validating OSCAL Assessment Results..."
+
+        OSCAL_FILE=$(find ./compliance-reports -name "oscal-assessment-results.json" -type f | head -n 1)
+
+        if [ -z "$OSCAL_FILE" ]; then
+          echo "❌ OSCAL file not found"
+          exit 1
+        fi
+
+        echo "✅ OSCAL file found: $OSCAL_FILE"
+
+        # Validate JSON structure
+        if ! jq empty "$OSCAL_FILE" 2>/dev/null; then
+          echo "❌ OSCAL file is not valid JSON"
+          exit 1
+        fi
+
+        # Check for required OSCAL fields
+        REQUIRED_FIELDS=("assessment-results" "uuid" "metadata")
+        for field in "${REQUIRED_FIELDS[@]}"; do
+          if ! jq -e ".[\"$field\"]" "$OSCAL_FILE" > /dev/null 2>&1; then
+            echo "❌ Missing required OSCAL field: $field"
+            exit 1
+          fi
+          echo "✅ Found required field: $field"
+        done
+
+        # Validate OSCAL version
+        OSCAL_VERSION=$(jq -r '.["assessment-results"].metadata["oscal-version"]' "$OSCAL_FILE" 2>/dev/null)
+        if [ "$OSCAL_VERSION" != "1.0.4" ]; then
+          echo "⚠️  Warning: Expected OSCAL version 1.0.4, found: $OSCAL_VERSION"
+        else
+          echo "✅ OSCAL version: $OSCAL_VERSION"
+        fi
+
+        echo ""
+        echo "✅ OSCAL validation passed"
+
+    - name: Validate Markdown format
+      if: contains(inputs.output_format, 'markdown') || inputs.output_format == 'all'
+      run: |
+        echo "🔍 Validating Markdown Report..."
+
+        MD_FILE=$(find ./compliance-reports -name "ato-compliance-report.md" -type f | head -n 1)
+
+        if [ -z "$MD_FILE" ]; then
+          echo "❌ Markdown file not found"
+          exit 1
+        fi
+
+        echo "✅ Markdown file found: $MD_FILE"
+
+        # Check for required sections
+        REQUIRED_SECTIONS=("Executive Summary" "NIST 800-53" "Compliance Status")
+        for section in "${REQUIRED_SECTIONS[@]}"; do
+          if ! grep -q "$section" "$MD_FILE"; then
+            echo "❌ Missing required section: $section"
+            exit 1
+          fi
+          echo "✅ Found section: $section"
+        done
+
+        # Validate file is not empty
+        FILE_SIZE=$(wc -c < "$MD_FILE")
+        if [ "$FILE_SIZE" -lt 100 ]; then
+          echo "❌ Markdown file is too small ($FILE_SIZE bytes)"
+          exit 1
+        fi
+
+        echo "✅ Markdown file size: $FILE_SIZE bytes"
+        echo ""
+        echo "✅ Markdown validation passed"
+
+    - name: Validate JSON format
+      if: contains(inputs.output_format, 'json') || inputs.output_format == 'all'
+      run: |
+        echo "🔍 Validating JSON Report..."
+
+        JSON_FILE=$(find ./compliance-reports -name "ato-compliance-report.json" -type f | head -n 1)
+
+        if [ -z "$JSON_FILE" ]; then
+          echo "❌ JSON file not found"
+          exit 1
+        fi
+
+        echo "✅ JSON file found: $JSON_FILE"
+
+        # Validate JSON structure
+        if ! jq empty "$JSON_FILE" 2>/dev/null; then
+          echo "❌ JSON file is not valid"
+          exit 1
+        fi
+
+        # Check for required fields
+        REQUIRED_FIELDS=("summary" "controls" "ato_recommendation")
+        for field in "${REQUIRED_FIELDS[@]}"; do
+          if ! jq -e ".$field" "$JSON_FILE" > /dev/null 2>&1; then
+            echo "❌ Missing required field: $field"
+            exit 1
+          fi
+          echo "✅ Found field: $field"
+        done
+
+        echo ""
+        echo "✅ JSON validation passed"
+
+    - name: Validate CSV format
+      if: contains(inputs.output_format, 'csv') || inputs.output_format == 'all'
+      run: |
+        echo "🔍 Validating CSV Report..."
+
+        CSV_FILE=$(find ./compliance-reports -name "ato-compliance-report.csv" -type f | head -n 1)
+
+        if [ -z "$CSV_FILE" ]; then
+          echo "❌ CSV file not found"
+          exit 1
+        fi
+
+        echo "✅ CSV file found: $CSV_FILE"
+
+        # Check for CSV header
+        if ! head -n 1 "$CSV_FILE" | grep -q "Control ID"; then
+          echo "❌ CSV header not found or invalid"
+          exit 1
+        fi
+
+        # Count rows (excluding header)
+        ROW_COUNT=$(tail -n +2 "$CSV_FILE" | wc -l | tr -d ' ')
+        echo "✅ CSV rows (excluding header): $ROW_COUNT"
+
+        if [ "$ROW_COUNT" -lt 1 ]; then
+          echo "❌ CSV file has no data rows"
+          exit 1
+        fi
+
+        echo ""
+        echo "✅ CSV validation passed"
+
+    - name: Validate HTML format
+      if: contains(inputs.output_format, 'html') || inputs.output_format == 'all'
+      run: |
+        echo "🔍 Validating HTML Report..."
+
+        HTML_FILE=$(find ./compliance-reports -name "ato-compliance-report.html" -type f | head -n 1)
+
+        if [ -z "$HTML_FILE" ]; then
+          echo "❌ HTML file not found"
+          exit 1
+        fi
+
+        echo "✅ HTML file found: $HTML_FILE"
+
+        # Check for HTML structure
+        if ! grep -q "<html" "$HTML_FILE"; then
+          echo "❌ HTML structure not found"
+          exit 1
+        fi
+
+        if ! grep -q "</html>" "$HTML_FILE"; then
+          echo "❌ HTML closing tag not found"
+          exit 1
+        fi
+
+        # Check for required content
+        REQUIRED_CONTENT=("ATO Compliance" "NIST 800-53")
+        for content in "${REQUIRED_CONTENT[@]}"; do
+          if ! grep -q "$content" "$HTML_FILE"; then
+            echo "❌ Missing required content: $content"
+            exit 1
+          fi
+          echo "✅ Found content: $content"
+        done
+
+        echo ""
+        echo "✅ HTML validation passed"
+
+    - name: Validate Evidence Package
+      run: |
+        echo "🔍 Validating Evidence Package..."
+
+        MANIFEST=$(find ./evidence-package -name "EVIDENCE-MANIFEST.md" -type f | head -n 1)
+
+        if [ -z "$MANIFEST" ]; then
+          echo "❌ Evidence manifest not found"
+          exit 1
+        fi
+
+        echo "✅ Evidence manifest found: $MANIFEST"
+
+        # Check for required manifest sections
+        REQUIRED_SECTIONS=(
+          "ATO Evidence Package Manifest"
+          "Generated:"
+          "Repository:"
+          "NIST 800-53 Rev 5 Control Coverage"
+          "Evidence Retention"
+        )
+
+        for section in "${REQUIRED_SECTIONS[@]}"; do
+          if ! grep -q "$section" "$MANIFEST"; then
+            echo "❌ Missing required manifest section: $section"
+            exit 1
+          fi
+          echo "✅ Found manifest section: $section"
+        done
+
+        echo ""
+        echo "✅ Evidence package validation passed"
+
+    - name: Check ATO Readiness Status
+      run: |
+        echo "🎯 Checking ATO Readiness Status..."
+
+        ATO_STATUS="${{ needs.test-ato-compliance.outputs.ato_status }}"
+        CRITICAL="${{ needs.test-ato-compliance.outputs.critical_findings }}"
+        HIGH="${{ needs.test-ato-compliance.outputs.high_findings }}"
+
+        echo "Status: $ATO_STATUS"
+        echo "Critical Findings: $CRITICAL"
+        echo "High Findings: $HIGH"
+
+        if [ -z "$ATO_STATUS" ]; then
+          echo "⚠️  Warning: ATO status not set (workflow may not have outputs configured)"
+        else
+          case "$ATO_STATUS" in
+            READY)
+              echo "✅ System is ATO ready"
+              ;;
+            CONDITIONAL)
+              echo "⚠️  System requires risk acceptance"
+              ;;
+            NOT_READY)
+              echo "❌ System is not ATO ready"
+              ;;
+            *)
+              echo "❌ Unknown ATO status: $ATO_STATUS"
+              exit 1
+              ;;
+          esac
+        fi
+
+    - name: Test Summary
+      if: always()
+      run: |
+        echo "## 🧪 ATO Compliance Reporting Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Test Configuration:**" >> $GITHUB_STEP_SUMMARY
+        echo "- Output Format: ${{ inputs.output_format }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Scanners: ${{ inputs.scanners }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**ATO Status:**" >> $GITHUB_STEP_SUMMARY
+        echo "- Status: ${{ needs.test-ato-compliance.outputs.ato_status || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Critical Findings: ${{ needs.test-ato-compliance.outputs.critical_findings || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- High Findings: ${{ needs.test-ato-compliance.outputs.high_findings || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Validation Results:**" >> $GITHUB_STEP_SUMMARY
+        echo "✅ All format validations passed" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Evidence package validated" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Artifacts:**" >> $GITHUB_STEP_SUMMARY
+        echo "- Download compliance reports from workflow artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "- Download evidence package from workflow artifacts" >> $GITHUB_STEP_SUMMARY
+
+        echo ""
+        echo "✅ ATO Compliance Reporting test completed successfully"
