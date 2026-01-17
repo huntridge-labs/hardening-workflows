@@ -34,6 +34,8 @@ permissions:
   security-events: write
   actions: read
   pull-requests: write
+  checks: write
+  id-token: write
 
 jobs:
   # First run some scanners to generate SARIF files for testing
