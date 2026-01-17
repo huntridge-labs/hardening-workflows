@@ -65,6 +65,7 @@ jobs:
       contents: read
       actions: read
       security-events: write
+      pull-requests: write
 
   # Validate the outputs
   validate-outputs:
