@@ -31,7 +31,10 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "full",
-          "evidence_artifacts": ["codeql-sarif", "codeql-summary"]
+          "evidence_artifacts": [
+            "codeql-sarif",
+            "codeql-summary"
+          ]
         },
         {
           "control_id": "SA-11(1)",
@@ -43,7 +46,9 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "full",
-          "evidence_artifacts": ["codeql-sarif"]
+          "evidence_artifacts": [
+            "codeql-sarif"
+          ]
         },
         {
           "control_id": "SI-10",
@@ -55,7 +60,9 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "partial",
-          "evidence_artifacts": ["codeql-sarif"]
+          "evidence_artifacts": [
+            "codeql-sarif"
+          ]
         }
       ]
     },
@@ -76,7 +83,10 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "full",
-          "evidence_artifacts": ["gitleaks-sarif", "gitleaks-summary"]
+          "evidence_artifacts": [
+            "gitleaks-sarif",
+            "gitleaks-summary"
+          ]
         },
         {
           "control_id": "IA-5",
@@ -88,7 +98,9 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "full",
-          "evidence_artifacts": ["gitleaks-sarif"]
+          "evidence_artifacts": [
+            "gitleaks-sarif"
+          ]
         },
         {
           "control_id": "IA-5(1)",
@@ -100,7 +112,9 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "partial",
-          "evidence_artifacts": ["gitleaks-sarif"]
+          "evidence_artifacts": [
+            "gitleaks-sarif"
+          ]
         },
         {
           "control_id": "SC-28",
@@ -112,7 +126,9 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "partial",
-          "evidence_artifacts": ["gitleaks-sarif"]
+          "evidence_artifacts": [
+            "gitleaks-sarif"
+          ]
         },
         {
           "control_id": "AU-9",
@@ -124,7 +140,9 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "partial",
-          "evidence_artifacts": ["gitleaks-sarif"]
+          "evidence_artifacts": [
+            "gitleaks-sarif"
+          ]
         }
       ]
     },
@@ -145,7 +163,10 @@
           "test_method": "automated",
           "test_frequency": "on-build",
           "coverage_level": "full",
-          "evidence_artifacts": ["trivy-container-sarif", "trivy-container-summary"]
+          "evidence_artifacts": [
+            "trivy-container-sarif",
+            "trivy-container-summary"
+          ]
         },
         {
           "control_id": "RA-5",
@@ -157,7 +178,9 @@
           "test_method": "automated",
           "test_frequency": "on-build",
           "coverage_level": "full",
-          "evidence_artifacts": ["trivy-container-sarif"]
+          "evidence_artifacts": [
+            "trivy-container-sarif"
+          ]
         },
         {
           "control_id": "RA-5(5)",
@@ -169,7 +192,9 @@
           "test_method": "automated",
           "test_frequency": "on-build",
           "coverage_level": "full",
-          "evidence_artifacts": ["trivy-container-sarif"]
+          "evidence_artifacts": [
+            "trivy-container-sarif"
+          ]
         },
         {
           "control_id": "CM-8",
@@ -181,7 +206,9 @@
           "test_method": "automated",
           "test_frequency": "on-build",
           "coverage_level": "partial",
-          "evidence_artifacts": ["trivy-container-sarif"]
+          "evidence_artifacts": [
+            "trivy-container-sarif"
+          ]
         },
         {
           "control_id": "CM-8(3)",
@@ -193,7 +220,9 @@
           "test_method": "automated",
           "test_frequency": "on-build",
           "coverage_level": "partial",
-          "evidence_artifacts": ["trivy-container-sarif"]
+          "evidence_artifacts": [
+            "trivy-container-sarif"
+          ]
         }
       ]
     },
@@ -214,7 +243,10 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "full",
-          "evidence_artifacts": ["trivy-iac-sarif", "trivy-iac-summary"]
+          "evidence_artifacts": [
+            "trivy-iac-sarif",
+            "trivy-iac-summary"
+          ]
         },
         {
           "control_id": "CM-6",
@@ -226,7 +258,9 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "full",
-          "evidence_artifacts": ["trivy-iac-sarif"]
+          "evidence_artifacts": [
+            "trivy-iac-sarif"
+          ]
         },
         {
           "control_id": "SC-7",
@@ -238,7 +272,9 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "partial",
-          "evidence_artifacts": ["trivy-iac-sarif"]
+          "evidence_artifacts": [
+            "trivy-iac-sarif"
+          ]
         },
         {
           "control_id": "SC-7(3)",
@@ -250,7 +286,9 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "partial",
-          "evidence_artifacts": ["trivy-iac-sarif"]
+          "evidence_artifacts": [
+            "trivy-iac-sarif"
+          ]
         }
       ]
     },
@@ -271,7 +309,10 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "full",
-          "evidence_artifacts": ["checkov-sarif", "checkov-summary"]
+          "evidence_artifacts": [
+            "checkov-sarif",
+            "checkov-summary"
+          ]
         },
         {
           "control_id": "CM-6",
@@ -283,7 +324,9 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "full",
-          "evidence_artifacts": ["checkov-sarif"]
+          "evidence_artifacts": [
+            "checkov-sarif"
+          ]
         },
         {
           "control_id": "AC-6",
@@ -295,7 +338,9 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "partial",
-          "evidence_artifacts": ["checkov-sarif"]
+          "evidence_artifacts": [
+            "checkov-sarif"
+          ]
         },
         {
           "control_id": "SC-28",
@@ -307,7 +352,9 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "partial",
-          "evidence_artifacts": ["checkov-sarif"]
+          "evidence_artifacts": [
+            "checkov-sarif"
+          ]
         }
       ]
     },
@@ -328,7 +375,10 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "partial",
-          "evidence_artifacts": ["bandit-sarif", "bandit-summary"]
+          "evidence_artifacts": [
+            "bandit-sarif",
+            "bandit-summary"
+          ]
         },
         {
           "control_id": "SI-16",
@@ -340,7 +390,9 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "partial",
-          "evidence_artifacts": ["bandit-sarif"]
+          "evidence_artifacts": [
+            "bandit-sarif"
+          ]
         }
       ]
     },
@@ -361,7 +413,10 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "full",
-          "evidence_artifacts": ["opengrep-sarif", "opengrep-summary"]
+          "evidence_artifacts": [
+            "opengrep-sarif",
+            "opengrep-summary"
+          ]
         },
         {
           "control_id": "SI-10",
@@ -373,7 +428,9 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "partial",
-          "evidence_artifacts": ["opengrep-sarif"]
+          "evidence_artifacts": [
+            "opengrep-sarif"
+          ]
         }
       ]
     },
@@ -394,7 +451,10 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "full",
-          "evidence_artifacts": ["clamav-sarif", "clamav-summary"]
+          "evidence_artifacts": [
+            "clamav-sarif",
+            "clamav-summary"
+          ]
         },
         {
           "control_id": "SI-3(2)",
@@ -406,7 +466,9 @@
           "test_method": "automated",
           "test_frequency": "on-scan",
           "coverage_level": "full",
-          "evidence_artifacts": ["clamav-sarif"]
+          "evidence_artifacts": [
+            "clamav-sarif"
+          ]
         },
         {
           "control_id": "SI-4",
@@ -418,7 +480,9 @@
           "test_method": "automated",
           "test_frequency": "on-commit",
           "coverage_level": "partial",
-          "evidence_artifacts": ["clamav-sarif"]
+          "evidence_artifacts": [
+            "clamav-sarif"
+          ]
         }
       ]
     },
@@ -439,7 +503,10 @@
           "test_method": "automated",
           "test_frequency": "on-build",
           "coverage_level": "full",
-          "evidence_artifacts": ["grype-sarif", "grype-summary"]
+          "evidence_artifacts": [
+            "grype-sarif",
+            "grype-summary"
+          ]
         },
         {
           "control_id": "RA-5",
@@ -451,7 +518,9 @@
           "test_method": "automated",
           "test_frequency": "on-build",
           "coverage_level": "full",
-          "evidence_artifacts": ["grype-sarif"]
+          "evidence_artifacts": [
+            "grype-sarif"
+          ]
         }
       ]
     },
@@ -472,7 +541,10 @@
           "test_method": "automated",
           "test_frequency": "on-build",
           "coverage_level": "full",
-          "evidence_artifacts": ["sbom-cyclonedx", "sbom-spdx"]
+          "evidence_artifacts": [
+            "sbom-cyclonedx",
+            "sbom-spdx"
+          ]
         },
         {
           "control_id": "SR-4",
@@ -484,7 +556,10 @@
           "test_method": "automated",
           "test_frequency": "on-build",
           "coverage_level": "partial",
-          "evidence_artifacts": ["sbom-cyclonedx", "sbom-spdx"]
+          "evidence_artifacts": [
+            "sbom-cyclonedx",
+            "sbom-spdx"
+          ]
         },
         {
           "control_id": "SR-4(1)",
@@ -496,7 +571,10 @@
           "test_method": "automated",
           "test_frequency": "on-build",
           "coverage_level": "partial",
-          "evidence_artifacts": ["sbom-cyclonedx", "sbom-spdx"]
+          "evidence_artifacts": [
+            "sbom-cyclonedx",
+            "sbom-spdx"
+          ]
         },
         {
           "control_id": "SR-11",
@@ -508,7 +586,10 @@
           "test_method": "automated",
           "test_frequency": "on-build",
           "coverage_level": "partial",
-          "evidence_artifacts": ["sbom-cyclonedx", "sbom-spdx"]
+          "evidence_artifacts": [
+            "sbom-cyclonedx",
+            "sbom-spdx"
+          ]
         },
         {
           "control_id": "SA-15(9)",
@@ -520,7 +601,10 @@
           "test_method": "automated",
           "test_frequency": "on-build",
           "coverage_level": "partial",
-          "evidence_artifacts": ["sbom-cyclonedx", "sbom-spdx"]
+          "evidence_artifacts": [
+            "sbom-cyclonedx",
+            "sbom-spdx"
+          ]
         }
       ]
     }

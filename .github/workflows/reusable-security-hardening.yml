@@ -988,7 +988,7 @@ jobs:
       - scanner-grype
       - security-summary
     if: always() && inputs.enable_ato_reporting == true
-    uses: huntridge-labs/hardening-workflows/.github/workflows/ato-compliance-reporting.yml@2.10.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/ato-compliance-reporting.yml@continuous-ato-mapping
     with:
       mapping_file: ${{ inputs.ato_compliance_mapping_file }}
       output_format: ${{ inputs.ato_report_format }}

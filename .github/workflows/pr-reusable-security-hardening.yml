@@ -524,6 +524,7 @@ jobs:
       # Disable individual container PR comments - security-summary job provides comprehensive reporting
       post_pr_comment: false
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -541,6 +542,7 @@ jobs:
       python_version: ${{ inputs.python_version }}
       aws_region: ${{ inputs.aws_region }}
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write

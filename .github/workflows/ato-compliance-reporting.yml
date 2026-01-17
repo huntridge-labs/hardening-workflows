@@ -28,6 +28,16 @@ on:
         required: false
         default: 365
         type: number
+    outputs:
+      ato_status:
+        description: 'ATO readiness status: READY, CONDITIONAL, or NOT_READY'
+        value: ${{ jobs.generate-ato-compliance-report.outputs.ato_status }}
+      critical_findings:
+        description: 'Number of critical severity findings'
+        value: ${{ jobs.generate-ato-compliance-report.outputs.critical_findings }}
+      high_findings:
+        description: 'Number of high severity findings'
+        value: ${{ jobs.generate-ato-compliance-report.outputs.high_findings }}
   workflow_dispatch:
     inputs:
       output_format:
@@ -58,6 +68,10 @@ jobs:
   generate-ato-compliance-report:
     name: Generate ATO Compliance Report
     runs-on: ubuntu-latest
+    outputs:
+      ato_status: ${{ steps.ato_status.outputs.ato_status }}
+      critical_findings: ${{ steps.ato_status.outputs.critical_findings }}
+      high_findings: ${{ steps.ato_status.outputs.high_findings }}
 
     steps:
     - name: Checkout repository
@@ -380,14 +394,3 @@ jobs:
             });
             console.log('Created new ATO compliance comment');
           }
-
-    outputs:
-      ato_status:
-        description: 'ATO readiness status: READY, CONDITIONAL, or NOT_READY'
-        value: ${{ steps.ato_status.outputs.ato_status }}
-      critical_findings:
-        description: 'Number of critical severity findings'
-        value: ${{ steps.ato_status.outputs.critical_findings }}
-      high_findings:
-        description: 'Number of high severity findings'
-        value: ${{ steps.ato_status.outputs.high_findings }}

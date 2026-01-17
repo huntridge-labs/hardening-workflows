@@ -1,6 +1,13 @@
 name: Test ATO Compliance Reporting
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/ato-compliance-reporting.yml'
+      - '.github/workflows/test-ato-compliance-reporting.yml'
+      - '.github/scripts/generate-ato-compliance-report.py'
+      - 'config/nist-800-53-mapping.json'
   workflow_dispatch:
     inputs:
       output_format:
@@ -51,7 +58,7 @@ jobs:
       output_format: ${{ inputs.output_format }}
       sarif_pattern: '**/*.sarif'
       upload_to_security_tab: false
-      retention_days: 30
+      retention_days: 1
     permissions:
       contents: read
       actions: read
