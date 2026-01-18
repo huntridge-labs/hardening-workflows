@@ -61,9 +61,7 @@ jobs:
       if: inputs.codeql_languages == ''
       uses: actions/checkout@v6
       with:
-        sparse-checkout: |
-          .
-        sparse-checkout-cone-mode: false
+        fetch-depth: 1
 
     - name: Generate matrix
       id: set-matrix
