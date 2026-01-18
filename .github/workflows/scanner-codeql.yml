@@ -5,10 +5,30 @@ on:
   workflow_call:
     inputs:
       codeql_languages:
-        description: 'Comma-separated list of languages for CodeQL analysis (e.g., "python,javascript" or "python")'
+        description: 'Comma-separated list of languages for CodeQL analysis (e.g., "python,javascript"). Leave empty for auto-detection.'
         required: false
         type: string
-        default: 'python,javascript'
+        default: ''
+      config_file:
+        description: 'Path to CodeQL config file. Leave empty to auto-detect project config or generate one.'
+        required: false
+        type: string
+        default: ''
+      query_suite:
+        description: 'CodeQL query suite to use (security-extended, security-and-quality, or default). Ignored if config_file is set.'
+        required: false
+        type: string
+        default: 'security-extended,security-and-quality'
+      scan_paths:
+        description: 'Comma-separated list of paths to scan (empty = scan everything). Ignored if config_file is set.'
+        required: false
+        type: string
+        default: ''
+      ignore_paths:
+        description: 'Comma-separated list of paths to ignore. Ignored if config_file is set.'
+        required: false
+        type: string
+        default: '**/node_modules/**,**/venv/**,**/__pycache__/**'
       post_pr_comment:
         description: 'Whether to post PR comments'
         required: false
@@ -35,17 +55,92 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
+      detected_languages: ${{ steps.set-matrix.outputs.detected_languages }}
     steps:
+    - name: Checkout for language detection
+      if: inputs.codeql_languages == ''
+      uses: actions/checkout@v6
+      with:
+        sparse-checkout: |
+          .
+        sparse-checkout-cone-mode: false
+
     - name: Generate matrix
       id: set-matrix
       run: |
-        # Parse the codeql_languages input (comma-separated)
         LANGUAGES="${{ inputs.codeql_languages }}"
+
+        # Auto-detect languages if not specified
         if [ -z "$LANGUAGES" ]; then
-          LANGUAGES="python,javascript"
+          echo "🔍 Auto-detecting languages..."
+          DETECTED=""
+
+          # Check for Python files
+          if find . -name "*.py" -type f | head -1 | grep -q .; then
+            DETECTED="${DETECTED}python,"
+            echo "  ✅ Python detected"
+          fi
+
+          # Check for JavaScript/TypeScript files
+          if find . \( -name "*.js" -o -name "*.ts" -o -name "*.jsx" -o -name "*.tsx" \) -type f -not -path "*/node_modules/*" | head -1 | grep -q .; then
+            DETECTED="${DETECTED}javascript,"
+            echo "  ✅ JavaScript/TypeScript detected"
+          fi
+
+          # Check for Go files
+          if find . -name "*.go" -type f | head -1 | grep -q .; then
+            DETECTED="${DETECTED}go,"
+            echo "  ✅ Go detected"
+          fi
+
+          # Check for Java files
+          if find . -name "*.java" -type f | head -1 | grep -q .; then
+            DETECTED="${DETECTED}java,"
+            echo "  ✅ Java detected"
+          fi
+
+          # Check for C/C++ files
+          if find . \( -name "*.c" -o -name "*.cpp" -o -name "*.cc" -o -name "*.h" -o -name "*.hpp" \) -type f | head -1 | grep -q .; then
+            DETECTED="${DETECTED}cpp,"
+            echo "  ✅ C/C++ detected"
+          fi
+
+          # Check for C# files
+          if find . -name "*.cs" -type f | head -1 | grep -q .; then
+            DETECTED="${DETECTED}csharp,"
+            echo "  ✅ C# detected"
+          fi
+
+          # Check for Ruby files
+          if find . -name "*.rb" -type f | head -1 | grep -q .; then
+            DETECTED="${DETECTED}ruby,"
+            echo "  ✅ Ruby detected"
+          fi
+
+          # Check for Swift files
+          if find . -name "*.swift" -type f | head -1 | grep -q .; then
+            DETECTED="${DETECTED}swift,"
+            echo "  ✅ Swift detected"
+          fi
+
+          # Check for Kotlin files
+          if find . -name "*.kt" -type f | head -1 | grep -q .; then
+            DETECTED="${DETECTED}kotlin,"
+            echo "  ✅ Kotlin detected"
+          fi
+
+          # Remove trailing comma
+          LANGUAGES=$(echo "$DETECTED" | sed 's/,$//')
+
+          if [ -z "$LANGUAGES" ]; then
+            echo "⚠️ No supported languages detected, defaulting to python,javascript"
+            LANGUAGES="python,javascript"
+          fi
+
+          echo "detected_languages=$LANGUAGES" >> $GITHUB_OUTPUT
         fi
 
-        echo "Input languages: $LANGUAGES"
+        echo "Languages to analyze: $LANGUAGES"
 
         # Validate languages and remove spaces
         LANGUAGES=$(echo "$LANGUAGES" | tr -d ' ')
@@ -83,11 +178,106 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v6
 
+    - name: Detect or generate CodeQL config
+      id: codeql-config
+      run: |
+        # Priority order:
+        # 1. Explicit config_file input
+        # 2. Project's existing config (auto-detect common locations)
+        # 3. Generate a config from inputs
+
+        INPUT_CONFIG="${{ inputs.config_file }}"
+
+        # Check if explicit config was provided
+        if [ -n "$INPUT_CONFIG" ]; then
+          if [ -f "$INPUT_CONFIG" ]; then
+            echo "✅ Using explicit config: $INPUT_CONFIG"
+            echo "config_file=$INPUT_CONFIG" >> $GITHUB_OUTPUT
+            echo "config_source=explicit" >> $GITHUB_OUTPUT
+            cat "$INPUT_CONFIG"
+            exit 0
+          else
+            echo "⚠️ Specified config file not found: $INPUT_CONFIG"
+            echo "Falling back to auto-detection..."
+          fi
+        fi
+
+        # Auto-detect project's existing config
+        PROJECT_CONFIGS=(
+          ".github/codeql/codeql-config.yml"
+          ".github/codeql/codeql-config.yaml"
+          ".github/codeql-config.yml"
+          ".github/codeql-config.yaml"
+          "codeql-config.yml"
+          "codeql-config.yaml"
+        )
+
+        for config in "${PROJECT_CONFIGS[@]}"; do
+          if [ -f "$config" ]; then
+            echo "✅ Found project CodeQL config: $config"
+            echo "config_file=$config" >> $GITHUB_OUTPUT
+            echo "config_source=project" >> $GITHUB_OUTPUT
+            cat "$config"
+            exit 0
+          fi
+        done
+
+        echo "📝 No existing config found, generating from inputs..."
+        echo "config_source=generated" >> $GITHUB_OUTPUT
+
+        # Generate config from inputs
+        mkdir -p .codeql-generated
+        CONFIG_FILE=".codeql-generated/codeql-config.yml"
+
+        echo "name: Generated CodeQL Config" > "$CONFIG_FILE"
+        echo "" >> "$CONFIG_FILE"
+
+        # Add query suite if specified (not 'default')
+        QUERY_SUITE="${{ inputs.query_suite }}"
+        if [ -n "$QUERY_SUITE" ] && [ "$QUERY_SUITE" != "default" ]; then
+          echo "queries:" >> "$CONFIG_FILE"
+          # Split comma-separated suites
+          IFS=',' read -ra SUITES <<< "$QUERY_SUITE"
+          for suite in "${SUITES[@]}"; do
+            suite=$(echo "$suite" | tr -d ' ')
+            echo "  - uses: $suite" >> "$CONFIG_FILE"
+          done
+          echo "" >> "$CONFIG_FILE"
+        fi
+
+        # Add paths to scan if specified
+        SCAN_PATHS="${{ inputs.scan_paths }}"
+        if [ -n "$SCAN_PATHS" ]; then
+          echo "paths:" >> "$CONFIG_FILE"
+          IFS=',' read -ra PATHS <<< "$SCAN_PATHS"
+          for p in "${PATHS[@]}"; do
+            p=$(echo "$p" | tr -d ' ')
+            echo "  - '$p'" >> "$CONFIG_FILE"
+          done
+          echo "" >> "$CONFIG_FILE"
+        fi
+
+        # Add paths to ignore
+        IGNORE_PATHS="${{ inputs.ignore_paths }}"
+        if [ -n "$IGNORE_PATHS" ]; then
+          echo "paths-ignore:" >> "$CONFIG_FILE"
+          IFS=',' read -ra IPATHS <<< "$IGNORE_PATHS"
+          for p in "${IPATHS[@]}"; do
+            p=$(echo "$p" | tr -d ' ')
+            echo "  - '$p'" >> "$CONFIG_FILE"
+          done
+        fi
+
+        echo "📋 Generated CodeQL config:"
+        cat "$CONFIG_FILE"
+        echo "config_file=$CONFIG_FILE" >> $GITHUB_OUTPUT
+
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v4
       with:
         languages: ${{ matrix.language }}
-        config-file: ./.github/codeql/codeql-config.yml
+        config-file: ${{ steps.codeql-config.outputs.config_file }}
+        queries: ${{ steps.codeql-config.outputs.config_source == 'generated' && inputs.query_suite != 'default' && inputs.query_suite || '' }}
         tools: latest
 
     - name: Debug - Show files to analyze

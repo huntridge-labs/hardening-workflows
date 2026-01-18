@@ -39,9 +39,29 @@ on:
         default: true
         type: boolean
       codeql_languages:
-        description: 'Comma-separated list of languages for CodeQL analysis (e.g., "python,javascript" or "python")'
+        description: 'Comma-separated list of languages for CodeQL analysis (e.g., "python,javascript"). Leave empty for auto-detection.'
         required: false
-        default: 'python,javascript'
+        default: ''
+        type: string
+      codeql_config_file:
+        description: 'Path to CodeQL config file. Leave empty to auto-detect project config or generate one.'
+        required: false
+        default: ''
+        type: string
+      codeql_query_suite:
+        description: 'CodeQL query suite to use (security-extended, security-and-quality, or default). Ignored if codeql_config_file is set.'
+        required: false
+        default: 'security-extended,security-and-quality'
+        type: string
+      codeql_scan_paths:
+        description: 'Comma-separated list of paths to scan (empty = scan everything). Ignored if codeql_config_file is set.'
+        required: false
+        default: ''
+        type: string
+      codeql_ignore_paths:
+        description: 'Comma-separated list of paths to ignore. Ignored if codeql_config_file is set.'
+        required: false
+        default: '**/node_modules/**,**/venv/**,**/__pycache__/**'
         type: string
       enable_code_security:
         description: 'Whether GitHub Code Security is enabled for this repository (required for CodeQL scanning)'
@@ -415,6 +435,10 @@ jobs:
     uses: ./.github/workflows/scanner-codeql.yml
     with:
       codeql_languages: ${{ inputs.codeql_languages }}
+      config_file: ${{ inputs.codeql_config_file }}
+      query_suite: ${{ inputs.codeql_query_suite }}
+      scan_paths: ${{ inputs.codeql_scan_paths }}
+      ignore_paths: ${{ inputs.codeql_ignore_paths }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
     permissions:
