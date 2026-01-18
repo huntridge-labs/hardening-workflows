@@ -288,7 +288,7 @@ jobs:
           fi
           echo "" >> "$output"
 
-          if [ -d "sarif" ] && [ "$(ls -A sarif 2>/dev/null)" ] || [ -d "sarif-json" ] && [ "$(ls -A sarif-json 2>/dev/null)" ]; then
+          if [ -d "codeql-reports/sarif" ] && [ "$(ls -A codeql-reports/sarif 2>/dev/null)" ] || [ -d "codeql-reports/sarif-json" ] && [ "$(ls -A codeql-reports/sarif-json 2>/dev/null)" ]; then
             if [ "$is_pr_comment" = "true" ]; then
               echo "**Status:** ✅ Completed" >> "$output"
               echo "" >> "$output"
@@ -305,10 +305,10 @@ jobs:
             LOW_COUNT=0
 
             # Prefer sarif-json directory if it exists, otherwise use sarif
-            SCAN_DIR="sarif-json"
+            SCAN_DIR="codeql-reports/sarif-json"
             FILE_EXT="json"
             if [ ! -d "$SCAN_DIR" ] || [ -z "$(ls -A $SCAN_DIR 2>/dev/null)" ]; then
-              SCAN_DIR="sarif"
+              SCAN_DIR="codeql-reports/sarif"
               FILE_EXT="sarif"
             fi
 
