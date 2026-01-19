@@ -564,9 +564,13 @@ jobs:
                 note=$(jq -r '[.runs[]?.results[]? | select(.level == "note")] | length' "$scan_file" 2>/dev/null || echo "0")
                 NOTE_COUNT=$((NOTE_COUNT + note))
 
-                # Count by security-severity (CVSS score) using robust lookup approach
-                # Build a map of rule IDs to severity, then count results matching each threshold
-                # Critical: >= 9.0, High: >= 7.0, Medium: >= 4.0, Low: > 0 and < 4.0
+                # Count by security-severity (CVSS score) with SARIF level fallback
+                # Priority: CVSS score if available, otherwise use SARIF level
+                # Critical: CVSS >= 9.0
+                # High: CVSS >= 7.0, OR (no CVSS AND level == "error")
+                # Medium: CVSS >= 4.0, OR (no CVSS AND level == "warning")
+                # Low: CVSS > 0 and < 4.0, OR (no CVSS AND level == "note")
+
                 critical=$(jq -r '
                   [.runs[]? as $run |
                    ($run.tool.driver.rules // [] | map({(.id): .properties["security-severity"]}) | add // {}) as $rule_sev |
@@ -575,42 +579,45 @@ jobs:
                    select($severity >= 9.0)] | length' "$scan_file" 2>/dev/null || echo "0")
                 CRITICAL_COUNT=$((CRITICAL_COUNT + critical))
 
+                # High: CVSS >= 7.0 OR (no CVSS AND SARIF level "error")
                 high=$(jq -r '
                   [.runs[]? as $run |
                    ($run.tool.driver.rules // [] | map({(.id): .properties["security-severity"]}) | add // {}) as $rule_sev |
                    $run.results[]? |
                    (($rule_sev[.ruleId] // "0") | tonumber) as $severity |
-                   select($severity >= 7.0 and $severity < 9.0)] | length' "$scan_file" 2>/dev/null || echo "0")
+                   select(($severity >= 7.0 and $severity < 9.0) or ($severity == 0 and .level == "error"))] | length' "$scan_file" 2>/dev/null || echo "0")
                 HIGH_COUNT=$((HIGH_COUNT + high))
 
+                # Medium: CVSS >= 4.0 OR (no CVSS AND SARIF level "warning" or null)
                 medium=$(jq -r '
                   [.runs[]? as $run |
                    ($run.tool.driver.rules // [] | map({(.id): .properties["security-severity"]}) | add // {}) as $rule_sev |
                    $run.results[]? |
                    (($rule_sev[.ruleId] // "0") | tonumber) as $severity |
-                   select($severity >= 4.0 and $severity < 7.0)] | length' "$scan_file" 2>/dev/null || echo "0")
+                   select(($severity >= 4.0 and $severity < 7.0) or ($severity == 0 and (.level == "warning" or .level == null)))] | length' "$scan_file" 2>/dev/null || echo "0")
                 MEDIUM_COUNT=$((MEDIUM_COUNT + medium))
 
+                # Low: CVSS > 0 and < 4.0 OR (no CVSS AND SARIF level "note")
                 low=$(jq -r '
                   [.runs[]? as $run |
                    ($run.tool.driver.rules // [] | map({(.id): .properties["security-severity"]}) | add // {}) as $rule_sev |
                    $run.results[]? |
                    (($rule_sev[.ruleId] // "0") | tonumber) as $severity |
-                   select($severity > 0 and $severity < 4.0)] | length' "$scan_file" 2>/dev/null || echo "0")
+                   select(($severity > 0 and $severity < 4.0) or ($severity == 0 and .level == "note"))] | length' "$scan_file" 2>/dev/null || echo "0")
                 LOW_COUNT=$((LOW_COUNT + low))
               fi
             done
 
-            # Calculate informational/code quality count (no security-severity)
-            INFO_COUNT=$((ISSUE_COUNT - CRITICAL_COUNT - HIGH_COUNT - MEDIUM_COUNT - LOW_COUNT))
-            if [ $INFO_COUNT -lt 0 ]; then INFO_COUNT=0; fi
+            # No more "info" bucket - all findings are now categorized by CVSS or SARIF level fallback
 
             # Overall Summary Table (by security severity)
             echo "### 📊 Findings Summary" >> "$output"
             echo "" >> "$output"
-            echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | ℹ️ Info | 📦 Total |" >> "$output"
-            echo "|-------------|---------|-----------|---------|---------|----------|" >> "$output"
-            echo "| **$CRITICAL_COUNT** | **$HIGH_COUNT** | **$MEDIUM_COUNT** | **$LOW_COUNT** | **$INFO_COUNT** | **$ISSUE_COUNT** |" >> "$output"
+            echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📦 Total |" >> "$output"
+            echo "|-------------|---------|-----------|---------|----------|" >> "$output"
+            echo "| **$CRITICAL_COUNT** | **$HIGH_COUNT** | **$MEDIUM_COUNT** | **$LOW_COUNT** | **$ISSUE_COUNT** |" >> "$output"
+            echo "" >> "$output"
+            echo "_Severity: CVSS score when available, otherwise SARIF level (error→High, warning→Medium, note→Low)_" >> "$output"
             echo "" >> "$output"
 
             # Also show by SARIF level
@@ -672,92 +679,69 @@ jobs:
                     $run.results[]? |
                     . as $result |
                     (($rule_sev[$result.ruleId] // "0") | tonumber) as $severity |
-                    select($severity >= 7.0 and $severity < 9.0) |
+                    select(($severity >= 7.0 and $severity < 9.0) or ($severity == 0 and .level == "error")) |
                     ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A") as $file |
                     ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
-                    "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($severity) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:80]) |"
+                    (if $severity > 0 then ($severity | tostring) else "error" end) as $sev_display |
+                    "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($sev_display) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:80]) |"
                   ' "$scan_file" 2>/dev/null)
 
                   if [ -n "$high_findings" ] && [ "$high_findings" != "" ]; then
-                    echo "#### ⚠️ High Findings (CVSS 7.0-8.9)" >> "$output"
+                    echo "#### ⚠️ High Findings (CVSS 7.0-8.9 or SARIF error)" >> "$output"
                     echo "" >> "$output"
-                    echo "| Rule ID | Location | CVSS | Message |" >> "$output"
-                    echo "|---------|----------|------|---------|" >> "$output"
+                    echo "| Rule ID | Location | Severity | Message |" >> "$output"
+                    echo "|---------|----------|----------|---------|" >> "$output"
                     echo "$high_findings" >> "$output"
                     echo "" >> "$output"
                   fi
 
-                  # Show Medium findings in collapsed section (CVSS >= 4.0 and < 7.0)
+                  # Show Medium findings (CVSS >= 4.0 and < 7.0 OR SARIF warning level)
                   medium_findings=$(jq -r --arg repo_url "$REPO_URL" '
                     .runs[]? as $run |
                     ($run.tool.driver.rules // [] | map({(.id): .properties["security-severity"]}) | add // {}) as $rule_sev |
                     $run.results[]? |
                     . as $result |
                     (($rule_sev[$result.ruleId] // "0") | tonumber) as $severity |
-                    select($severity >= 4.0 and $severity < 7.0) |
+                    select(($severity >= 4.0 and $severity < 7.0) or ($severity == 0 and (.level == "warning" or .level == null))) |
                     ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A") as $file |
                     ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
-                    "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($severity) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:80]) |"
+                    (if $severity > 0 then ($severity | tostring) else "warning" end) as $sev_display |
+                    "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($sev_display) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:80]) |"
                   ' "$scan_file" 2>/dev/null)
 
                   if [ -n "$medium_findings" ] && [ "$medium_findings" != "" ]; then
                     echo "<details>" >> "$output"
-                    echo "<summary>🟡 Medium Findings (CVSS 4.0-6.9)</summary>" >> "$output"
+                    echo "<summary>🟡 Medium Findings (CVSS 4.0-6.9 or SARIF warning) - $MEDIUM_COUNT total</summary>" >> "$output"
                     echo "" >> "$output"
-                    echo "| Rule ID | Location | CVSS | Message |" >> "$output"
-                    echo "|---------|----------|------|---------|" >> "$output"
+                    echo "| Rule ID | Location | Severity | Message |" >> "$output"
+                    echo "|---------|----------|----------|---------|" >> "$output"
                     echo "$medium_findings" >> "$output"
                     echo "" >> "$output"
                     echo "</details>" >> "$output"
                     echo "" >> "$output"
                   fi
 
-                  # Show Low findings in collapsed section (CVSS > 0 and < 4.0)
+                  # Show Low findings (CVSS > 0 and < 4.0 OR SARIF note level)
                   low_findings=$(jq -r --arg repo_url "$REPO_URL" '
                     .runs[]? as $run |
                     ($run.tool.driver.rules // [] | map({(.id): .properties["security-severity"]}) | add // {}) as $rule_sev |
                     $run.results[]? |
                     . as $result |
                     (($rule_sev[$result.ruleId] // "0") | tonumber) as $severity |
-                    select($severity > 0 and $severity < 4.0) |
+                    select(($severity > 0 and $severity < 4.0) or ($severity == 0 and .level == "note")) |
                     ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A") as $file |
                     ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
-                    "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($severity) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:80]) |"
+                    (if $severity > 0 then ($severity | tostring) else "note" end) as $sev_display |
+                    "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($sev_display) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:80]) |"
                   ' "$scan_file" 2>/dev/null)
 
                   if [ -n "$low_findings" ] && [ "$low_findings" != "" ]; then
                     echo "<details>" >> "$output"
-                    echo "<summary>🔵 Low Findings (CVSS < 4.0)</summary>" >> "$output"
+                    echo "<summary>🔵 Low Findings (CVSS < 4.0 or SARIF note) - $LOW_COUNT total</summary>" >> "$output"
                     echo "" >> "$output"
-                    echo "| Rule ID | Location | CVSS | Message |" >> "$output"
-                    echo "|---------|----------|------|---------|" >> "$output"
+                    echo "| Rule ID | Location | Severity | Message |" >> "$output"
+                    echo "|---------|----------|----------|---------|" >> "$output"
                     echo "$low_findings" >> "$output"
-                    echo "" >> "$output"
-                    echo "</details>" >> "$output"
-                    echo "" >> "$output"
-                  fi
-
-                  # Show findings without security-severity (informational/code quality)
-                  # These are code quality rules that don't have CVSS scores
-                  info_findings=$(jq -r --arg repo_url "$REPO_URL" '
-                    .runs[]? as $run |
-                    ($run.tool.driver.rules // [] | map({(.id): .properties["security-severity"]}) | add // {}) as $rule_sev |
-                    $run.results[]? |
-                    . as $result |
-                    ($rule_sev[$result.ruleId] // null) as $raw_sev |
-                    select($raw_sev == null or $raw_sev == "0" or ($raw_sev | tonumber? // 0) == 0) |
-                    ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A") as $file |
-                    ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
-                    "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($result.level // "warning") | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:80]) |"
-                  ' "$scan_file" 2>/dev/null)
-
-                  if [ -n "$info_findings" ] && [ "$info_findings" != "" ]; then
-                    echo "<details>" >> "$output"
-                    echo "<summary>ℹ️ Code Quality / Informational Findings ($ISSUE_COUNT total)</summary>" >> "$output"
-                    echo "" >> "$output"
-                    echo "| Rule ID | Location | Level | Message |" >> "$output"
-                    echo "|---------|----------|-------|---------|" >> "$output"
-                    echo "$info_findings" >> "$output"
                     echo "" >> "$output"
                     echo "</details>" >> "$output"
                     echo "" >> "$output"
