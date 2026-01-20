@@ -261,7 +261,7 @@ on:
 
 jobs:
   scan:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan-from-config.yml@2.11.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan-from-config.yml@2.11.2
     with:
       config_file: container-config.yml
       enable_code_security: true
@@ -274,7 +274,7 @@ jobs:
 ```yaml
 jobs:
   scan:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan-from-config.yml@2.11.1
+    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan-from-config.yml@2.11.2
     with:
       config_file: .github/security/containers.yml
       enable_code_security: true

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.11.2](https://github.com/huntridge-labs/hardening-workflows/compare/2.11.1...2.11.2) (2026-01-20)
+
+### Bug Fixes
+
+* **gitleaks:** pr summary missing status when secrets found ([a7118b0](https://github.com/huntridge-labs/hardening-workflows/commit/a7118b09af2ca38ebad48b71d6cc255469789370))
+
+### Maintenance
+
+* **gitleaks:** update scanner-gitleaksref to use feature branch ([8370fa0](https://github.com/huntridge-labs/hardening-workflows/commit/8370fa05959ca524d67f146b932c5b55875c1da6))
+
+
 ## [2.11.1](https://github.com/huntridge-labs/hardening-workflows/compare/2.11.0...2.11.1) (2026-01-16)
 
 ### Bug Fixes

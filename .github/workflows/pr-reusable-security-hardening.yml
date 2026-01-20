@@ -163,7 +163,7 @@ env:
   AWS_REGION: ${{ inputs.aws_region }}
   PYTHON_VERSION: ${{ inputs.python_version }}
   # Use current branch/PR when testing in hardening-workflows repo, otherwise use release tag
-  HRL_REF: ${{ github.repository == 'huntridge-labs/hardening-workflows' && (github.head_ref || github.ref_name) || '2.11.1' }}
+  HRL_REF: ${{ github.repository == 'huntridge-labs/hardening-workflows' && (github.head_ref || github.ref_name) || '2.11.2' }}
 
 jobs:
   scan-coordinator:
