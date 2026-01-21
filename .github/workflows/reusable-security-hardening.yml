@@ -154,6 +154,26 @@ on:
         required: false
         default: 10
         type: number
+      enable_ato_reporting:
+        description: 'Enable ATO compliance reporting with NIST 800-53 control mapping'
+        required: false
+        default: false
+        type: boolean
+      ato_compliance_mapping_file:
+        description: 'Path to NIST 800-53 mapping configuration file'
+        required: false
+        default: 'config/nist-800-53-mapping.json'
+        type: string
+      ato_report_format:
+        description: 'ATO compliance report format(s): oscal, markdown, json, csv, html, all'
+        required: false
+        default: 'oscal,markdown'
+        type: string
+      ato_evidence_retention_days:
+        description: 'Number of days to retain ATO evidence packages'
+        required: false
+        default: 365
+        type: number
     secrets:
       AWS_ACCOUNT_ID:
         description: 'AWS Account ID for infrastructure scans'
@@ -972,3 +992,33 @@ jobs:
 
             console.log('📋 Security hardening report is still available in workflow artifacts');
           }
+
+  ato-compliance-reporting:
+    name: ATO Compliance Reporting
+    needs:
+      - scan-coordinator
+      - code-quality-linting
+      - scanner-codeql
+      - scanner-opengrep
+      - scanner-bandit
+      - scanner-gitleaks
+      - scanner-clamav
+      - scanner-container
+      - scanner-infrastructure
+      - scanner-sbom
+      - scanner-trivy-iac
+      - scanner-checkov
+      - scanner-trivy-container
+      - scanner-grype
+      - security-summary
+    if: always() && inputs.enable_ato_reporting == true
+    uses: huntridge-labs/hardening-workflows/.github/workflows/ato-compliance-reporting.yml@continuous-ato-mapping
+    with:
+      mapping_file: ${{ inputs.ato_compliance_mapping_file }}
+      output_format: ${{ inputs.ato_report_format }}
+      retention_days: ${{ inputs.ato_evidence_retention_days }}
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+      pull-requests: write

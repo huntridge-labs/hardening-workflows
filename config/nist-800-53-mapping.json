@@ -1,0 +1,618 @@
+{
+  "version": "1.0.0",
+  "framework": "NIST-SP-800-53-rev5",
+  "profile": "MODERATE",
+  "system": {
+    "name": "Application System",
+    "description": "Automated security scanning for continuous ATO compliance",
+    "uuid": "auto-generated",
+    "security_sensitivity_level": "moderate",
+    "system_characteristics": {
+      "authorization_boundary": "Application and CI/CD Pipeline",
+      "network_architecture": "Cloud-hosted GitHub Actions",
+      "data_flow": "Source code and artifacts within GitHub ecosystem"
+    }
+  },
+  "scanners": {
+    "codeql": {
+      "name": "GitHub CodeQL",
+      "type": "SAST",
+      "vendor": "GitHub",
+      "version": "latest",
+      "description": "Semantic code analysis engine for security vulnerabilities",
+      "controls": [
+        {
+          "control_id": "SA-11",
+          "control_name": "Developer Testing and Evaluation",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "CodeQL performs automated static application security testing (SAST) on all source code commits. Analysis covers multiple languages with semantic understanding to detect security vulnerabilities during development.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "full",
+          "evidence_artifacts": [
+            "codeql-sarif",
+            "codeql-summary"
+          ]
+        },
+        {
+          "control_id": "SA-11(1)",
+          "control_name": "Developer Testing and Evaluation | Static Code Analysis",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "CodeQL provides comprehensive static code analysis with dataflow and taint tracking to identify security vulnerabilities.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "full",
+          "evidence_artifacts": [
+            "codeql-sarif"
+          ]
+        },
+        {
+          "control_id": "SI-10",
+          "control_name": "Information Input Validation",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "CodeQL identifies improper input validation vulnerabilities including SQL injection, XSS, command injection, and path traversal.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "codeql-sarif"
+          ]
+        }
+      ]
+    },
+    "gitleaks": {
+      "name": "Gitleaks",
+      "type": "Secret Detection",
+      "vendor": "Gitleaks",
+      "version": "latest",
+      "description": "Secret detection in git history and source code",
+      "controls": [
+        {
+          "control_id": "AC-3",
+          "control_name": "Access Enforcement",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Gitleaks prevents hardcoded credentials that could bypass access control mechanisms by detecting secrets before they are committed to the repository.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "full",
+          "evidence_artifacts": [
+            "gitleaks-sarif",
+            "gitleaks-summary"
+          ]
+        },
+        {
+          "control_id": "IA-5",
+          "control_name": "Authenticator Management",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Gitleaks enforces authenticator management by preventing API keys, passwords, tokens, and other credentials from being stored in source code or git history.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "full",
+          "evidence_artifacts": [
+            "gitleaks-sarif"
+          ]
+        },
+        {
+          "control_id": "IA-5(1)",
+          "control_name": "Authenticator Management | Password-Based Authentication",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Detects hardcoded passwords and password patterns to prevent weak password management practices.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "gitleaks-sarif"
+          ]
+        },
+        {
+          "control_id": "SC-28",
+          "control_name": "Protection of Information at Rest",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Ensures sensitive credentials are not stored in plaintext within the codebase, supporting protection of information at rest.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "gitleaks-sarif"
+          ]
+        },
+        {
+          "control_id": "AU-9",
+          "control_name": "Protection of Audit Information",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Prevents exposure of audit credentials and logging tokens that could compromise audit trail integrity.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "gitleaks-sarif"
+          ]
+        }
+      ]
+    },
+    "trivy-container": {
+      "name": "Trivy Container Scanner",
+      "type": "Container Vulnerability Scanner",
+      "vendor": "Aqua Security",
+      "version": "latest",
+      "description": "Comprehensive vulnerability scanner for container images",
+      "controls": [
+        {
+          "control_id": "SI-2",
+          "control_name": "Flaw Remediation",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Trivy identifies security flaws and vulnerabilities in container images, enabling systematic flaw remediation before deployment.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-build",
+          "coverage_level": "full",
+          "evidence_artifacts": [
+            "trivy-container-sarif",
+            "trivy-container-summary"
+          ]
+        },
+        {
+          "control_id": "RA-5",
+          "control_name": "Vulnerability Monitoring and Scanning",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Continuous vulnerability scanning of container images against CVE databases with daily updates to vulnerability definitions.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-build",
+          "coverage_level": "full",
+          "evidence_artifacts": [
+            "trivy-container-sarif"
+          ]
+        },
+        {
+          "control_id": "RA-5(5)",
+          "control_name": "Vulnerability Monitoring and Scanning | Privileged Access",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Scanner has privileged access to container image layers to perform comprehensive deep scanning.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-build",
+          "coverage_level": "full",
+          "evidence_artifacts": [
+            "trivy-container-sarif"
+          ]
+        },
+        {
+          "control_id": "CM-8",
+          "control_name": "System Component Inventory",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Trivy catalogs all software components, libraries, and packages within container images, maintaining an accurate inventory.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-build",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "trivy-container-sarif"
+          ]
+        },
+        {
+          "control_id": "CM-8(3)",
+          "control_name": "System Component Inventory | Automated Unauthorized Component Detection",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Automated detection of unauthorized or vulnerable components in container images.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-build",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "trivy-container-sarif"
+          ]
+        }
+      ]
+    },
+    "trivy-iac": {
+      "name": "Trivy IaC Scanner",
+      "type": "Infrastructure as Code Scanner",
+      "vendor": "Aqua Security",
+      "version": "latest",
+      "description": "Infrastructure as Code security and misconfiguration scanner",
+      "controls": [
+        {
+          "control_id": "CM-2",
+          "control_name": "Baseline Configuration",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Trivy IaC validates infrastructure configurations against security baselines and best practices to ensure secure baseline configurations.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "full",
+          "evidence_artifacts": [
+            "trivy-iac-sarif",
+            "trivy-iac-summary"
+          ]
+        },
+        {
+          "control_id": "CM-6",
+          "control_name": "Configuration Settings",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Enforces secure configuration settings in Infrastructure as Code by detecting misconfigurations in Terraform, CloudFormation, Kubernetes, and Dockerfiles.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "full",
+          "evidence_artifacts": [
+            "trivy-iac-sarif"
+          ]
+        },
+        {
+          "control_id": "SC-7",
+          "control_name": "Boundary Protection",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Validates network security groups, firewall rules, and boundary protection configurations in IaC templates.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "trivy-iac-sarif"
+          ]
+        },
+        {
+          "control_id": "SC-7(3)",
+          "control_name": "Boundary Protection | Access Points",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Identifies overly permissive network access points and public exposure in infrastructure configurations.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "trivy-iac-sarif"
+          ]
+        }
+      ]
+    },
+    "checkov": {
+      "name": "Checkov",
+      "type": "Policy as Code Scanner",
+      "vendor": "Bridgecrew/Palo Alto Networks",
+      "version": "latest",
+      "description": "Policy as Code framework for infrastructure security",
+      "controls": [
+        {
+          "control_id": "CM-2",
+          "control_name": "Baseline Configuration",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Checkov enforces baseline configurations through policy-as-code, validating infrastructure against CIS benchmarks and security standards.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "full",
+          "evidence_artifacts": [
+            "checkov-sarif",
+            "checkov-summary"
+          ]
+        },
+        {
+          "control_id": "CM-6",
+          "control_name": "Configuration Settings",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Validates infrastructure configurations against 1000+ built-in policies covering AWS, Azure, GCP, Kubernetes, and Terraform.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "full",
+          "evidence_artifacts": [
+            "checkov-sarif"
+          ]
+        },
+        {
+          "control_id": "AC-6",
+          "control_name": "Least Privilege",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Detects overly permissive IAM policies, roles, and resource permissions that violate least privilege principles.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "checkov-sarif"
+          ]
+        },
+        {
+          "control_id": "SC-28",
+          "control_name": "Protection of Information at Rest",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Validates encryption settings for storage resources including databases, S3 buckets, and EBS volumes.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "checkov-sarif"
+          ]
+        }
+      ]
+    },
+    "bandit": {
+      "name": "Bandit",
+      "type": "SAST - Python",
+      "vendor": "PyCQA",
+      "version": "latest",
+      "description": "Python security linter for common security issues",
+      "controls": [
+        {
+          "control_id": "SA-11",
+          "control_name": "Developer Testing and Evaluation",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Bandit performs Python-specific static security testing during development to identify common security issues.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "bandit-sarif",
+            "bandit-summary"
+          ]
+        },
+        {
+          "control_id": "SI-16",
+          "control_name": "Memory Protection",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Identifies unsafe Python code patterns that could lead to memory-related vulnerabilities.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "bandit-sarif"
+          ]
+        }
+      ]
+    },
+    "opengrep": {
+      "name": "Semgrep OSS",
+      "type": "SAST - Multi-language",
+      "vendor": "Semgrep Inc.",
+      "version": "latest",
+      "description": "Fast customizable static analysis for multiple languages",
+      "controls": [
+        {
+          "control_id": "SA-11",
+          "control_name": "Developer Testing and Evaluation",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Semgrep provides multi-language SAST with customizable security rules for comprehensive developer testing.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "full",
+          "evidence_artifacts": [
+            "opengrep-sarif",
+            "opengrep-summary"
+          ]
+        },
+        {
+          "control_id": "SI-10",
+          "control_name": "Information Input Validation",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Detects input validation issues across multiple programming languages using pattern-based analysis.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "opengrep-sarif"
+          ]
+        }
+      ]
+    },
+    "clamav": {
+      "name": "ClamAV",
+      "type": "Malware Scanner",
+      "vendor": "Cisco Talos",
+      "version": "latest",
+      "description": "Open-source antivirus engine for malware detection",
+      "controls": [
+        {
+          "control_id": "SI-3",
+          "control_name": "Malicious Code Protection",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "ClamAV provides automated malicious code detection and protection through signature-based scanning.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "full",
+          "evidence_artifacts": [
+            "clamav-sarif",
+            "clamav-summary"
+          ]
+        },
+        {
+          "control_id": "SI-3(2)",
+          "control_name": "Malicious Code Protection | Automatic Updates",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Automatic updates to malware signatures before each scan execution.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-scan",
+          "coverage_level": "full",
+          "evidence_artifacts": [
+            "clamav-sarif"
+          ]
+        },
+        {
+          "control_id": "SI-4",
+          "control_name": "System Monitoring",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Continuous monitoring for malicious code in repository contents and artifacts.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-commit",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "clamav-sarif"
+          ]
+        }
+      ]
+    },
+    "grype": {
+      "name": "Grype",
+      "type": "Vulnerability Scanner",
+      "vendor": "Anchore",
+      "version": "latest",
+      "description": "Fast and accurate vulnerability scanner",
+      "controls": [
+        {
+          "control_id": "SI-2",
+          "control_name": "Flaw Remediation",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Grype enables rapid flaw identification and remediation through fast, accurate CVE detection.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-build",
+          "coverage_level": "full",
+          "evidence_artifacts": [
+            "grype-sarif",
+            "grype-summary"
+          ]
+        },
+        {
+          "control_id": "RA-5",
+          "control_name": "Vulnerability Monitoring and Scanning",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Continuous vulnerability monitoring with high-accuracy CVE detection in software components.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-build",
+          "coverage_level": "full",
+          "evidence_artifacts": [
+            "grype-sarif"
+          ]
+        }
+      ]
+    },
+    "sbom": {
+      "name": "Syft SBOM Generator",
+      "type": "Software Composition Analysis",
+      "vendor": "Anchore",
+      "version": "latest",
+      "description": "Software Bill of Materials (SBOM) generator",
+      "controls": [
+        {
+          "control_id": "CM-8",
+          "control_name": "System Component Inventory",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Syft generates comprehensive software bill of materials (SBOM) documenting all system components and dependencies.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-build",
+          "coverage_level": "full",
+          "evidence_artifacts": [
+            "sbom-cyclonedx",
+            "sbom-spdx"
+          ]
+        },
+        {
+          "control_id": "SR-4",
+          "control_name": "Provenance",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "Documents software component origins, versions, and provenance information in SBOM artifacts.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-build",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "sbom-cyclonedx",
+            "sbom-spdx"
+          ]
+        },
+        {
+          "control_id": "SR-4(1)",
+          "control_name": "Provenance | Identity",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "SBOM includes component identity information including name, version, and package URL (purl).",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-build",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "sbom-cyclonedx",
+            "sbom-spdx"
+          ]
+        },
+        {
+          "control_id": "SR-11",
+          "control_name": "Component Authenticity",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "SBOM validates software component integrity and authenticity through package metadata verification.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-build",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "sbom-cyclonedx",
+            "sbom-spdx"
+          ]
+        },
+        {
+          "control_id": "SA-15(9)",
+          "control_name": "Development Process, Standards, and Tools | Use of Live Data",
+          "implementation_status": "implemented",
+          "control_origination": "service-provider-system-specific",
+          "implementation_description": "SBOM generation uses actual build artifacts ensuring accurate component inventory.",
+          "responsible_role": "security-automation",
+          "test_method": "automated",
+          "test_frequency": "on-build",
+          "coverage_level": "partial",
+          "evidence_artifacts": [
+            "sbom-cyclonedx",
+            "sbom-spdx"
+          ]
+        }
+      ]
+    }
+  },
+  "roles": {
+    "security-automation": {
+      "title": "Security Automation System",
+      "description": "Automated security scanning and compliance monitoring system implemented via GitHub Actions workflows"
+    }
+  }
+}
