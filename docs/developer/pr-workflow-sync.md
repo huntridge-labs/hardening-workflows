@@ -15,7 +15,7 @@ We maintain two versions of the reusable security hardening workflow:
 - Used by external consumers
 - Uses pinned tags (`@2.3.1`) for scanner workflows
 - Provides stable, versioned releases
-- Example: `uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@2.11.2
+- Example: `uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@2.12.0
 
 ### 2. **`pr-reusable-security-hardening.yml`** (PR Testing)
 - Used only in PR verification

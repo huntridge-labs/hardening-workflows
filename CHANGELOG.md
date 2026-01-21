@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.12.0](https://github.com/huntridge-labs/hardening-workflows/compare/2.11.2...2.12.0) (2026-01-21)
+
+### Features
+
+* **scanner-codeql:** add auto-detection and configurable inputs ([7415a32](https://github.com/huntridge-labs/hardening-workflows/commit/7415a325306f4d59d50f1f6ee80901bb8e57d745))
+* **scanner-codeql:** enhance severity classification using CVSS and SARIF levels ([df13aa0](https://github.com/huntridge-labs/hardening-workflows/commit/df13aa0d4124619ed98f62435d3c4ecd71865413))
+
+### Bug Fixes
+
+* **scanner-codeql:** correct SARIF directory paths in summary job ([78be748](https://github.com/huntridge-labs/hardening-workflows/commit/78be7485a712ef6634906dc3fa108128b2a451df))
+* **scanner-codeql:** remove sparse-checkout for language detection ([67f2596](https://github.com/huntridge-labs/hardening-workflows/commit/67f259615c8effcdd081319b00f2f6039c54c723))
+* **scanner-codeql:** severity counts in summary ([18e09c3](https://github.com/huntridge-labs/hardening-workflows/commit/18e09c33e6dbe52fe97292f9b1915144435d33f1))
+
 ## [2.11.2](https://github.com/huntridge-labs/hardening-workflows/compare/2.11.1...2.11.2) (2026-01-20)
 
 ### Bug Fixes

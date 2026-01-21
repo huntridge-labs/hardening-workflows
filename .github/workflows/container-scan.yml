@@ -96,7 +96,7 @@ permissions:
 
 env:
   # Use current branch/PR when testing in hardening-workflows repo, otherwise use release tag
-  HRL_REF: ${{ github.repository == 'huntridge-labs/hardening-workflows' && (github.head_ref || github.ref_name) || '2.11.2' }}
+  HRL_REF: ${{ github.repository == 'huntridge-labs/hardening-workflows' && (github.head_ref || github.ref_name) || '2.12.0' }}
 
 jobs:
   # Discover containers in this repository (skipped in remote mode)
