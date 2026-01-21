@@ -1,0 +1,260 @@
+name: 'ZAP DAST Scanner'
+description: |
+  Run ZAP (Zed Attack Proxy) DAST scanning and generate reports.
+
+  **MVP Version - URL Mode Only**
+  This is Phase 1 implementation supporting:
+  - URL mode only (target already running)
+  - Baseline scan only
+  - No docker orchestration
+
+  Phase 2 will add: docker-run mode, compose mode, full/api scans, multi-target support
+
+  **Required Environment Variables:**
+  - GITHUB_TOKEN: GitHub token for API access (set automatically in workflows)
+
+  **Usage Example:**
+  ```yaml
+  - uses: ./.github/actions/scanner-zap
+    env:
+      GITHUB_TOKEN: (github.token)
+    with:
+      target_url: 'http://localhost:8080'
+      fail_on_severity: 'high'
+  ```
+
+inputs:
+  target_url:
+    description: 'Target URL for baseline scan (must be already running)'
+    required: true
+  scan_name:
+    description: 'Unique scan identifier (for artifact naming)'
+    required: false
+    default: 'zap-scan'
+  max_duration_minutes:
+    description: 'Max scan duration in minutes'
+    required: false
+    default: '10'
+  rules_file_name:
+    description: 'ZAP rules file to ignore alerts (.tsv)'
+    required: false
+    default: ''
+  cmd_options:
+    description: 'Additional ZAP command-line options'
+    required: false
+    default: ''
+  fail_on_severity:
+    description: 'Fail threshold: none, low, medium, high, critical (note: ZAP has no critical level, maps to high)'
+    required: false
+    default: 'none'
+  post_pr_comment:
+    description: 'Post results as PR comment'
+    required: false
+    default: 'false'
+  job_id:
+    description: 'Job ID for artifact naming'
+    required: false
+    default: ${{ github.job }}
+
+outputs:
+  findings_count:
+    description: 'Total number of findings'
+    value: ${{ steps.parse-results.outputs.findings_count }}
+  high_count:
+    description: 'Number of high severity findings'
+    value: ${{ steps.parse-results.outputs.high_count }}
+  scan_status:
+    description: 'Overall scan status (passed or failed)'
+    value: ${{ steps.parse-results.outputs.scan_status }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        target_url="${{ inputs.target_url }}"
+        if [[ -z "$target_url" ]]; then
+          echo "❌ Error: target_url is required for ZAP baseline scan"
+          exit 1
+        fi
+
+        echo "✅ Target URL: $target_url"
+        echo "📊 Scan name: ${{ inputs.scan_name }}"
+        echo "⏱️  Max duration: ${{ inputs.max_duration_minutes }} minutes"
+        echo "🎯 Fail threshold: ${{ inputs.fail_on_severity }}"
+
+    - name: Build ZAP command options
+      id: zap_opts
+      shell: bash
+      run: |
+        max_dur="${{ inputs.max_duration_minutes }}"
+        [[ -z "$max_dur" ]] && max_dur="10"
+        extra_opts="${{ inputs.cmd_options }}"
+
+        cmd_opts="-T ${max_dur}"
+        [[ -n "$extra_opts" ]] && cmd_opts="$cmd_opts $extra_opts"
+
+        echo "cmd_options=$cmd_opts" >> "$GITHUB_OUTPUT"
+        echo "Command options: $cmd_opts"
+
+    - name: Run ZAP baseline scan
+      uses: zaproxy/action-baseline@v0.15.0
+      with:
+        allow_issue_writing: false
+        fail_action: false
+        artifact_name: zap-reports-${{ inputs.scan_name }}
+        target: ${{ inputs.target_url }}
+        rules_file_name: ${{ inputs.rules_file_name }}
+        cmd_options: ${{ steps.zap_opts.outputs.cmd_options }}
+
+    - name: Parse ZAP results and check severity
+      id: parse-results
+      if: always()
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        report="report_json.json"
+        parser="${{ github.action_path }}/scripts/parse-zap-results.sh"
+
+        if [[ ! -f "$report" ]]; then
+          echo "⚠️  No ZAP JSON report found"
+          echo "findings_count=0" >> "$GITHUB_OUTPUT"
+          echo "high_count=0" >> "$GITHUB_OUTPUT"
+          echo "scan_status=skipped" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        chmod +x "$parser"
+
+        # Get counts using parser script
+        # ZAP risk codes use 1:1 mapping:
+        #   riskcode 3 (ZAP High)          -> High
+        #   riskcode 2 (ZAP Medium)        -> Medium
+        #   riskcode 1 (ZAP Low)           -> Low
+        #   riskcode 0 (ZAP Informational) -> Informational
+        # Note: ZAP has no "Critical" level. When fail_on_severity=critical, we check High.
+        read crit high medium low <<< $("$parser" counts "$report")
+        total=$((crit + high + medium + low))
+
+        echo "📊 Scan Results:"
+        echo "   High: $high"
+        echo "   Medium: $medium"
+        echo "   Low: $low"
+        echo "   Total: $total"
+
+        # Set outputs
+        echo "findings_count=$total" >> "$GITHUB_OUTPUT"
+        echo "high_count=$high" >> "$GITHUB_OUTPUT"
+
+        # Check severity threshold
+        fail_on="${{ inputs.fail_on_severity }}"
+        should_fail=false
+
+        case "$fail_on" in
+          low) [[ $((high + medium + low)) -gt 0 ]] && should_fail=true ;;
+          medium) [[ $((high + medium)) -gt 0 ]] && should_fail=true ;;
+          high) [[ $high -gt 0 ]] && should_fail=true ;;
+          critical) [[ $high -gt 0 ]] && should_fail=true ;;  # ZAP has no critical, check High
+          none) should_fail=false ;;
+        esac
+
+        if [[ "$should_fail" == "true" ]]; then
+          echo "scan_status=failed" >> "$GITHUB_OUTPUT"
+          echo "❌ Findings at or above '$fail_on' detected"
+          exit 1
+        else
+          echo "scan_status=passed" >> "$GITHUB_OUTPUT"
+          echo "✅ No findings at or above '$fail_on'"
+        fi
+
+    - name: Generate scan summary
+      if: always()
+      shell: bash
+      env:
+        ZAP_PARSER: ${{ github.action_path }}/scripts/parse-zap-results.sh
+        ZAP_SCAN_TYPE: baseline
+      run: |
+        set -euo pipefail
+
+        summary_script="${{ github.action_path }}/scripts/generate-zap-summary.sh"
+        chmod +x "$summary_script" "$ZAP_PARSER"
+
+        # Create zap-downloads structure expected by summary script
+        mkdir -p "zap-downloads/zap-reports-${{ inputs.scan_name }}"
+        if [[ -f "report_json.json" ]]; then
+          cp report_json.json "zap-downloads/zap-reports-${{ inputs.scan_name }}/"
+        fi
+
+        "$summary_script"
+
+    - name: Upload scan summary
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: scanner-summary-zap-${{ inputs.scan_name }}-${{ inputs.job_id }}
+        path: scanner-summaries/zap.md
+        retention-days: 30
+        if-no-files-found: warn
+
+    - name: Comment PR with ZAP summary
+      if: github.event_name == 'pull_request' && inputs.post_pr_comment == 'true'
+      uses: actions/github-script@v8
+      continue-on-error: true
+      with:
+        script: |
+          const fs = require('fs');
+
+          try {
+            const reportPath = 'scanner-summaries/zap.md';
+            if (!fs.existsSync(reportPath)) {
+              console.log('No summary file found');
+              return;
+            }
+
+            let report = fs.readFileSync(reportPath, 'utf8');
+            const MAX_LENGTH = 262000;
+            if (report.length > MAX_LENGTH) {
+              report = report.slice(0, MAX_LENGTH - 200) + '\n\n*Truncated due to size.*';
+            }
+
+            report = report
+              .replace(/<details><summary>.*?<\/summary>\n*/, '')
+              .replace(/<\/details>\s*$/, '')
+              .trim();
+
+            const MARKER = 'zap-dast-comment-${{ inputs.scan_name }}';
+            const body = `## ZAP DAST - Baseline Scan\n\n<!-- ${MARKER} -->\n\n${report}`;
+
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+
+            const existing = comments.data.find(c =>
+              c.body && c.body.includes(MARKER) &&
+              (c.user.login === 'github-actions[bot]' || c.user.type === 'Bot')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: body + `\n\n---\n*Updated: ${new Date().toLocaleString()} | [View Run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            }
+          } catch (error) {
+            console.log('Failed to post comment:', error.message);
+          }

@@ -6,7 +6,7 @@ on:
     paths:
       - '.github/workflows/container-scan-from-config.yml'
       - '.github/workflows/container-scan.yml'
-      - '.github/actions/container-scanners/**'
+      - '.github/actions/scanner-container/**'
       - '.github/scripts/parse-container-config.js'
       - '.github/schemas/container-config.schema.json'
       - 'examples/container-config.example.yml'
