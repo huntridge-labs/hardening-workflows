@@ -93,6 +93,7 @@ permissions:
   security-events: write
   actions: read
   pull-requests: write
+  packages: read
 
 env:
   # Use current branch/PR when testing in hardening-workflows repo, otherwise use release tag
