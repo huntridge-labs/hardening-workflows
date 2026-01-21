@@ -197,7 +197,7 @@ jobs:
         path: .hardening-workflows
         token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |
-          .github/actions/container-scanners
+          .github/actions/scanner-container
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -234,7 +234,7 @@ jobs:
 
     - name: Run security scanners (local)
       if: steps.build.outputs.build_success == 'true' && github.repository == 'huntridge-labs/hardening-workflows'
-      uses: ./.github/actions/container-scanners
+      uses: ./.github/actions/scanner-container
       with:
         image_ref: ${{ steps.build.outputs.full_image }}
         container_name: ${{ matrix.container.name }}
@@ -242,14 +242,12 @@ jobs:
         fail_on_severity: ${{ inputs.fail_on_severity }}
         enable_code_security: ${{ inputs.enable_code_security }}
         scan_mode: 'discover'
-        dockerfile: ${{ matrix.container.dockerfile }}
-        context: ${{ matrix.container.context }}
         allow_failure: ${{ matrix.allow_failure || false }} # actionlint-ignore=expression
         skip_summary: 'true'
 
     - name: Run security scanners (external)
       if: steps.build.outputs.build_success == 'true' && github.repository != 'huntridge-labs/hardening-workflows'
-      uses: ./.hardening-workflows/.github/actions/container-scanners
+      uses: ./.hardening-workflows/.github/actions/scanner-container
       with:
         image_ref: ${{ steps.build.outputs.full_image }}
         container_name: ${{ matrix.container.name }}
@@ -258,8 +256,6 @@ jobs:
         enable_code_security: ${{ inputs.enable_code_security }}
         allow_failure: ${{ matrix.allow_failure || false }} # actionlint-ignore=expression
         scan_mode: 'discover'
-        dockerfile: ${{ matrix.container.dockerfile }}
-        context: ${{ matrix.container.context }}
         skip_summary: 'true'
 
     - name: Handle build failure
@@ -318,7 +314,7 @@ jobs:
         path: .hardening-workflows
         token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
         sparse-checkout: |
-          .github/actions/container-scanners
+          .github/actions/scanner-container
 
     - name: Authenticate to container registry
       # Only attempt auth when username is provided (password checked in script)
@@ -363,7 +359,7 @@ jobs:
 
     - name: Run security scanners (local)
       if: steps.pull.outputs.pull_success == 'true' && github.repository == 'huntridge-labs/hardening-workflows'
-      uses: ./.github/actions/container-scanners
+      uses: ./.github/actions/scanner-container
       with:
         image_ref: ${{ env.IMAGE_REF }}
         container_name: ${{ env.CONTAINER_NAME }}
@@ -378,7 +374,7 @@ jobs:
 
     - name: Run security scanners (external)
       if: steps.pull.outputs.pull_success == 'true' && github.repository != 'huntridge-labs/hardening-workflows'
-      uses: ./.hardening-workflows/.github/actions/container-scanners
+      uses: ./.hardening-workflows/.github/actions/scanner-container
       with:
         image_ref: ${{ env.IMAGE_REF }}
         container_name: ${{ env.CONTAINER_NAME }}
