@@ -23,6 +23,7 @@ This directory contains reusable composite actions for security scanning. Each a
 | Action | Description | Language/Type | Documentation |
 |--------|-------------|---------------|---------------|
 | [scanner-trivy-iac](scanner-trivy-iac/) | Infrastructure-as-code scanner | Terraform, K8s, etc. | [README](scanner-trivy-iac/README.md) |
+| [scanner-checkov](scanner-checkov/) | Multi-framework IaC scanner | Terraform, CloudFormation, K8s, etc. | [README](scanner-checkov/README.md) |
 
 ### Container Security
 
@@ -268,7 +269,7 @@ The following scanners are being migrated to composite actions:
 
 - ✅ **scanner-codeql** - GitHub's code analysis (completed)
 - ✅ **scanner-opengrep** - Pattern-based security (completed)
-- ⏳ **scanner-checkov** - Multi-framework IaC
+- ✅ **scanner-checkov** - Multi-framework IaC (completed)
 - ⏳ **scanner-trivy-container** - Container scanning
 
 ## Support
