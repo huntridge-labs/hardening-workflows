@@ -1,5 +1,10 @@
 name: Trivy IaC Scanner
 
+# This is a reusable workflow for Trivy infrastructure-as-code scanning.
+# For more flexibility, consider using the composite action directly:
+# .github/actions/scanner-trivy-iac/action.yml
+# See examples/composite-actions-example.yml for usage examples.
+
 on:
   workflow_dispatch:
   workflow_call:
