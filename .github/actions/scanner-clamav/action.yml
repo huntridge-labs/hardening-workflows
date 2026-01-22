@@ -267,7 +267,7 @@ runs:
             fi
           fi
 
-          echo "**📁 Artifacts:** [ClamAV Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/clamav.md
+          echo "**📁 Artifacts:** [ClamAV Reports](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/clamav.md
         else
           echo "**Status:** ⏭️ Skipped" >> scanner-summaries/clamav.md
         fi

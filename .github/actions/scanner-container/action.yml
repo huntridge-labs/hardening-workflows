@@ -437,6 +437,7 @@ runs:
         GRYPE_PARSER: ${{ github.action_path }}/scripts/parse-grype-results.sh
         GITHUB_REPOSITORY: ${{ github.repository }}
         GITHUB_RUN_ID: ${{ github.run_id }}
+        GITHUB_SERVER_URL: ${{ github.server_url }}
       run: |
         CONTAINER_NAME="${{ inputs.container_name }}"
 

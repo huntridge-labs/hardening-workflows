@@ -139,7 +139,7 @@ runs:
             echo "" >> scanner-summaries/gitleaks.md
           fi
 
-          echo "**📁 Artifacts:** [GitLeaks Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/gitleaks.md
+          echo "**📁 Artifacts:** [GitLeaks Reports](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/gitleaks.md
         else
           echo "**Status:** ⏭️ Skipped" >> scanner-summaries/gitleaks.md
         fi
