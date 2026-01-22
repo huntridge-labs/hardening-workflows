@@ -157,6 +157,16 @@
             "pattern": "(\"\\$id\": \"https://raw\\.githubusercontent\\.com/huntridge-labs/hardening-workflows/)([^/]+)(/.github/schemas/[\\w-]+\\.schema\\.json\")"
           },
           "replace": "${1}{{version}}${3}"
+        },
+        {
+          "files": [
+            ".github/actions/**/*.{yml,yaml,md}"
+          ],
+          "search": {
+            "pattern": "(huntridge-labs/hardening-workflows/.github/actions/[^@]+)@[^\\s]+",
+            "flags": "g"
+          },
+          "replace": "${1}@{{version}}"
         }
       ]
     }
