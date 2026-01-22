@@ -41,6 +41,18 @@ This directory contains reusable composite actions for security scanning. Each a
 |--------|-------------|---------------|---------------|
 | [scanner-clamav](scanner-clamav/) | ClamAV malware scanner | All files | [README](scanner-clamav/README.md) |
 
+### Code Quality & Linting
+
+| Action | Description | Language/Type | Documentation |
+|--------|-------------|---------------|---------------|
+| [linter-yaml](linter-yaml/) | YAML syntax and style validation | YAML | [action.yml](linter-yaml/action.yml) |
+| [linter-json](linter-json/) | JSON syntax validation | JSON | [action.yml](linter-json/action.yml) |
+| [linter-python](linter-python/) | Python code quality (flake8 + bandit) | Python | [action.yml](linter-python/action.yml) |
+| [linter-javascript](linter-javascript/) | JavaScript syntax and quality (JSHint) | JavaScript | [action.yml](linter-javascript/action.yml) |
+| [linter-dockerfile](linter-dockerfile/) | Dockerfile best practices (Hadolint) | Dockerfile | [action.yml](linter-dockerfile/action.yml) |
+| [linter-terraform](linter-terraform/) | Terraform formatting and validation | Terraform | [action.yml](linter-terraform/action.yml) |
+| [linting-summary](linting-summary/) | Aggregate linter results into report | All | [action.yml](linting-summary/action.yml) |
+
 ### Utility Actions
 
 | Action | Description | Documentation |
@@ -60,8 +72,11 @@ This directory contains reusable composite actions for security scanning. Each a
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-**Option B: Complete Example** (Recommended)
-See [examples/composite-actions-example.yml](../../examples/composite-actions-example.yml) for a full workflow.
+**Option B: Complete Security Example** (Recommended)
+See [examples/composite-actions-example.yml](../../examples/composite-actions-example.yml) for a full security workflow.
+
+**Option C: Complete Linting Example**
+See [examples/composite-linting-example.yml](../../examples/composite-linting-example.yml) for a full linting workflow.
 
 ### 2. Common Usage Pattern
 
@@ -155,6 +170,34 @@ All actions require:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
     image_ref: 'myapp:test'
+```
+
+### Lint YAML Files
+
+```yaml
+- uses: actions/checkout@v6
+- uses: huntridge-labs/hardening-workflows/.github/actions/linter-yaml@main
+  with:
+    fail_on_issues: false
+```
+
+### Lint Python Code
+
+```yaml
+- uses: actions/checkout@v6
+- uses: huntridge-labs/hardening-workflows/.github/actions/linter-python@main
+  with:
+    fail_on_issues: false
+    max_line_length: '120'
+```
+
+### Lint Dockerfiles
+
+```yaml
+- uses: actions/checkout@v6
+- uses: huntridge-labs/hardening-workflows/.github/actions/linter-dockerfile@main
+  with:
+    fail_on_issues: false
 ```
 
 ## Matrix Scanning
