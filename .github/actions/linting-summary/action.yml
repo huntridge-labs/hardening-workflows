@@ -17,8 +17,6 @@ description: |
     if: always()
     steps:
       - uses: huntridge-labs/hardening-workflows/.github/actions/linting-summary@main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   ```
 
   **Important:**
