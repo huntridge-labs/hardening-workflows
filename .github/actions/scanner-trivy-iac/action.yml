@@ -280,111 +280,30 @@ runs:
       run: |
         mkdir -p scanner-summaries
 
-        # Function to generate summary for a given output
-        generate_trivy_iac_summary() {
-          local output="$1"
-          local is_pr_comment="$2"
-
-          if [ "$is_pr_comment" = "true" ]; then
-            echo "<details>" >> "$output"
-            echo "<summary>🔍 Trivy IaC Scanner</summary>" >> "$output"
-          else
-            echo "## 🔍 Trivy IaC Scanner Summary" >> "$output"
-          fi
-          echo "" >> "$output"
-
-          if [ "${{ steps.validate.outputs.has_iac }}" == "true" ]; then
-            IAC_PATH="${{ steps.validate.outputs.iac_path }}"
-            JSON_FILE="$IAC_PATH/security-reports/trivy-results.json"
-            SARIF_FILE="$IAC_PATH/security-reports/trivy-results.sarif"
-            REPO_URL="${{ github.server_url }}/${{ github.repository }}/blob/${HEAD_REF}"
-
-            if [ -f "$JSON_FILE" ]; then
-              if [ "$is_pr_comment" = "true" ]; then
-                echo "**Status:** ✅ Completed" >> "$output"
-                echo "" >> "$output"
-              fi
-
-              CRITICAL=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "CRITICAL")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
-              HIGH=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "HIGH")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
-              MEDIUM=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "MEDIUM")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
-              LOW=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "LOW")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
-              TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
-
-              echo "### 📊 Findings Summary" >> "$output"
-              echo "" >> "$output"
-              echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📦 Total |" >> "$output"
-              echo "|-------------|---------|-----------|--------|----------|" >> "$output"
-              echo "| **$CRITICAL** | **$HIGH** | **$MEDIUM** | **$LOW** | **$TOTAL** |" >> "$output"
-              echo "" >> "$output"
-
-              # Detailed findings with clickable links
-              if [ $TOTAL -gt 0 ] && [ -f "$SARIF_FILE" ]; then
-                echo "<details open>" >> "$output"
-                echo "<summary>🔍 Finding Details ($TOTAL)</summary>" >> "$output"
-                echo "" >> "$output"
-
-                echo "| Rule ID | Location | Severity | Message |" >> "$output"
-                echo "|---------|----------|----------|---------|" >> "$output"
-
-                jq -r --arg repo_url "$REPO_URL" --arg iac_path "$IAC_PATH" '
-                  .runs[]? | {rules: (.tool.driver.rules // []), results: .results} |
-                  .rules as $rules |
-                  .results[]? |
-                  . as $result |
-                  ($rules[] | select(.id == $result.ruleId)) as $rule |
-                  ($rule.properties["security-severity"] // "0" | tonumber) as $severity |
-                  ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A" | ltrimstr("./") | ltrimstr("/")) as $relfile |
-                  (if $relfile == "N/A" then "N/A" else "\($iac_path)/\($relfile)" end) as $file |
-                  ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
-                  (if $severity >= 9.0 then "🚨 Critical"
-                   elif $severity >= 7.0 then "⚠️ High"
-                   elif $severity >= 4.0 then "🟡 Medium"
-                   else "🔵 Low" end) as $sev_label |
-                  "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($sev_label) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:50]) |"
-                ' "$SARIF_FILE" 2>/dev/null | head -50 >> "$output" || echo "| Error parsing | - | - | - |" >> "$output"
-
-                if [ "$TOTAL" -gt 50 ]; then
-                  echo "" >> "$output"
-                  echo "_...and $((TOTAL - 50)) more findings_" >> "$output"
-                fi
-                echo "" >> "$output"
-
-                echo "</details>" >> "$output"
-                echo "" >> "$output"
-              elif [ $TOTAL -eq 0 ]; then
-                echo "✅ **No misconfigurations detected!**" >> "$output"
-                echo "" >> "$output"
-              fi
-
-              echo "**📁 Artifacts:** [Trivy IaC Results](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> "$output"
-            else
-              if [ "$is_pr_comment" = "true" ]; then
-                echo "**Status:** ⚠️ No results generated" >> "$output"
-              else
-                echo "**Status:** ⚠️ No Trivy IaC results available" >> "$output"
-              fi
-            fi
-          else
-            if [ "$is_pr_comment" = "true" ]; then
-              echo "**Status:** ⏭️ Skipped (no IaC directory found)" >> "$output"
-            else
-              echo "**Status:** ⏭️ No IaC directory found at '${{ inputs.iac_path }}'" >> "$output"
-            fi
-          fi
-
-          if [ "$is_pr_comment" = "true" ]; then
-            echo "" >> "$output"
-            echo "</details>" >> "$output"
-          fi
-          echo "" >> "$output"
-        }
+        SCRIPT_DIR="${{ github.action_path }}"
+        REPO_URL="${{ github.server_url }}/${{ github.repository }}/blob/${HEAD_REF}"
 
         # Generate PR comment artifact
-        generate_trivy_iac_summary "scanner-summaries/trivy-iac.md" "true"
+        "$SCRIPT_DIR/scripts/generate-summary.sh" \
+          "scanner-summaries/trivy-iac.md" \
+          "true" \
+          "${{ steps.validate.outputs.has_iac }}" \
+          "${{ steps.validate.outputs.iac_path }}" \
+          "$REPO_URL" \
+          "${{ github.server_url }}" \
+          "${{ github.repository }}" \
+          "${{ github.run_id }}"
 
         # Generate job summary
-        generate_trivy_iac_summary "$GITHUB_STEP_SUMMARY" "false"
+        "$SCRIPT_DIR/scripts/generate-summary.sh" \
+          "$GITHUB_STEP_SUMMARY" \
+          "false" \
+          "${{ steps.validate.outputs.has_iac }}" \
+          "${{ steps.validate.outputs.iac_path }}" \
+          "$REPO_URL" \
+          "${{ github.server_url }}" \
+          "${{ github.repository }}" \
+          "${{ github.run_id }}"
       continue-on-error: true
 
     - name: Upload scanner summary section
