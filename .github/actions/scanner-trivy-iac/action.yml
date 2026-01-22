@@ -103,10 +103,10 @@ runs:
       uses: aquasecurity/setup-trivy@e6c2c5e321ed9123bda567646e2f96565e34abe1
 
     - name: Run Trivy Infrastructure Scan (SARIF)
+      id: trivy-sarif
       if: steps.validate.outputs.has_iac == 'true'
       shell: bash
-      # Only continue-on-error when not enforcing severity threshold
-      continue-on-error: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
+      continue-on-error: true
       run: |
         IAC_PATH="${{ steps.validate.outputs.iac_path }}"
         OUTPUT_FILE="$IAC_PATH/security-reports/trivy-results.sarif"
@@ -133,7 +133,7 @@ runs:
           --output "$OUTPUT_FILE" \
           --severity "$SEVERITY" \
           --exit-code "$EXIT_CODE" \
-          "$IAC_PATH"
+          "$IAC_PATH" || true
 
     - name: Run Trivy Infrastructure Scan (JSON)
       if: steps.validate.outputs.has_iac == 'true'
@@ -164,6 +164,54 @@ runs:
         sarif_file: ${{ steps.validate.outputs.iac_path }}/security-reports/trivy-results.sarif
         category: trivy-iac
       continue-on-error: true
+
+    - name: Check for severity threshold violations
+      id: check-severity
+      if: steps.validate.outputs.has_iac == 'true' && always()
+      shell: bash
+      run: |
+        IAC_PATH="${{ steps.validate.outputs.iac_path }}"
+        JSON_FILE="$IAC_PATH/security-reports/trivy-results.json"
+
+        if [ ! -f "$JSON_FILE" ]; then
+          echo "fail=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        # Check if we should fail based on severity threshold
+        FAIL_ON="${{ inputs.fail_on_severity }}"
+        if [ "$FAIL_ON" = "none" ] || [ -z "$FAIL_ON" ]; then
+          echo "fail=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        # Count issues at or above threshold
+        CRITICAL=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity=="CRITICAL")] | length' "$JSON_FILE")
+        HIGH=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity=="HIGH")] | length' "$JSON_FILE")
+        MEDIUM=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity=="MEDIUM")] | length' "$JSON_FILE")
+        LOW=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity=="LOW")] | length' "$JSON_FILE")
+
+        SHOULD_FAIL=false
+        case "$FAIL_ON" in
+          critical)
+            [ "$CRITICAL" -gt 0 ] && SHOULD_FAIL=true
+            ;;
+          high)
+            [ $((CRITICAL + HIGH)) -gt 0 ] && SHOULD_FAIL=true
+            ;;
+          medium)
+            [ $((CRITICAL + HIGH + MEDIUM)) -gt 0 ] && SHOULD_FAIL=true
+            ;;
+          low)
+            [ $((CRITICAL + HIGH + MEDIUM + LOW)) -gt 0 ] && SHOULD_FAIL=true
+            ;;
+        esac
+
+        echo "fail=$SHOULD_FAIL" >> "$GITHUB_OUTPUT"
+        echo "critical=$CRITICAL" >> "$GITHUB_OUTPUT"
+        echo "high=$HIGH" >> "$GITHUB_OUTPUT"
+        echo "medium=$MEDIUM" >> "$GITHUB_OUTPUT"
+        echo "low=$LOW" >> "$GITHUB_OUTPUT"
 
     - name: Parse results
       id: parse-results
@@ -347,3 +395,14 @@ runs:
         path: scanner-summaries/trivy-iac.md
         retention-days: 7
       continue-on-error: true
+
+    - name: Fail job if severity threshold exceeded
+      if: steps.check-severity.outputs.fail == 'true'
+      shell: bash
+      run: |
+        echo "❌ Trivy IaC scan detected misconfigurations at or above '${{ inputs.fail_on_severity }}' severity"
+        echo "Critical: ${{ steps.check-severity.outputs.critical }}"
+        echo "High: ${{ steps.check-severity.outputs.high }}"
+        echo "Medium: ${{ steps.check-severity.outputs.medium }}"
+        echo "Low: ${{ steps.check-severity.outputs.low }}"
+        exit 1
