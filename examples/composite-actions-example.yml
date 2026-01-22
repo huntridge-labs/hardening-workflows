@@ -189,10 +189,13 @@ jobs:
     steps:
       - name: Generate Combined Security Summary
         uses: huntridge-labs/hardening-workflows/.github/actions/security-summary@feat/migrate-to-composite-actions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           title: '🔒 Security Scan Summary'
           show_metadata: true
           show_stats: true
+          post_pr_comment: true
 
       - name: Check job statuses
         run: |
