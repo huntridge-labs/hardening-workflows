@@ -9,7 +9,7 @@ description: |
   **Usage Example:**
   ```yaml
   - uses: actions/checkout@v6
-  - uses: huntridge-labs/hardening-workflows/.github/actions/linter-dockerfile@main
+  - uses: huntridge-labs/hardening-workflows/.github/actions/linter-dockerfile@feat/migrate-to-composite-actions
     with:
       fail_on_issues: false
   ```

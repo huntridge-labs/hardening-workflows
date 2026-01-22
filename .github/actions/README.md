@@ -9,8 +9,8 @@ This directory contains reusable composite actions for security scanning. Each a
 | Action | Description | Language/Type | Documentation |
 |--------|-------------|---------------|---------------|
 | [scanner-bandit](scanner-bandit/) | Python security scanner (SAST) | Python | [README](scanner-bandit/README.md) |
-| [scanner-codeql](scanner-codeql/) | GitHub CodeQL SAST scanner | Multi-language | [action.yml](scanner-codeql/action.yml) |
-| [scanner-opengrep](scanner-opengrep/) | Pattern-based SAST scanner | Multi-language | [action.yml](scanner-opengrep/action.yml) |
+| [scanner-codeql](scanner-codeql/) | GitHub CodeQL SAST scanner | Multi-language | [README](scanner-codeql/README.md) |
+| [scanner-opengrep](scanner-opengrep/) | Pattern-based SAST scanner | Multi-language | [README](scanner-opengrep/README.md) |
 
 ### Secrets Detection
 
@@ -47,20 +47,26 @@ This directory contains reusable composite actions for security scanning. Each a
 
 | Action | Description | Language/Type | Documentation |
 |--------|-------------|---------------|---------------|
-| [linter-yaml](linter-yaml/) | YAML syntax and style validation | YAML | [action.yml](linter-yaml/action.yml) |
-| [linter-json](linter-json/) | JSON syntax validation | JSON | [action.yml](linter-json/action.yml) |
-| [linter-python](linter-python/) | Python code quality (flake8 + bandit) | Python | [action.yml](linter-python/action.yml) |
-| [linter-javascript](linter-javascript/) | JavaScript syntax and quality (JSHint) | JavaScript | [action.yml](linter-javascript/action.yml) |
-| [linter-dockerfile](linter-dockerfile/) | Dockerfile best practices (Hadolint) | Dockerfile | [action.yml](linter-dockerfile/action.yml) |
-| [linter-terraform](linter-terraform/) | Terraform formatting and validation | Terraform | [action.yml](linter-terraform/action.yml) |
-| [linting-summary](linting-summary/) | Aggregate linter results into report | All | [action.yml](linting-summary/action.yml) |
+| [linter-yaml](linter-yaml/) | YAML syntax and style validation | YAML | [README](linter-yaml/README.md) |
+| [linter-json](linter-json/) | JSON syntax validation | JSON | [README](linter-json/README.md) |
+| [linter-python](linter-python/) | Python code quality (flake8 + bandit) | Python | [README](linter-python/README.md) |
+| [linter-javascript](linter-javascript/) | JavaScript syntax and quality (JSHint) | JavaScript | [README](linter-javascript/README.md) |
+| [linter-dockerfile](linter-dockerfile/) | Dockerfile best practices (Hadolint) | Dockerfile | [README](linter-dockerfile/README.md) |
+| [linter-terraform](linter-terraform/) | Terraform formatting and validation | Terraform | [README](linter-terraform/README.md) |
 
 ### Utility Actions
 
 | Action | Description | Documentation |
 |--------|-------------|---------------|
-| [parse-container-config](parse-container-config/) | Parse container scan configuration | [action.yml](parse-container-config/action.yml) |
-| [get-job-id](get-job-id/) | Retrieve GitHub Actions job ID | [action.yml](get-job-id/action.yml) |
+| [parse-container-config](parse-container-config/) | Parse container scan configuration | [README](parse-container-config/README.md) |
+| [get-job-id](get-job-id/) | Retrieve GitHub Actions job ID | [README](get-job-id/README.md) |
+
+### Reporting & Summaries
+
+| Action | Description | Documentation |
+|--------|-------------|---------------|
+| [linting-summary](linting-summary/) | Aggregate linter results into report | [README](linting-summary/README.md) |
+| [security-summary](security-summary/) | Aggregate scanner results into report | [README](security-summary/README.md) |
 
 ## Quick Start
 
@@ -69,7 +75,7 @@ This directory contains reusable composite actions for security scanning. Each a
 **Option A: Individual Scanners** (Most Flexible)
 ```yaml
 - uses: actions/checkout@v6
-- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@main
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -92,7 +98,7 @@ steps:
 
   # 2. Run the scanner
   - name: Run Security Scanner
-    uses: huntridge-labs/hardening-workflows/.github/actions/scanner-{name}@main
+    uses: huntridge-labs/hardening-workflows/.github/actions/scanner-{name}@feat/migrate-to-composite-actions
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     with:
@@ -133,7 +139,7 @@ All actions require:
 
 ```yaml
 - uses: actions/checkout@v6
-- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@main
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -146,7 +152,7 @@ All actions require:
 - uses: actions/checkout@v6
   with:
     fetch-depth: 0  # Full history for comprehensive scan
-- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@main
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -155,7 +161,7 @@ All actions require:
 
 ```yaml
 - uses: actions/checkout@v6
-- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-trivy-iac@main
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-trivy-iac@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -167,7 +173,7 @@ All actions require:
 ```yaml
 - uses: actions/checkout@v6
 - run: docker build -t myapp:test .
-- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@main
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -178,7 +184,7 @@ All actions require:
 
 ```yaml
 - uses: actions/checkout@v6
-- uses: huntridge-labs/hardening-workflows/.github/actions/linter-yaml@main
+- uses: huntridge-labs/hardening-workflows/.github/actions/linter-yaml@feat/migrate-to-composite-actions
   with:
     fail_on_issues: false
 ```
@@ -187,7 +193,7 @@ All actions require:
 
 ```yaml
 - uses: actions/checkout@v6
-- uses: huntridge-labs/hardening-workflows/.github/actions/linter-python@main
+- uses: huntridge-labs/hardening-workflows/.github/actions/linter-python@feat/migrate-to-composite-actions
   with:
     fail_on_issues: false
     max_line_length: '120'
@@ -197,7 +203,7 @@ All actions require:
 
 ```yaml
 - uses: actions/checkout@v6
-- uses: huntridge-labs/hardening-workflows/.github/actions/linter-dockerfile@main
+- uses: huntridge-labs/hardening-workflows/.github/actions/linter-dockerfile@feat/migrate-to-composite-actions
   with:
     fail_on_issues: false
 ```
@@ -214,7 +220,7 @@ jobs:
         scanner: [bandit, gitleaks, trivy-iac]
     steps:
       - uses: actions/checkout@v6
-      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-${{ matrix.scanner }}@main
+      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-${{ matrix.scanner }}@feat/migrate-to-composite-actions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```

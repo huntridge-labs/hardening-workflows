@@ -28,7 +28,7 @@ It detects 200+ types of secrets including:
     fetch-depth: 0  # Required for full history scan
 
 - name: Run Gitleaks Scanner
-  uses: ./.github/actions/scanner-gitleaks
+  uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Optional
@@ -40,7 +40,7 @@ It detects 200+ types of secrets including:
 
 ```yaml
 - name: Scan for secrets with strict settings
-  uses: ./.github/actions/scanner-gitleaks
+  uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
@@ -103,7 +103,7 @@ All reports are uploaded as artifacts: `gitleaks-reports`
   with:
     fetch-depth: 0  # Scan all commits
 
-- uses: ./.github/actions/scanner-gitleaks
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -115,7 +115,7 @@ All reports are uploaded as artifacts: `gitleaks-reports`
   uses: actions/checkout@v6
   # Default fetch-depth: 1
 
-- uses: ./.github/actions/scanner-gitleaks
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -123,7 +123,7 @@ All reports are uploaded as artifacts: `gitleaks-reports`
 ### Fail on Any Secret
 
 ```yaml
-- uses: ./.github/actions/scanner-gitleaks
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:

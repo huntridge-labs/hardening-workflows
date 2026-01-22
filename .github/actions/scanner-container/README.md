@@ -26,7 +26,7 @@ The action can scan images from:
   run: docker build -t myapp:latest .
 
 - name: Run Container Scanner
-  uses: ./.github/actions/scanner-container
+  uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -39,7 +39,7 @@ The action can scan images from:
 
 ```yaml
 - name: Scan image from ECR
-  uses: ./.github/actions/scanner-container
+  uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -122,7 +122,7 @@ All reports are uploaded as artifacts: `container-scan-{scan_name}`
 - name: Build and scan
   run: docker build -t myapp:test .
 
-- uses: ./.github/actions/scanner-container
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -145,7 +145,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - run: docker build -t ${{ matrix.image.ref }} .
-      - uses: ./.github/actions/scanner-container
+      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@feat/migrate-to-composite-actions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -163,7 +163,7 @@ jobs:
     username: ${{ github.actor }}
     password: ${{ secrets.GITHUB_TOKEN }}
 
-- uses: ./.github/actions/scanner-container
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -188,7 +188,7 @@ jobs:
     aws ecr get-login-password --region us-east-1 | \
     docker login --username AWS --password-stdin 123456.dkr.ecr.us-east-1.amazonaws.com
 
-- uses: ./.github/actions/scanner-container
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -199,7 +199,7 @@ jobs:
 ### Fail on Critical Only
 
 ```yaml
-- uses: ./.github/actions/scanner-container
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:

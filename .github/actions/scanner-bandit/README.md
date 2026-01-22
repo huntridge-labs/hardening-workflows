@@ -21,7 +21,7 @@ This composite action runs Bandit to detect common security issues in Python cod
   uses: actions/checkout@v6
 
 - name: Run Bandit Scanner
-  uses: ./.github/actions/scanner-bandit
+  uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -32,7 +32,7 @@ This composite action runs Bandit to detect common security issues in Python cod
 
 ```yaml
 - name: Scan Python with custom Python version
-  uses: ./.github/actions/scanner-bandit
+  uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -83,7 +83,7 @@ All reports are uploaded as artifacts: `bandit-reports`
 ### Scan with Specific Python Version
 
 ```yaml
-- uses: ./.github/actions/scanner-bandit
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -93,7 +93,7 @@ All reports are uploaded as artifacts: `bandit-reports`
 ### Fail on Medium or Higher
 
 ```yaml
-- uses: ./.github/actions/scanner-bandit
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -103,7 +103,7 @@ All reports are uploaded as artifacts: `bandit-reports`
 ### Report Only (Never Fail)
 
 ```yaml
-- uses: ./.github/actions/scanner-bandit
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:

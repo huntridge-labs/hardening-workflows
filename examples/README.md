@@ -30,7 +30,7 @@ Choose the approach that best fits your needs:
 **Usage:**
 ```yaml
 - name: Run Bandit Scanner
-  uses: ./.github/actions/scanner-bandit
+  uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -64,7 +64,7 @@ Choose the approach that best fits your needs:
 ```yaml
 jobs:
   security-scan:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@main
+    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/migrate-to-composite-actions
     with:
       enable_code_security: true
 ```

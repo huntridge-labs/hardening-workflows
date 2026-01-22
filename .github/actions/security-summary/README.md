@@ -26,7 +26,7 @@ security-summary:
   if: always()
 
   steps:
-    - uses: huntridge-labs/hardening-workflows/.github/actions/security-summary@main
+    - uses: huntridge-labs/hardening-workflows/.github/actions/security-summary@feat/migrate-to-composite-actions
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -36,7 +36,7 @@ That's it! The action will automatically find and combine all scanner summaries,
 ### With Custom Settings
 
 ```yaml
-- uses: huntridge-labs/hardening-workflows/.github/actions/security-summary@main
+- uses: huntridge-labs/hardening-workflows/.github/actions/security-summary@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -85,7 +85,7 @@ permissions:
 jobs:
   security-summary:
     steps:
-      - uses: huntridge-labs/hardening-workflows/.github/actions/security-summary@main
+      - uses: huntridge-labs/hardening-workflows/.github/actions/security-summary@feat/migrate-to-composite-actions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Required for PR comments
 ```
@@ -133,21 +133,21 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v6
-      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@main
+      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@feat/migrate-to-composite-actions
 
   gitleaks-scan:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
       - uses: actions/checkout@v6
-      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@main
+      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@feat/migrate-to-composite-actions
 
   security-summary:
     runs-on: ubuntu-latest
     needs: [bandit-scan, gitleaks-scan]
     if: always()
     steps:
-      - uses: huntridge-labs/hardening-workflows/.github/actions/security-summary@main
+      - uses: huntridge-labs/hardening-workflows/.github/actions/security-summary@feat/migrate-to-composite-actions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```

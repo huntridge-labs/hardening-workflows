@@ -12,7 +12,7 @@ description: |
   **Usage Example (single language):**
   ```yaml
   - uses: actions/checkout@v6
-  - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-codeql@main
+  - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-codeql@feat/migrate-to-composite-actions
     with:
       language: 'python'
       fail_on_severity: 'high'
@@ -25,7 +25,7 @@ description: |
       language: [python, javascript]
   steps:
     - uses: actions/checkout@v6
-    - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-codeql@main
+    - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-codeql@feat/migrate-to-composite-actions
       with:
         language: (use matrix.language)
   ```
