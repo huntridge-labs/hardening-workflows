@@ -16,7 +16,7 @@ description: |
     needs: [yaml-lint, json-lint, python-lint, javascript-lint, dockerfile-lint, terraform-lint]
     if: always()
     steps:
-      - uses: huntridge-labs/hardening-workflows/.github/actions/linting-summary@main
+      - uses: huntridge-labs/hardening-workflows/.github/actions/linting-summary@feat/migrate-to-composite-actions
   ```
 
   **Important:**

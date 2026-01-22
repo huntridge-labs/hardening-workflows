@@ -32,7 +32,7 @@ This composite action runs OWASP ZAP (Zed Attack Proxy) to scan running web appl
     sleep 10  # Wait for app to be ready
 
 - name: Run ZAP Scanner
-  uses: ./.github/actions/scanner-zap
+  uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -44,7 +44,7 @@ This composite action runs OWASP ZAP (Zed Attack Proxy) to scan running web appl
 
 ```yaml
 - name: DAST scan with custom settings
-  uses: ./.github/actions/scanner-zap
+  uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -111,7 +111,7 @@ jobs:
           docker run -d -p 8080:8080 myapp
           sleep 5
 
-      - uses: ./.github/actions/scanner-zap
+      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -135,7 +135,7 @@ jobs:
 
       # Start your services...
 
-      - uses: ./.github/actions/scanner-zap
+      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -146,7 +146,7 @@ jobs:
 ### Fail on Medium Risk
 
 ```yaml
-- uses: ./.github/actions/scanner-zap
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:

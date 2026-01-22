@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Scan container
-        uses: ./.github/actions/scanner-container
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@feat/migrate-to-composite-actions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Generate combined summary
-        uses: ./.github/actions/scanner-container-summary
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container-summary@feat/migrate-to-composite-actions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -62,7 +62,7 @@ jobs:
       scan_matrix: ${{ steps.parse.outputs.scan_matrix }}
     steps:
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/parse-container-config
+      - uses: huntridge-labs/hardening-workflows/.github/actions/parse-container-config@feat/migrate-to-composite-actions
         id: parse
         with:
           config_file: 'container-config.yml'
@@ -75,7 +75,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.setup.outputs.scan_matrix) }}
     steps:
-      - uses: ./.github/actions/scanner-container
+      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@feat/migrate-to-composite-actions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -90,7 +90,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: ./.github/actions/scanner-container-summary
+      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container-summary@feat/migrate-to-composite-actions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -161,7 +161,7 @@ These are uploaded as artifact: `container-scan-summary`
 If your scan artifacts use a different naming pattern:
 
 ```yaml
-- uses: ./.github/actions/scanner-container-summary
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container-summary@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -171,7 +171,7 @@ If your scan artifacts use a different naming pattern:
 ### Disable PR Comments
 
 ```yaml
-- uses: ./.github/actions/scanner-container-summary
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container-summary@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -183,7 +183,7 @@ If your scan artifacts use a different naming pattern:
 ```yaml
 - name: Generate summary
   id: summary
-  uses: ./.github/actions/scanner-container-summary
+  uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container-summary@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -203,7 +203,7 @@ If your scan artifacts use a different naming pattern:
 When using matrix scanning, set `skip_summary: true` in the scanner-container action to avoid duplicate summaries:
 
 ```yaml
-- uses: ./.github/actions/scanner-container
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@feat/migrate-to-composite-actions
   with:
     skip_summary: true  # Important!
 ```

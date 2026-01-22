@@ -22,7 +22,7 @@ ClamAV is an open-source antivirus engine commonly used for scanning in CI/CD pi
   uses: actions/checkout@v6
 
 - name: Run ClamAV Scanner
-  uses: ./.github/actions/scanner-clamav
+  uses: huntridge-labs/hardening-workflows/.github/actions/scanner-clamav@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -34,7 +34,7 @@ ClamAV is an open-source antivirus engine commonly used for scanning in CI/CD pi
 
 ```yaml
 - name: Scan specific directory
-  uses: ./.github/actions/scanner-clamav
+  uses: huntridge-labs/hardening-workflows/.github/actions/scanner-clamav@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -82,7 +82,7 @@ All reports are uploaded as artifacts: `clamav-reports`
 ### Scan Repository Root
 
 ```yaml
-- uses: ./.github/actions/scanner-clamav
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-clamav@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -92,7 +92,7 @@ All reports are uploaded as artifacts: `clamav-reports`
 ### Scan Specific Directory
 
 ```yaml
-- uses: ./.github/actions/scanner-clamav
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-clamav@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
@@ -111,7 +111,7 @@ jobs:
         path: ['uploads', 'static', 'downloads']
     steps:
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/scanner-clamav
+      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-clamav@feat/migrate-to-composite-actions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -121,7 +121,7 @@ jobs:
 ### Fail on Any Malware
 
 ```yaml
-- uses: ./.github/actions/scanner-clamav
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-clamav@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
