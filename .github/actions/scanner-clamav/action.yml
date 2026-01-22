@@ -59,42 +59,53 @@ runs:
       run: |
         echo "🔧 Installing ClamAV..."
         sudo apt-get update
-        sudo apt-get install -y clamav clamav-daemon
-        sudo systemctl stop clamav-daemon || true  # Stop the daemon to avoid conflicts
-
-        echo "📥 Updating ClamAV virus database..."
-        # Update virus definitions with retries
-        max_attempts=3
-        attempt=1
-        while [ $attempt -le $max_attempts ]; do
-          echo "Attempt $attempt of $max_attempts..."
-          if sudo freshclam; then
-            echo "✅ Virus database updated successfully"
-            break
-          else
-            echo "⚠️  freshclam attempt $attempt failed"
-            attempt=$((attempt + 1))
-            [ $attempt -le $max_attempts ] && sleep 10
-          fi
-        done
-
-        # Verify ClamAV is working
+        sudo apt-get install -y clamav
+        
         echo "🔍 Verifying ClamAV installation..."
         clamscan --version
-        echo "📊 Database status:"
-        sigtool --info /var/lib/clamav/main.cvd || echo "Main database not found"
-        sigtool --info /var/lib/clamav/daily.cvd || echo "Daily database not found"
       continue-on-error: false
 
-    - name: Set up Python
+    - name: Set up Python for database updates
       uses: actions/setup-python@v6
       with:
         python-version: '3.12'
 
-    - name: Install Python dependencies
+    - name: Update ClamAV database with cvdupdate
       shell: bash
       run: |
-        echo "📦 Installing Python dependencies..."
+        echo "📦 Installing cvdupdate (official ClamAV database updater)..."
+        pip install cvdupdate
+        
+        echo "📥 Updating ClamAV virus database..."
+        # Configure cvdupdate to use system database directory
+        cvdupdate config set --dbdir /var/lib/clamav
+        
+        # Update databases with retries
+        max_attempts=3
+        attempt=1
+        while [ $attempt -le $max_attempts ]; do
+          echo "Attempt $attempt of $max_attempts..."
+          if sudo $(which cvdupdate) update; then
+            echo "✅ Virus database updated successfully"
+            break
+          else
+            echo "⚠️  cvdupdate attempt $attempt failed"
+            attempt=$((attempt + 1))
+            [ $attempt -le $max_attempts ] && sleep 10
+          fi
+        done
+        
+        # Verify databases
+        echo "📊 Database status:"
+        sudo sigtool --info /var/lib/clamav/main.cvd 2>/dev/null || echo "Main database: checking..."
+        sudo sigtool --info /var/lib/clamav/daily.cvd 2>/dev/null || echo "Daily database: checking..."
+        ls -lh /var/lib/clamav/*.cvd 2>/dev/null || echo "Database files present"
+      continue-on-error: false
+
+    - name: Install Python dependencies for scanning
+      shell: bash
+      run: |
+        echo "📦 Installing additional Python dependencies..."
         pip install rarfile  # Optional dependency for RAR files
       continue-on-error: true
 
