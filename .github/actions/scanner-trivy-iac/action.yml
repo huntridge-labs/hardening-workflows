@@ -89,41 +89,72 @@ runs:
         mkdir -p "$IAC_PATH"/security-reports
         echo "📁 Created security reports directory"
 
+    - name: Install Trivy (GHES)
+      if: steps.validate.outputs.has_iac == 'true' && !contains(github.server_url, 'github.com')
+      shell: bash
+      run: |
+        echo "📥 Installing Trivy directly (GHES detected)..."
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+        trivy --version
+        echo "✅ Trivy installed"
+
+    - name: Install Trivy (github.com)
+      if: steps.validate.outputs.has_iac == 'true' && contains(github.server_url, 'github.com')
+      uses: aquasecurity/setup-trivy@e6c2c5e321ed9123bda567646e2f96565e34abe1
+
     - name: Run Trivy Infrastructure Scan (SARIF)
       if: steps.validate.outputs.has_iac == 'true'
-      uses: aquasecurity/trivy-action@0.33.1
+      shell: bash
       # Only continue-on-error when not enforcing severity threshold
       continue-on-error: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
-      with:
-        scan-type: 'config'
-        scan-ref: '${{ steps.validate.outputs.iac_path }}'
-        format: 'sarif'
-        output: '${{ steps.validate.outputs.iac_path }}/security-reports/trivy-results.sarif'
-        hide-progress: true
-        # Use native exit-code when severity threshold is set
-        exit-code: ${{ inputs.fail_on_severity != 'none' && inputs.fail_on_severity != '' && '1' || '0' }}
-        severity: ${{ inputs.fail_on_severity == 'critical' && 'CRITICAL' || inputs.fail_on_severity == 'high' && 'HIGH,CRITICAL' || inputs.fail_on_severity == 'medium' && 'MEDIUM,HIGH,CRITICAL' || inputs.fail_on_severity == 'low' && 'LOW,MEDIUM,HIGH,CRITICAL' || 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL' }}
+      run: |
+        IAC_PATH="${{ steps.validate.outputs.iac_path }}"
+        OUTPUT_FILE="$IAC_PATH/security-reports/trivy-results.sarif"
+
+        if [ "${{ inputs.fail_on_severity }}" = "critical" ]; then
+          SEVERITY="CRITICAL"
+        elif [ "${{ inputs.fail_on_severity }}" = "high" ]; then
+          SEVERITY="HIGH,CRITICAL"
+        elif [ "${{ inputs.fail_on_severity }}" = "medium" ]; then
+          SEVERITY="MEDIUM,HIGH,CRITICAL"
+        elif [ "${{ inputs.fail_on_severity }}" = "low" ]; then
+          SEVERITY="LOW,MEDIUM,HIGH,CRITICAL"
+        else
+          SEVERITY="UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+        fi
+
+        EXIT_CODE=0
+        if [ "${{ inputs.fail_on_severity }}" != "none" ] && [ -n "${{ inputs.fail_on_severity }}" ]; then
+          EXIT_CODE=1
+        fi
+
+        trivy config \
+          --format sarif \
+          --output "$OUTPUT_FILE" \
+          --severity "$SEVERITY" \
+          --exit-code "$EXIT_CODE" \
+          "$IAC_PATH"
 
     - name: Run Trivy Infrastructure Scan (JSON)
       if: steps.validate.outputs.has_iac == 'true'
-      uses: aquasecurity/trivy-action@0.33.1
-      with:
-        scan-type: 'config'
-        scan-ref: '${{ steps.validate.outputs.iac_path }}'
-        format: 'json'
-        output: '${{ steps.validate.outputs.iac_path }}/security-reports/trivy-results.json'
-        hide-progress: true
+      shell: bash
+      run: |
+        IAC_PATH="${{ steps.validate.outputs.iac_path }}"
+        trivy config \
+          --format json \
+          --output "$IAC_PATH/security-reports/trivy-results.json" \
+          "$IAC_PATH" || true
       continue-on-error: true
 
     - name: Run Trivy Infrastructure Scan (Table)
       if: steps.validate.outputs.has_iac == 'true'
-      uses: aquasecurity/trivy-action@0.33.1
-      with:
-        scan-type: 'config'
-        scan-ref: '${{ steps.validate.outputs.iac_path }}'
-        format: 'table'
-        output: '${{ steps.validate.outputs.iac_path }}/security-reports/trivy-results.txt'
-        hide-progress: true
+      shell: bash
+      run: |
+        IAC_PATH="${{ steps.validate.outputs.iac_path }}"
+        trivy config \
+          --format table \
+          --output "$IAC_PATH/security-reports/trivy-results.txt" \
+          "$IAC_PATH" || true
       continue-on-error: true
 
     - name: Upload Trivy SARIF results to GitHub Security
