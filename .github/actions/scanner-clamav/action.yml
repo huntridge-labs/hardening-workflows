@@ -9,7 +9,7 @@ description: |
   ```yaml
   - uses: ./.github/actions/scanner-clamav
     env:
-      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: (github.token)
     with:
       scan_path: '.'
       fail_on_severity: 'none'
@@ -117,7 +117,7 @@ runs:
           case "$FILE_TYPE" in
             application/x-tar|application/x-gzip|application/gzip|application/x-bzip2|application/x-xz|application/zip|application/x-rar|application/x-compressed-tar)
               echo "📦 Detected archive file (by content), extracting..."
-              SCAN_PATHS=$(python3 ${{ github.action_path }}/extract-archives.py "$SCAN_PATH" \
+              SCAN_PATHS=$(python3 ${{ github.action_path }}/scripts/extract-archives.py "$SCAN_PATH" \
                 --output-dir clamav-extracted)
               ;;
             *)
@@ -133,7 +133,7 @@ runs:
 
           if [ "$ARCHIVE_COUNT" -gt 0 ]; then
             echo "📦 Directory contains $ARCHIVE_COUNT archive(s) (by content), extracting..."
-            SCAN_PATHS=$(python3 ${{ github.action_path }}/extract-archives.py "$SCAN_PATH" \
+            SCAN_PATHS=$(python3 ${{ github.action_path }}/scripts/extract-archives.py "$SCAN_PATH" \
               --output-dir clamav-extracted)
           else
             echo "📁 Directory with no archives, scanning directly..."
