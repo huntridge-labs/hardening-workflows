@@ -80,81 +80,91 @@ generate_checkov_summary() {
         echo "<summary>🔍 Failed Check Details ($TOTAL)</summary>" >> "$output"
         echo "" >> "$output"
 
-        # Group by severity
-        if [ "$CRITICAL" -gt 0 ]; then
-          echo "<details open>" >> "$output"
-          echo "<summary>🚨 Critical Severity ($CRITICAL)</summary>" >> "$output"
-          echo "" >> "$output"
-          echo "| Check ID | Check Name | Resource | Location |" >> "$output"
-          echo "|----------|------------|----------|----------|" >> "$output"
+        # Check if severity field is populated by testing first failed check
+        HAS_SEVERITY=$(jq -r '.results.failed_checks[0].severity != null' "$JSON_FILE" 2>/dev/null || echo "false")
 
-          jq -r --arg repo_url "$REPO_URL" '.results.failed_checks[]? | select(.severity == "CRITICAL") |
-            (.file_path // "N/A" | ltrimstr("/")) as $filepath |
-            (.file_line_range[0] // 1) as $start |
-            (.file_line_range[1] // 1) as $end |
-            "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:50]) | \(.resource // "N/A" | .[0:40]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$JSON_FILE" 2>/dev/null >> "$output" || echo "| Error parsing results | - | - | - |" >> "$output"
+        if [ "$HAS_SEVERITY" = "true" ]; then
+          # Group by severity when available
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "<details open>" >> "$output"
+            echo "<summary>🚨 Critical Severity ($CRITICAL)</summary>" >> "$output"
+            echo "" >> "$output"
+            echo "| Check ID | Check Name | Resource | Location |" >> "$output"
+            echo "|----------|------------|----------|----------|" >> "$output"
 
-          echo "" >> "$output"
-          echo "</details>" >> "$output"
-          echo "" >> "$output"
-        fi
+            jq -r --arg repo_url "$REPO_URL" '.results.failed_checks[]? | select(.severity == "CRITICAL") |
+              (.file_path // "N/A" | ltrimstr("/")) as $filepath |
+              (.file_line_range[0] // 1) as $start |
+              (.file_line_range[1] // 1) as $end |
+              "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:50]) | \(.resource // "N/A" | .[0:40]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$JSON_FILE" 2>/dev/null >> "$output" || echo "| Error parsing results | - | - | - |" >> "$output"
 
-        if [ "$HIGH" -gt 0 ]; then
-          echo "<details>" >> "$output"
-          echo "<summary>⚠️ High Severity ($HIGH)</summary>" >> "$output"
-          echo "" >> "$output"
-          echo "| Check ID | Check Name | Resource | Location |" >> "$output"
-          echo "|----------|------------|----------|----------|" >> "$output"
+            echo "" >> "$output"
+            echo "</details>" >> "$output"
+            echo "" >> "$output"
+          fi
 
-          jq -r --arg repo_url "$REPO_URL" '.results.failed_checks[]? | select(.severity == "HIGH") |
-            (.file_path // "N/A" | ltrimstr("/")) as $filepath |
-            (.file_line_range[0] // 1) as $start |
-            (.file_line_range[1] // 1) as $end |
-            "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:50]) | \(.resource // "N/A" | .[0:40]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$JSON_FILE" 2>/dev/null >> "$output" || echo "| Error parsing results | - | - | - |" >> "$output"
+          if [ "$HIGH" -gt 0 ]; then
+            echo "<details>" >> "$output"
+            echo "<summary>⚠️ High Severity ($HIGH)</summary>" >> "$output"
+            echo "" >> "$output"
+            echo "| Check ID | Check Name | Resource | Location |" >> "$output"
+            echo "|----------|------------|----------|----------|" >> "$output"
 
-          echo "" >> "$output"
-          echo "</details>" >> "$output"
-          echo "" >> "$output"
-        fi
+            jq -r --arg repo_url "$REPO_URL" '.results.failed_checks[]? | select(.severity == "HIGH") |
+              (.file_path // "N/A" | ltrimstr("/")) as $filepath |
+              (.file_line_range[0] // 1) as $start |
+              (.file_line_range[1] // 1) as $end |
+              "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:50]) | \(.resource // "N/A" | .[0:40]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$JSON_FILE" 2>/dev/null >> "$output" || echo "| Error parsing results | - | - | - |" >> "$output"
 
-        if [ "$MEDIUM" -gt 0 ]; then
-          echo "<details>" >> "$output"
-          echo "<summary>🟡 Medium Severity ($MEDIUM)</summary>" >> "$output"
-          echo "" >> "$output"
-          echo "| Check ID | Check Name | Resource | Location |" >> "$output"
-          echo "|----------|------------|----------|----------|" >> "$output"
+            echo "" >> "$output"
+            echo "</details>" >> "$output"
+            echo "" >> "$output"
+          fi
 
-          jq -r --arg repo_url "$REPO_URL" '.results.failed_checks[]? | select(.severity == "MEDIUM") |
-            (.file_path // "N/A" | ltrimstr("/")) as $filepath |
-            (.file_line_range[0] // 1) as $start |
-            (.file_line_range[1] // 1) as $end |
-            "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:50]) | \(.resource // "N/A" | .[0:40]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$JSON_FILE" 2>/dev/null >> "$output" || echo "| Error parsing results | - | - | - |" >> "$output"
+          if [ "$MEDIUM" -gt 0 ]; then
+            echo "<details>" >> "$output"
+            echo "<summary>🟡 Medium Severity ($MEDIUM)</summary>" >> "$output"
+            echo "" >> "$output"
+            echo "| Check ID | Check Name | Resource | Location |" >> "$output"
+            echo "|----------|------------|----------|----------|" >> "$output"
 
-          echo "" >> "$output"
-          echo "</details>" >> "$output"
-          echo "" >> "$output"
-        fi
+            jq -r --arg repo_url "$REPO_URL" '.results.failed_checks[]? | select(.severity == "MEDIUM") |
+              (.file_path // "N/A" | ltrimstr("/")) as $filepath |
+              (.file_line_range[0] // 1) as $start |
+              (.file_line_range[1] // 1) as $end |
+              "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:50]) | \(.resource // "N/A" | .[0:40]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$JSON_FILE" 2>/dev/null >> "$output" || echo "| Error parsing results | - | - | - |" >> "$output"
 
-        if [ "$LOW" -gt 0 ]; then
-          echo "<details>" >> "$output"
-          echo "<summary>🔵 Low Severity ($LOW)</summary>" >> "$output"
-          echo "" >> "$output"
-          echo "| Check ID | Check Name | Resource | Location |" >> "$output"
-          echo "|----------|------------|----------|----------|" >> "$output"
+            echo "" >> "$output"
+            echo "</details>" >> "$output"
+            echo "" >> "$output"
+          fi
 
-          jq -r --arg repo_url "$REPO_URL" '.results.failed_checks[]? | select(.severity == "LOW") |
-            (.file_path // "N/A" | ltrimstr("/")) as $filepath |
-            (.file_line_range[0] // 1) as $start |
-            (.file_line_range[1] // 1) as $end |
-            "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:50]) | \(.resource // "N/A" | .[0:40]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$JSON_FILE" 2>/dev/null >> "$output" || echo "| Error parsing results | - | - | - |" >> "$output"
+          if [ "$LOW" -gt 0 ]; then
+            echo "<details>" >> "$output"
+            echo "<summary>🔵 Low Severity ($LOW)</summary>" >> "$output"
+            echo "" >> "$output"
+            echo "| Check ID | Check Name | Resource | Location |" >> "$output"
+            echo "|----------|------------|----------|----------|" >> "$output"
 
-          echo "" >> "$output"
-          echo "</details>" >> "$output"
-          echo "" >> "$output"
-        fi
+            jq -r --arg repo_url "$REPO_URL" '.results.failed_checks[]? | select(.severity == "LOW") |
+              (.file_path // "N/A" | ltrimstr("/")) as $filepath |
+              (.file_line_range[0] // 1) as $start |
+              (.file_line_range[1] // 1) as $end |
+              "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:50]) | \(.resource // "N/A" | .[0:40]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$JSON_FILE" 2>/dev/null >> "$output" || echo "| Error parsing results | - | - | - |" >> "$output"
 
-        # If no severity info, show all failed checks
-        if [ "$CRITICAL" -eq 0 ] && [ "$HIGH" -eq 0 ] && [ "$MEDIUM" -eq 0 ] && [ "$LOW" -eq 0 ] && [ "$TOTAL" -gt 0 ]; then
+            echo "" >> "$output"
+            echo "</details>" >> "$output"
+            echo "" >> "$output"
+          fi
+        else
+          # No severity info available - show all failed checks without severity grouping
+          # Use HIGH label since action.yml assigns all to HIGH when severity is unavailable
+          if [ "$HIGH" -gt 0 ]; then
+            echo "<details open>" >> "$output"
+            echo "<summary>⚠️ Failed Checks ($HIGH) - Severity info unavailable</summary>" >> "$output"
+            echo "" >> "$output"
+          fi
+
           echo "| Check ID | Check Name | Resource | Location |" >> "$output"
           echo "|----------|------------|----------|----------|" >> "$output"
 
@@ -165,6 +175,11 @@ generate_checkov_summary() {
             "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:50]) | \(.resource // "N/A" | .[0:40]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$JSON_FILE" 2>/dev/null >> "$output" || echo "| Error parsing results | - | - | - |" >> "$output"
 
           echo "" >> "$output"
+
+          if [ "$HIGH" -gt 0 ]; then
+            echo "</details>" >> "$output"
+            echo "" >> "$output"
+          fi
         fi
 
         echo "</details>" >> "$output"
