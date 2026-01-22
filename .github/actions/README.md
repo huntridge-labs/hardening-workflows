@@ -9,6 +9,8 @@ This directory contains reusable composite actions for security scanning. Each a
 | Action | Description | Language/Type | Documentation |
 |--------|-------------|---------------|---------------|
 | [scanner-bandit](scanner-bandit/) | Python security scanner (SAST) | Python | [README](scanner-bandit/README.md) |
+| [scanner-codeql](scanner-codeql/) | GitHub CodeQL SAST scanner | Multi-language | [action.yml](scanner-codeql/action.yml) |
+| [scanner-opengrep](scanner-opengrep/) | Pattern-based SAST scanner | Multi-language | [action.yml](scanner-opengrep/action.yml) |
 
 ### Secrets Detection
 
@@ -258,8 +260,8 @@ See [examples/README.md](../../examples/README.md) for migration guidance.
 
 The following scanners are being migrated to composite actions:
 
-- ⏳ **scanner-codeql** - GitHub's code analysis
-- ⏳ **scanner-opengrep** - Pattern-based security
+- ✅ **scanner-codeql** - GitHub's code analysis (completed)
+- ✅ **scanner-opengrep** - Pattern-based security (completed)
 - ⏳ **scanner-checkov** - Multi-framework IaC
 - ⏳ **scanner-trivy-container** - Container scanning
 
