@@ -67,7 +67,14 @@ runs:
         # Show metadata if enabled
         if [ "${{ inputs.show_metadata }}" = "true" ]; then
           echo "**Workflow Run:** [${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+
+          # Use head_ref for PRs (source branch), ref_name for pushes
+          BRANCH_NAME="${{ github.head_ref }}"
+          if [ -z "$BRANCH_NAME" ]; then
+            BRANCH_NAME="${{ github.ref_name }}"
+          fi
+          echo "**Branch:** \`$BRANCH_NAME\`" >> $GITHUB_STEP_SUMMARY
+
           echo "**Commit:** [\`${GITHUB_SHA:0:7}\`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
         fi
@@ -126,13 +133,15 @@ runs:
             let commentBody = `## ${process.env.SUMMARY_TITLE}\n\n<!-- security-summary-comment-marker -->\n\n`;
 
             // Add metadata if available
-            if (process.env.GITHUB_REF_NAME) {
-              commentBody += `**Branch:** \`${process.env.GITHUB_REF_NAME}\`\n`;
+            // Use head_ref for PRs (source branch), ref_name for pushes
+            const branchName = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME;
+            if (branchName) {
+              commentBody += `**Branch:** \`${branchName}\`\n`;
             }
 
             const shortSha = context.sha.substring(0, 7);
-            commentBody += `**Commit:** [\`${shortSha}\`](https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${context.sha})\n`;
-            commentBody += `**Workflow:** [#${context.runNumber}](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n\n`;
+            commentBody += `**Commit:** [\`${shortSha}\`](${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/commit/${context.sha})\n`;
+            commentBody += `**Workflow:** [#${context.runNumber}](${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n\n`;
 
             // Check if we have scanner summaries
             if (fs.existsSync('scanner-summaries')) {
@@ -186,7 +195,7 @@ runs:
               // Update existing comment with latest information
               console.log('🔄 Updating existing security summary comment');
               const timestamp = new Date().toLocaleString();
-              const updatedBody = commentBody + `\n\n---\n*Last updated: ${timestamp} | [View Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
+              const updatedBody = commentBody + `\n\n---\n*Last updated: ${timestamp} | [View Run](${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
 
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
