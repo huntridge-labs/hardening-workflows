@@ -268,7 +268,7 @@ EOF
 
   # Artifact link
   if [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${GITHUB_RUN_ID:-}" ]; then
-    echo "**📁 Artifacts:** [ZAP Scan Reports](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}#artifacts)" >> "$output"
+    echo "**📁 Artifacts:** [ZAP Scan Reports](${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}#artifacts)" >> "$output"
   fi
 
   [[ "$output" == *"zap.md" ]] && echo -e "\n</details>" >> "$output"

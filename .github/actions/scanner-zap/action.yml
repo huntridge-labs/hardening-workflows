@@ -177,6 +177,7 @@ runs:
       env:
         ZAP_PARSER: ${{ github.action_path }}/scripts/parse-zap-results.sh
         ZAP_SCAN_TYPE: baseline
+        GITHUB_SERVER_URL: ${{ github.server_url }}
       run: |
         set -euo pipefail
 
