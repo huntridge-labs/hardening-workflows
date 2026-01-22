@@ -1,0 +1,318 @@
+name: 'Trivy IaC Scanner'
+description: |
+  Run Trivy infrastructure-as-code scanning and generate reports.
+
+  **Required Environment Variables:**
+  - GITHUB_TOKEN: GitHub token for API access (set automatically in workflows)
+
+  **Usage Example:**
+  ```yaml
+  - uses: ./.github/actions/scanner-trivy-iac
+    env:
+      GITHUB_TOKEN: (secrets.GITHUB_TOKEN)
+    with:
+      iac_path: 'infrastructure'
+      fail_on_severity: 'high'
+  ```
+
+author: 'Hardening Workflows'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  iac_path:
+    description: 'Relative path to the infrastructure-as-code directory to scan'
+    required: false
+    default: 'infrastructure'
+  enable_code_security:
+    description: 'Whether GitHub Code Security is enabled for this repository'
+    required: false
+    default: 'false'
+  post_pr_comment:
+    description: 'Whether to post PR comments'
+    required: false
+    default: 'true'
+  fail_on_severity:
+    description: 'Fail the job if vulnerabilities at or above this severity are found. Options: none, low, medium, high, critical. Set to "none" to never fail.'
+    required: false
+    default: 'none'
+
+outputs:
+  critical_count:
+    description: 'Number of critical severity misconfigurations found'
+    value: ${{ steps.parse-results.outputs.critical_count }}
+  high_count:
+    description: 'Number of high severity misconfigurations found'
+    value: ${{ steps.parse-results.outputs.high_count }}
+  medium_count:
+    description: 'Number of medium severity misconfigurations found'
+    value: ${{ steps.parse-results.outputs.medium_count }}
+  low_count:
+    description: 'Number of low severity misconfigurations found'
+    value: ${{ steps.parse-results.outputs.low_count }}
+  total_count:
+    description: 'Total number of misconfigurations found'
+    value: ${{ steps.parse-results.outputs.total_count }}
+  has_iac:
+    description: 'Whether IaC directory was found and scanned'
+    value: ${{ steps.validate.outputs.has_iac }}
+
+runs:
+  using: 'composite'
+  steps:
+    # IMPORTANT: Caller must checkout the repository before calling this action
+    # Example:
+    #   - uses: actions/checkout@v6
+    #   - uses: ./.github/actions/scanner-trivy-iac
+
+    - name: Validate scan directory
+      id: validate
+      shell: bash
+      run: |
+        IAC_PATH="${{ inputs.iac_path }}"
+        if [ -z "$IAC_PATH" ]; then
+          IAC_PATH='infrastructure'
+        fi
+
+        if [ ! -d "$IAC_PATH" ]; then
+          echo "⚠️  Directory '$IAC_PATH' not found. Skipping Trivy IaC scan."
+          echo "has_iac=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        echo "has_iac=true" >> $GITHUB_OUTPUT
+        echo "iac_path=$IAC_PATH" >> $GITHUB_OUTPUT
+        echo "✅ Found IaC directory: $IAC_PATH"
+
+        mkdir -p "$IAC_PATH"/security-reports
+        echo "📁 Created security reports directory"
+
+    - name: Run Trivy Infrastructure Scan (SARIF)
+      if: steps.validate.outputs.has_iac == 'true'
+      uses: aquasecurity/trivy-action@0.33.1
+      # Only continue-on-error when not enforcing severity threshold
+      continue-on-error: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
+      with:
+        scan-type: 'config'
+        scan-ref: '${{ steps.validate.outputs.iac_path }}'
+        format: 'sarif'
+        output: '${{ steps.validate.outputs.iac_path }}/security-reports/trivy-results.sarif'
+        hide-progress: true
+        # Use native exit-code when severity threshold is set
+        exit-code: ${{ inputs.fail_on_severity != 'none' && inputs.fail_on_severity != '' && '1' || '0' }}
+        severity: ${{ inputs.fail_on_severity == 'critical' && 'CRITICAL' || inputs.fail_on_severity == 'high' && 'HIGH,CRITICAL' || inputs.fail_on_severity == 'medium' && 'MEDIUM,HIGH,CRITICAL' || inputs.fail_on_severity == 'low' && 'LOW,MEDIUM,HIGH,CRITICAL' || 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL' }}
+
+    - name: Run Trivy Infrastructure Scan (JSON)
+      if: steps.validate.outputs.has_iac == 'true'
+      uses: aquasecurity/trivy-action@0.33.1
+      with:
+        scan-type: 'config'
+        scan-ref: '${{ steps.validate.outputs.iac_path }}'
+        format: 'json'
+        output: '${{ steps.validate.outputs.iac_path }}/security-reports/trivy-results.json'
+        hide-progress: true
+      continue-on-error: true
+
+    - name: Run Trivy Infrastructure Scan (Table)
+      if: steps.validate.outputs.has_iac == 'true'
+      uses: aquasecurity/trivy-action@0.33.1
+      with:
+        scan-type: 'config'
+        scan-ref: '${{ steps.validate.outputs.iac_path }}'
+        format: 'table'
+        output: '${{ steps.validate.outputs.iac_path }}/security-reports/trivy-results.txt'
+        hide-progress: true
+      continue-on-error: true
+
+    - name: Upload Trivy SARIF results to GitHub Security
+      if: inputs.enable_code_security == 'true' && steps.validate.outputs.has_iac == 'true' && always() && github.actor != 'nektos/act'
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: ${{ steps.validate.outputs.iac_path }}/security-reports/trivy-results.sarif
+        category: trivy-iac
+      continue-on-error: true
+
+    - name: Parse results
+      id: parse-results
+      if: steps.validate.outputs.has_iac == 'true' && always()
+      shell: bash
+      run: |
+        IAC_PATH="${{ steps.validate.outputs.iac_path }}"
+        JSON_FILE="$IAC_PATH/security-reports/trivy-results.json"
+
+        # Initialize counts
+        CRITICAL=0
+        HIGH=0
+        MEDIUM=0
+        LOW=0
+        TOTAL=0
+
+        if [ ! -f "$JSON_FILE" ]; then
+          echo "⚠️  No Trivy results found"
+        else
+          echo "📊 Trivy IaC Security Analysis"
+          echo "================================"
+
+          CRITICAL=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "CRITICAL")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+          HIGH=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "HIGH")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+          MEDIUM=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "MEDIUM")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+          LOW=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "LOW")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+
+          echo "🔍 Misconfiguration Summary:"
+          echo "  Critical: $CRITICAL"
+          echo "  High: $HIGH"
+          echo "  Medium: $MEDIUM"
+          echo "  Low: $LOW"
+
+          TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
+
+          if [ "$TOTAL" -gt 0 ]; then
+            echo "⚠️  Found $TOTAL total misconfigurations"
+            if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+              echo "::warning title=High Severity Misconfigurations::Found $CRITICAL critical and $HIGH high severity misconfigurations in IaC"
+            fi
+          else
+            echo "✅ No misconfigurations found"
+          fi
+        fi
+
+        echo "critical_count=$CRITICAL" >> $GITHUB_OUTPUT
+        echo "high_count=$HIGH" >> $GITHUB_OUTPUT
+        echo "medium_count=$MEDIUM" >> $GITHUB_OUTPUT
+        echo "low_count=$LOW" >> $GITHUB_OUTPUT
+        echo "total_count=$TOTAL" >> $GITHUB_OUTPUT
+
+    - name: Upload Trivy artifacts
+      if: steps.validate.outputs.has_iac == 'true' && always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: trivy-iac-scan-results
+        path: |
+          ${{ steps.validate.outputs.iac_path }}/security-reports/trivy-results.*
+        retention-days: 30
+
+    - name: Generate scanner summary section
+      if: always()
+      shell: bash
+      env:
+        HEAD_REF: ${{ github.head_ref || github.ref_name }}
+      run: |
+        mkdir -p scanner-summaries
+
+        # Function to generate summary for a given output
+        generate_trivy_iac_summary() {
+          local output="$1"
+          local is_pr_comment="$2"
+
+          if [ "$is_pr_comment" = "true" ]; then
+            echo "<details>" >> "$output"
+            echo "<summary>🔍 Trivy IaC Scanner</summary>" >> "$output"
+          else
+            echo "## 🔍 Trivy IaC Scanner Summary" >> "$output"
+          fi
+          echo "" >> "$output"
+
+          if [ "${{ steps.validate.outputs.has_iac }}" == "true" ]; then
+            IAC_PATH="${{ steps.validate.outputs.iac_path }}"
+            JSON_FILE="$IAC_PATH/security-reports/trivy-results.json"
+            SARIF_FILE="$IAC_PATH/security-reports/trivy-results.sarif"
+            REPO_URL="${{ github.server_url }}/${{ github.repository }}/blob/${HEAD_REF}"
+
+            if [ -f "$JSON_FILE" ]; then
+              if [ "$is_pr_comment" = "true" ]; then
+                echo "**Status:** ✅ Completed" >> "$output"
+                echo "" >> "$output"
+              fi
+
+              CRITICAL=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "CRITICAL")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+              HIGH=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "HIGH")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+              MEDIUM=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "MEDIUM")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+              LOW=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "LOW")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
+              TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
+
+              echo "### 📊 Findings Summary" >> "$output"
+              echo "" >> "$output"
+              echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📦 Total |" >> "$output"
+              echo "|-------------|---------|-----------|--------|----------|" >> "$output"
+              echo "| **$CRITICAL** | **$HIGH** | **$MEDIUM** | **$LOW** | **$TOTAL** |" >> "$output"
+              echo "" >> "$output"
+
+              # Detailed findings with clickable links
+              if [ $TOTAL -gt 0 ] && [ -f "$SARIF_FILE" ]; then
+                echo "<details open>" >> "$output"
+                echo "<summary>🔍 Finding Details ($TOTAL)</summary>" >> "$output"
+                echo "" >> "$output"
+
+                echo "| Rule ID | Location | Severity | Message |" >> "$output"
+                echo "|---------|----------|----------|---------|" >> "$output"
+
+                jq -r --arg repo_url "$REPO_URL" --arg iac_path "$IAC_PATH" '
+                  .runs[]? | {rules: (.tool.driver.rules // []), results: .results} |
+                  .rules as $rules |
+                  .results[]? |
+                  . as $result |
+                  ($rules[] | select(.id == $result.ruleId)) as $rule |
+                  ($rule.properties["security-severity"] // "0" | tonumber) as $severity |
+                  ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A" | ltrimstr("./") | ltrimstr("/")) as $relfile |
+                  (if $relfile == "N/A" then "N/A" else "\($iac_path)/\($relfile)" end) as $file |
+                  ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
+                  (if $severity >= 9.0 then "🚨 Critical"
+                   elif $severity >= 7.0 then "⚠️ High"
+                   elif $severity >= 4.0 then "🟡 Medium"
+                   else "🔵 Low" end) as $sev_label |
+                  "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($sev_label) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:50]) |"
+                ' "$SARIF_FILE" 2>/dev/null | head -50 >> "$output" || echo "| Error parsing | - | - | - |" >> "$output"
+
+                if [ "$TOTAL" -gt 50 ]; then
+                  echo "" >> "$output"
+                  echo "_...and $((TOTAL - 50)) more findings_" >> "$output"
+                fi
+                echo "" >> "$output"
+
+                echo "</details>" >> "$output"
+                echo "" >> "$output"
+              elif [ $TOTAL -eq 0 ]; then
+                echo "✅ **No misconfigurations detected!**" >> "$output"
+                echo "" >> "$output"
+              fi
+
+              echo "**📁 Artifacts:** [Trivy IaC Results](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> "$output"
+            else
+              if [ "$is_pr_comment" = "true" ]; then
+                echo "**Status:** ⚠️ No results generated" >> "$output"
+              else
+                echo "**Status:** ⚠️ No Trivy IaC results available" >> "$output"
+              fi
+            fi
+          else
+            if [ "$is_pr_comment" = "true" ]; then
+              echo "**Status:** ⏭️ Skipped (no IaC directory found)" >> "$output"
+            else
+              echo "**Status:** ⏭️ No IaC directory found at '${{ inputs.iac_path }}'" >> "$output"
+            fi
+          fi
+
+          if [ "$is_pr_comment" = "true" ]; then
+            echo "" >> "$output"
+            echo "</details>" >> "$output"
+          fi
+          echo "" >> "$output"
+        }
+
+        # Generate PR comment artifact
+        generate_trivy_iac_summary "scanner-summaries/trivy-iac.md" "true"
+
+        # Generate job summary
+        generate_trivy_iac_summary "$GITHUB_STEP_SUMMARY" "false"
+      continue-on-error: true
+
+    - name: Upload scanner summary section
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: scanner-summary-trivy-iac
+        path: scanner-summaries/trivy-iac.md
+        retention-days: 7
+      continue-on-error: true
