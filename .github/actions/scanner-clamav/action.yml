@@ -60,7 +60,7 @@ runs:
         echo "🔧 Installing ClamAV..."
         sudo apt-get update
         sudo apt-get install -y clamav
-        
+
         echo "🔍 Verifying ClamAV installation..."
         clamscan --version
       continue-on-error: false
@@ -75,11 +75,11 @@ runs:
       run: |
         echo "📦 Installing cvdupdate (official ClamAV database updater)..."
         pip install cvdupdate
-        
+
         echo "📥 Updating ClamAV virus database..."
         # Configure cvdupdate to use system database directory
         cvdupdate config set --dbdir /var/lib/clamav
-        
+
         # Update databases with retries
         max_attempts=3
         attempt=1
@@ -94,7 +94,7 @@ runs:
             [ $attempt -le $max_attempts ] && sleep 10
           fi
         done
-        
+
         # Verify databases
         echo "📊 Database status:"
         sudo sigtool --info /var/lib/clamav/main.cvd 2>/dev/null || echo "Main database: checking..."
@@ -175,8 +175,8 @@ runs:
           --exclude-dir="coverage" \
           --exclude-dir=".pytest_cache" \
           --log=clamav-reports/clamav-report.log \
-          $SCAN_PATHS
-      continue-on-error: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
+          $SCAN_PATHS || true
+      continue-on-error: true
 
     - name: Parse ClamAV Report
       shell: bash
