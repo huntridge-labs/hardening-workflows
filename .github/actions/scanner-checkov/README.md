@@ -24,6 +24,23 @@ This composite action analyzes IaC for security misconfigurations using Checkov.
     fail_on_severity: 'high'
 ```
 
+### With Prisma Cloud API Key (Enhanced Features)
+
+```yaml
+- name: Checkout code
+  uses: actions/checkout@v6
+
+- name: Run Checkov with API Key
+  uses: huntridge-labs/hardening-workflows/.github/actions/scanner-checkov@feat/migrate-to-composite-actions
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  with:
+    iac_path: 'infrastructure'
+    framework: 'terraform'
+    api_key: ${{ secrets.BC_API_KEY }}  # Enables severity scoring
+    fail_on_severity: 'high'
+```
+
 ### Multiple Frameworks
 
 ```yaml
@@ -53,6 +70,16 @@ steps:
 | `enable_code_security` | Upload SARIF to GitHub Security tab | No | `false` |
 | `post_pr_comment` | Post results as PR comment | No | `true` |
 | `fail_on_severity` | Fail at or above severity: none, low, medium, high, critical. Note: Checkov doesn't natively support severity filtering; any value other than "none" will fail on any failed check. | No | `none` |
+| `api_key` | Prisma Cloud API key for severity scoring and enhanced features | No | `''` |
+
+### Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `GITHUB_TOKEN` | GitHub token for API access | Yes |
+| `BC_API_KEY` | Alternative way to provide Prisma Cloud API key | No |
+
+> **Note**: The API key can be provided via the `api_key` input or `BC_API_KEY` environment variable. Without an API key, severity information will not be available, but all other functionality works normally.
 
 ## Outputs
 
@@ -120,7 +147,25 @@ jobs:
 - Checkov does not natively support severity-based filtering like other scanners
 - Setting `fail_on_severity` to anything other than "none" will cause the job to fail if any check fails
 - The action parses severity information from Checkov's JSON output when available
+- **Severity information requires a Prisma Cloud API key** - without it, all findings are grouped as "high" severity
 - Results are organized by severity in the summary for easier review
+- Works perfectly without an API key - just with less detailed severity classification
+
+## Prisma Cloud Integration
+
+The `api_key` input enables integration with Prisma Cloud (formerly Bridgecrew) for:
+- ✅ Detailed severity scoring (Critical, High, Medium, Low)
+- ✅ Advanced risk prioritization
+- ✅ Centralized dashboard and reporting
+- ✅ Policy enforcement rules
+- ✅ Custom compliance frameworks
+
+Without an API key:
+- ✅ Full IaC scanning still works
+- ✅ All policy checks run normally
+- ✅ SARIF and JSON reports generated
+- ❌ No severity classification (all findings shown as one group)
+- ❌ No centralized platform features
 
 ## Support
 

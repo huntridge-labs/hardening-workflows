@@ -11,12 +11,16 @@ description: |
   **Required Environment Variables:**
   - GITHUB_TOKEN: GitHub token for API access (set automatically in workflows)
 
+  **Optional Environment Variables:**
+  - BC_API_KEY: Prisma Cloud API key for enhanced severity scoring and features
+
   **Usage Example:**
   ```yaml
   - uses: actions/checkout@v6
   - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-checkov@feat/migrate-to-composite-actions
     env:
       GITHUB_TOKEN: (secrets.GITHUB_TOKEN)
+      BC_API_KEY: (secrets.BC_API_KEY)  # Optional: for severity info
     with:
       iac_path: 'infrastructure'
       framework: 'terraform'
@@ -50,6 +54,10 @@ inputs:
     description: 'Fail if findings at or above this severity. Options: none, low, medium, high, critical. Note: Checkov does not natively support severity-based filtering; any value other than "none" will fail on any failed check.'
     required: false
     default: 'none'
+  api_key:
+    description: 'Prisma Cloud API key for enhanced features (severity scoring, advanced reporting). Optional - works without it but with reduced functionality.'
+    required: false
+    default: ''
 
 outputs:
   critical_count:
@@ -108,6 +116,7 @@ runs:
         output_format: sarif,json,cli
         output_file_path: checkov-reports/checkov-results.sarif,checkov-reports/checkov-results.json,checkov-reports/checkov-results.txt
         soft_fail: true
+        api-key: ${{ inputs.api_key }}
       continue-on-error: true
 
     - name: Parse results
