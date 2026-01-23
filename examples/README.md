@@ -126,7 +126,7 @@ The following composite actions are available for direct use:
 - **scanner-trivy-container** - Trivy container scanning (coming soon)
 
 ### Web Application Security
-- **scanner-zap** - OWASP ZAP DAST scanner
+- **scanner-zap** - ZAP DAST scanner
 
 ### Malware Detection
 - **scanner-clamav** - ClamAV malware scanner
