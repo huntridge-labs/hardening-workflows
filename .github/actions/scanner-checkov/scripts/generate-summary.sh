@@ -92,8 +92,9 @@ generate_checkov_summary() {
             echo "| Check ID | Check Name | Resource | Location |" >> "$output"
             echo "|----------|------------|----------|----------|" >> "$output"
 
-            jq -r --arg repo_url "$REPO_URL" '.results.failed_checks[]? | select(.severity == "CRITICAL") |
-              (.file_path // "N/A" | ltrimstr("/")) as $filepath |
+            jq -r --arg repo_url "$REPO_URL" --arg iac_path "$IAC_PATH" '.results.failed_checks[]? | select(.severity == "CRITICAL") |
+              (.file_path // "N/A" | ltrimstr("/")) as $relpath |
+              (if $iac_path != "" then ($iac_path + "/" + $relpath) else $relpath end) as $filepath |
               (.file_line_range[0] // 1) as $start |
               (.file_line_range[1] // 1) as $end |
               "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:50]) | \(.resource // "N/A" | .[0:40]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$JSON_FILE" 2>/dev/null >> "$output" || echo "| Error parsing results | - | - | - |" >> "$output"
@@ -110,8 +111,9 @@ generate_checkov_summary() {
             echo "| Check ID | Check Name | Resource | Location |" >> "$output"
             echo "|----------|------------|----------|----------|" >> "$output"
 
-            jq -r --arg repo_url "$REPO_URL" '.results.failed_checks[]? | select(.severity == "HIGH") |
-              (.file_path // "N/A" | ltrimstr("/")) as $filepath |
+            jq -r --arg repo_url "$REPO_URL" --arg iac_path "$IAC_PATH" '.results.failed_checks[]? | select(.severity == "HIGH") |
+              (.file_path // "N/A" | ltrimstr("/")) as $relpath |
+              (if $iac_path != "" then ($iac_path + "/" + $relpath) else $relpath end) as $filepath |
               (.file_line_range[0] // 1) as $start |
               (.file_line_range[1] // 1) as $end |
               "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:50]) | \(.resource // "N/A" | .[0:40]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$JSON_FILE" 2>/dev/null >> "$output" || echo "| Error parsing results | - | - | - |" >> "$output"
@@ -128,8 +130,9 @@ generate_checkov_summary() {
             echo "| Check ID | Check Name | Resource | Location |" >> "$output"
             echo "|----------|------------|----------|----------|" >> "$output"
 
-            jq -r --arg repo_url "$REPO_URL" '.results.failed_checks[]? | select(.severity == "MEDIUM") |
-              (.file_path // "N/A" | ltrimstr("/")) as $filepath |
+            jq -r --arg repo_url "$REPO_URL" --arg iac_path "$IAC_PATH" '.results.failed_checks[]? | select(.severity == "MEDIUM") |
+              (.file_path // "N/A" | ltrimstr("/")) as $relpath |
+              (if $iac_path != "" then ($iac_path + "/" + $relpath) else $relpath end) as $filepath |
               (.file_line_range[0] // 1) as $start |
               (.file_line_range[1] // 1) as $end |
               "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:50]) | \(.resource // "N/A" | .[0:40]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$JSON_FILE" 2>/dev/null >> "$output" || echo "| Error parsing results | - | - | - |" >> "$output"
@@ -146,8 +149,9 @@ generate_checkov_summary() {
             echo "| Check ID | Check Name | Resource | Location |" >> "$output"
             echo "|----------|------------|----------|----------|" >> "$output"
 
-            jq -r --arg repo_url "$REPO_URL" '.results.failed_checks[]? | select(.severity == "LOW") |
-              (.file_path // "N/A" | ltrimstr("/")) as $filepath |
+            jq -r --arg repo_url "$REPO_URL" --arg iac_path "$IAC_PATH" '.results.failed_checks[]? | select(.severity == "LOW") |
+              (.file_path // "N/A" | ltrimstr("/")) as $relpath |
+              (if $iac_path != "" then ($iac_path + "/" + $relpath) else $relpath end) as $filepath |
               (.file_line_range[0] // 1) as $start |
               (.file_line_range[1] // 1) as $end |
               "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:50]) | \(.resource // "N/A" | .[0:40]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$JSON_FILE" 2>/dev/null >> "$output" || echo "| Error parsing results | - | - | - |" >> "$output"
@@ -168,8 +172,9 @@ generate_checkov_summary() {
           echo "| Check ID | Check Name | Resource | Location |" >> "$output"
           echo "|----------|------------|----------|----------|" >> "$output"
 
-          jq -r --arg repo_url "$REPO_URL" '.results.failed_checks[]? |
-            (.file_path // "N/A" | ltrimstr("/")) as $filepath |
+          jq -r --arg repo_url "$REPO_URL" --arg iac_path "$IAC_PATH" '.results.failed_checks[]? |
+            (.file_path // "N/A" | ltrimstr("/")) as $relpath |
+            (if $iac_path != "" then ($iac_path + "/" + $relpath) else $relpath end) as $filepath |
             (.file_line_range[0] // 1) as $start |
             (.file_line_range[1] // 1) as $end |
             "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:50]) | \(.resource // "N/A" | .[0:40]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$JSON_FILE" 2>/dev/null >> "$output" || echo "| Error parsing results | - | - | - |" >> "$output"
