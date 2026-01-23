@@ -36,7 +36,7 @@ This directory contains reusable composite actions for security scanning. Each a
 
 | Action | Description | Language/Type | Documentation |
 |--------|-------------|---------------|---------------|
-| [scanner-zap](scanner-zap/) | OWASP ZAP DAST scanner | Web applications | [README](scanner-zap/README.md) |
+| [scanner-zap](scanner-zap/) | ZAP DAST scanner | Web applications | [README](scanner-zap/README.md) |
 
 ### Malware Detection
 

@@ -1,10 +1,10 @@
 # ZAP DAST Scanner Composite Action
 
-Dynamic Application Security Testing (DAST) using [OWASP ZAP](https://www.zaproxy.org/).
+Dynamic Application Security Testing (DAST) using [ZAP (Zed Attack Proxy)](https://www.zaproxy.org/).
 
 ## Overview
 
-This composite action runs OWASP ZAP (Zed Attack Proxy) to scan running web applications for security vulnerabilities. This is an **MVP/Phase 1** implementation supporting URL-based baseline scanning.
+This composite action runs ZAP (Zed Attack Proxy) to scan running web applications for security vulnerabilities. This is an **MVP/Phase 1** implementation supporting URL-based baseline scanning.
 
 **Current Features (Phase 1):**
 - ✅ URL mode (target already running)
@@ -77,7 +77,7 @@ This composite action runs OWASP ZAP (Zed Attack Proxy) to scan running web appl
 
 ## Features
 
-- ✅ OWASP ZAP baseline scanning
+- ✅ ZAP baseline scanning
 - ✅ SARIF output for GitHub Security
 - ✅ JSON, HTML, and Markdown reports
 - ✅ Configurable risk thresholds
@@ -208,7 +208,7 @@ For more comprehensive scanning, see upcoming Phase 2 features.
 
 ## Related Documentation
 
-- [OWASP ZAP Documentation](https://www.zaproxy.org/docs/)
+- [ZAP Documentation](https://www.zaproxy.org/docs/)
 - [ZAP Baseline Scan](https://www.zaproxy.org/docs/docker/baseline-scan/)
 - [Complete Example Workflow](../../examples/composite-actions-example.yml)
 - [ZAP Podinfo Example](../../examples/scanner-zap-podinfo.yml)
@@ -257,5 +257,5 @@ Coming features:
 ## Support
 
 - [Report Issues](https://github.com/huntridge-labs/hardening-workflows/issues)
-- [OWASP ZAP Community](https://groups.google.com/group/zaproxy-users)
+- [ZAP Community](https://groups.google.com/group/zaproxy-users)
 - [View Changelog](../../CHANGELOG.md)
