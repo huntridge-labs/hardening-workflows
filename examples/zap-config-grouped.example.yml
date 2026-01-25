@@ -28,10 +28,10 @@ scan_groups:
         type: full
         target_url: http://demo.testfire.net
 
-      - name: url-api
-        type: api
-        target_url: https://petstore.swagger.io/v2
-        api_spec: https://petstore.swagger.io/v2/swagger.json
+      - name: url-baseline-2
+        type: baseline
+        target_url: http://demo.testfire.net
+        max_duration_minutes: 5
 
       - name: threshold-none
         type: baseline
@@ -40,7 +40,7 @@ scan_groups:
 
       - name: threshold-high
         type: baseline
-        target_url: http://hackazon.webscantest.com
+        target_url: http://testphp.vulnweb.com
         fail_on_severity: high
         allow_failure: false
 

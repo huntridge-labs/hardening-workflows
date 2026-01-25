@@ -4,207 +4,219 @@ Dynamic Application Security Testing (DAST) using [ZAP (Zed Attack Proxy)](https
 
 ## Overview
 
-This composite action runs ZAP (Zed Attack Proxy) to scan running web applications for security vulnerabilities. This is an **MVP/Phase 1** implementation supporting URL-based baseline scanning.
+This composite action runs ZAP to scan running web applications for security vulnerabilities. It supports:
 
-**Current Features (Phase 1):**
-- ✅ URL mode (target already running)
-- ✅ Baseline scan
-- ✅ SARIF output for GitHub Security
-
-**Coming in Phase 2:**
-- ⏳ Docker-run mode (start app in container)
-- ⏳ Compose mode (multi-container apps)
-- ⏳ Full/API scans
-- ⏳ Multi-target support
+- Scan modes: `url`, `docker-run`, `compose`
+- Scan types: `baseline`, `full`, `api`
+- Dynamic artifact naming with hashed inputs
+- Optional PR comments and summary artifacts
 
 ## Usage
 
-### Basic Example
-
-```yaml
-- name: Checkout code
-  uses: actions/checkout@v6
-
-# Start your application
-- name: Start web application
-  run: |
-    docker-compose up -d
-    sleep 10  # Wait for app to be ready
-
-- name: Run ZAP Scanner
-  uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions
-  env:
-    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  with:
-    target_url: 'http://localhost:8080'
-    fail_on_severity: 'high'
-```
-
-### Advanced Example
-
-```yaml
-- name: DAST scan with custom settings
-  uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions
-  env:
-    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  with:
-    target_url: 'https://staging.example.com'
-    scan_name: 'api-gateway'
-    enable_code_security: true
-    post_pr_comment: true
-    fail_on_severity: 'medium'
-```
-
-## Inputs
-
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `target_url` | Target URL for baseline scan (must be already running) | **Yes** | - |
-| `scan_name` | Name for scan artifacts | No | `zap-scan` |
-| `post_pr_comment` | Post results as PR comment | No | `true` |
-| `enable_code_security` | Upload SARIF to GitHub Security tab | No | `false` |
-| `fail_on_severity` | Fail on severity: `none`, `low`, `medium`, `high` | No | `none` |
-
-## Outputs
-
-| Output | Description |
-|--------|-------------|
-| `high_count` | Number of high risk alerts |
-| `medium_count` | Number of medium risk alerts |
-| `low_count` | Number of low risk alerts |
-| `info_count` | Number of informational alerts |
-| `total_count` | Total number of alerts |
-
-## Features
-
-- ✅ ZAP baseline scanning
-- ✅ SARIF output for GitHub Security
-- ✅ JSON, HTML, and Markdown reports
-- ✅ Configurable risk thresholds
-- ✅ PR comments with findings
-- ✅ Detailed vulnerability information
-
-## Reports Generated
-
-The action generates multiple report formats:
-- `zap-report.sarif` - GitHub Security integration
-- `zap-report.json` - Detailed JSON with findings
-- `zap-report.html` - Human-readable HTML report
-- `zap-report.md` - Markdown summary
-
-All reports are uploaded as artifacts: `zap-reports-{scan_name}`
-
-## Examples
-
-### Scan Localhost Application
-
-```yaml
-jobs:
-  zap-scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Build and start app
-        run: |
-          docker build -t myapp .
-          docker run -d -p 8080:8080 myapp
-          sleep 5
-
-      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          target_url: 'http://localhost:8080'
-```
-
-### Scan Multiple Endpoints
-
-Use a matrix strategy:
-
-```yaml
-jobs:
-  zap-scan:
-    strategy:
-      matrix:
-        target:
-          - { url: 'http://localhost:8080', name: 'web' }
-          - { url: 'http://localhost:3000', name: 'api' }
-    steps:
-      - uses: actions/checkout@v6
-
-      # Start your services...
-
-      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          target_url: ${{ matrix.target.url }}
-          scan_name: ${{ matrix.target.name }}
-```
-
-### Fail on Medium Risk
+### URL Mode (Baseline)
 
 ```yaml
 - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   with:
+    scan_type: baseline
     target_url: 'http://localhost:8080'
-    fail_on_severity: 'medium'  # Fails on MEDIUM and HIGH
+    fail_on_severity: 'high'
 ```
 
-## Understanding Risk Levels
+### Docker-Run Mode (Image)
 
-ZAP reports four risk levels:
-- **HIGH**: Critical vulnerabilities requiring immediate attention
-- **MEDIUM**: Important issues that should be addressed
-- **LOW**: Minor issues or security improvements
-- **INFO**: Informational findings (not vulnerabilities)
+```yaml
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  with:
+    scan_mode: docker-run
+    scan_type: full
+    app_image_ref: ghcr.io/acme/app:latest
+    app_ports: '8080:8080'
+    target_url: 'http://127.0.0.1:8080'
+    registry_username: ${{ secrets.REGISTRY_USER }}
+    registry_password: ${{ secrets.REGISTRY_TOKEN }}
+```
 
-## Important Prerequisites
+### Docker-Run Mode (Local Build)
 
-### Application Must Be Running
+```yaml
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  with:
+    scan_mode: docker-run
+    scan_type: baseline
+    app_build_context: .
+    app_dockerfile: Dockerfile
+    app_image_tag: local-app:${{ github.sha }}
+    app_ports: '8080:8080'
+    target_url: 'http://127.0.0.1:8080'
+```
 
-ZAP scans running applications. Before using this action:
+### Compose Mode
 
-1. **Start your application:**
-   ```yaml
-   - name: Start application
-     run: docker-compose up -d
-   ```
+```yaml
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  with:
+    scan_mode: compose
+    scan_type: baseline
+    compose_file: docker-compose.yml
+    compose_build: 'true'
+    target_url: 'http://127.0.0.1:8080'
+```
 
-2. **Wait for application to be ready:**
-   ```yaml
-   - name: Wait for app
-     run: sleep 10
-   ```
+### API Scan
 
-3. **Then run ZAP scan**
+```yaml
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  with:
+    scan_type: api
+    api_spec: 'http://127.0.0.1:8080/openapi.json'
+    fail_on_severity: 'medium'
+```
 
-### Network Access
+### Multi-Target Matrix
 
-- For localhost: Use `http://localhost:PORT`
-- For Docker containers: Use container networking or exposed ports
-- For remote targets: Ensure network access from GitHub runners
+```yaml
+jobs:
+  zap-scan:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - { url: 'http://localhost:8080', name: 'web', type: 'baseline' }
+          - { url: 'http://localhost:3000', name: 'api', type: 'full' }
+    steps:
+      - uses: actions/checkout@v6
+      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          target_url: ${{ matrix.target.url }}
+          scan_name: ${{ matrix.target.name }}
+          scan_type: ${{ matrix.target.type }}
+```
 
-## Baseline Scan Details
+### Config-Driven Multi-Scan
 
-The baseline scan:
-- ✅ Spiders the target (follows links)
-- ✅ Passive scanning (safe, non-intrusive)
-- ✅ Basic active scanning
-- ❌ Does NOT perform full penetration testing
-- ❌ Does NOT test authenticated areas (Phase 2)
+```yaml
+jobs:
+  parse-zap:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.parse.outputs.matrix }}
+      has_scans: ${{ steps.parse.outputs.has_scans }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: huntridge-labs/hardening-workflows/.github/actions/parse-zap-config@feat/migrate-to-composite-actions
+        id: parse
+        with:
+          config_file: .zap/config.yml
 
-For more comprehensive scanning, see upcoming Phase 2 features.
+  zap-scan:
+    runs-on: ubuntu-latest
+    needs: parse-zap
+    if: needs.parse-zap.outputs.has_scans == 'true'
+    strategy:
+      matrix: ${{ fromJson(needs.parse-zap.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          scan_name: ${{ matrix.name }}
+          scan_mode: ${{ matrix.mode }}
+          scan_type: ${{ matrix.scan_type }}
+          target_url: ${{ matrix.target_url }}
+          api_spec: ${{ matrix.api_spec }}
+          app_image_ref: ${{ matrix.image }}
+          app_ports: ${{ matrix.ports }}
+          app_build_context: ${{ matrix.build_context }}
+          app_dockerfile: ${{ matrix.build_dockerfile }}
+          app_image_tag: ${{ matrix.build_tag }}
+          compose_file: ${{ matrix.compose_file }}
+          compose_build: ${{ matrix.compose_build }}
+          registry_username: ${{ matrix.registry_username }}
+          registry_password: ${{ secrets[matrix.registry_auth_secret] }}
+          healthcheck_url: ${{ matrix.healthcheck_url }}
+          max_duration_minutes: ${{ matrix.max_duration_minutes }}
+          rules_file_name: ${{ matrix.rules_file }}
+          cmd_options: ${{ matrix.cmd_options }}
+          fail_on_severity: ${{ matrix.fail_on_severity }}
+          allow_failure: ${{ matrix.allow_failure }}
+          post_pr_comment: ${{ matrix.post_pr_comment }}
 
-## Requirements
+# IMPORTANT: When using secret references in the config, use `secrets: inherit` in the caller workflow.
+```
 
-- Repository must be checked out before running this action
-- `GITHUB_TOKEN` environment variable (automatically available)
-- Target application must be running and accessible
-- Network connectivity to target URL
+**Shared target tip:** If you want multiple scans against a single started target (for example, one docker-run or compose stack), start the target once in a separate job and run scans with `scan_mode: url` against the shared `target_url`.
+
+## Inputs
+
+| Input | Description | Required | Default |
+| --- | --- | --- | --- |
+| `scan_name` | Unique scan identifier (for artifacts) | No | `zap-scan` |
+| `scan_mode` | `url`, `docker-run`, `compose` | No | `url` |
+| `scan_type` | `baseline`, `full`, `api` | No | `baseline` |
+| `target_url` | Target URL for baseline/full scans | Conditionally | `''` |
+| `api_spec` | OpenAPI/Swagger spec URL (api scans) | Conditionally | `''` |
+| `healthcheck_url` | URL to poll until target ready | No | `''` |
+| `app_image_ref` | Container image for docker-run | Conditionally | `''` |
+| `app_build_context` | Docker build context | No | `''` |
+| `app_dockerfile` | Dockerfile path | No | `''` |
+| `app_image_tag` | Tag for locally built image | No | `''` |
+| `app_ports` | Port mappings (e.g., `8080:8080`) | No | `8080:8080` |
+| `compose_file` | Docker compose file path | No | `docker-compose.yml` |
+| `compose_build` | Run docker compose with `--build` | No | `true` |
+| `registry_username` | Registry username (private images) | No | `''` |
+| `registry_password` | Registry password/token (private images) | No | `''` |
+| `max_duration_minutes` | Max scan duration in minutes | No | `10` |
+| `rules_file_name` | ZAP rules file to ignore alerts (.tsv) | No | `''` |
+| `cmd_options` | Additional ZAP command-line options | No | `''` |
+| `fail_on_severity` | `none`, `low`, `medium`, `high`, `critical` | No | `none` |
+| `allow_failure` | Continue on scan failure (`true`/`false`) | No | `false` |
+| `post_pr_comment` | Post results as PR comment (`true`/`false`) | No | `false` |
+| `job_id` | Job ID for artifact naming | No | `${{ github.job }}` |
+
+## Outputs
+
+| Output | Description |
+| --- | --- |
+| `findings_count` | Total number of findings (high+medium+low) |
+| `high_count` | Number of high severity findings |
+| `medium_count` | Number of medium severity findings |
+| `low_count` | Number of low severity findings |
+| `info_count` | Number of informational findings |
+| `scan_status` | `passed`, `failed`, or `skipped` |
+
+## Reports Generated
+
+The action generates multiple report formats (JSON/HTML/Markdown/SARIF) and uploads them as artifacts with a hashed prefix.
+
+## Notes on Secrets
+
+Composite actions cannot access secrets directly. Pass secrets as inputs, for example:
+
+```yaml
+with:
+  registry_username: ${{ secrets.REGISTRY_USER }}
+  registry_password: ${{ secrets.REGISTRY_TOKEN }}
+```
+
+## Troubleshooting
+
+- **Connection Refused**: verify the target is running and reachable from the runner.
+- **Compose file not found**: ensure `compose_file` points to a file in the repo.
+- **Timeout waiting for readiness**: set `healthcheck_url` or increase startup time.
 
 ## Related Documentation
 
@@ -212,50 +224,3 @@ For more comprehensive scanning, see upcoming Phase 2 features.
 - [ZAP Baseline Scan](https://www.zaproxy.org/docs/docker/baseline-scan/)
 - [Complete Example Workflow](../../examples/composite-actions-example.yml)
 - [ZAP Podinfo Example](../../examples/scanner-zap-podinfo.yml)
-
-## Troubleshooting
-
-### Connection Refused
-
-If ZAP can't connect to your application:
-- Verify the application is running: `curl http://localhost:PORT`
-- Check port mapping if using Docker
-- Ensure sufficient startup time before scanning
-- Verify firewall/network settings
-
-### Scan Takes Too Long
-
-Baseline scans can take 5-15 minutes. To optimize:
-- Limit the scope of URLs to scan
-- Use authentication to skip login pages (Phase 2)
-- Consider time limits in workflow
-
-### No Vulnerabilities Found
-
-If ZAP finds nothing:
-- Verify the target URL is accessible
-- Check that links are being followed (review logs)
-- Consider that your app might be secure!
-
-### False Positives
-
-If ZAP reports false positives:
-- Review findings carefully - not all alerts are vulnerabilities
-- Use ZAP configuration files to tune scanning (Phase 2)
-- Document accepted risks
-
-## Phase 2 Roadmap
-
-Coming features:
-- **Docker-run mode**: Start app from Dockerfile for scanning
-- **Compose mode**: Multi-container app support
-- **Authentication**: Scan authenticated areas
-- **Full/API scans**: More comprehensive testing
-- **Custom configurations**: ZAP config file support
-- **Multi-target**: Scan multiple URLs in one job
-
-## Support
-
-- [Report Issues](https://github.com/huntridge-labs/hardening-workflows/issues)
-- [ZAP Community](https://groups.google.com/group/zaproxy-users)
-- [View Changelog](../../CHANGELOG.md)

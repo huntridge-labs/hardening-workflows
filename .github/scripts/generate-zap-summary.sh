@@ -20,7 +20,9 @@ shopt -s nullglob
 # Format scan type for display
 format_scan_type() {
   local scan_type="${1:-${ZAP_SCAN_TYPE:-}}"
+  local scan_mode="${ZAP_SCAN_MODE:-}"
   local display=""
+  local mode_display=""
 
   if [ -n "$scan_type" ]; then
     case "$scan_type" in
@@ -31,7 +33,14 @@ format_scan_type() {
     esac
   fi
 
-  echo "$display"
+  if [ -n "$scan_mode" ]; then
+    case "$scan_mode" in
+      docker-run|compose|url) mode_display=" (${scan_mode})" ;;
+      *) mode_display=" (${scan_mode})" ;;
+    esac
+  fi
+
+  echo "$display$mode_display"
 }
 
 # Write summary header

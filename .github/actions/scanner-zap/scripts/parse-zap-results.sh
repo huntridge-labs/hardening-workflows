@@ -4,6 +4,7 @@
 #
 # Commands:
 #   counts              - Output "crit high med low" counts (mapped from ZAP severities)
+#   counts-with-info     - Output "crit high med low info" counts (mapped from ZAP severities)
 #   total               - Output total alert count
 #   unique              - Output unique alert count (by pluginid)
 #   alerts              - Output all alert names (one per line)
@@ -57,6 +58,24 @@ get_counts() {
     # Note: riskcode 0 (Informational) is not counted in the standard 4-level output
 
     echo "$critical $high $medium $low"
+}
+
+# Get alert counts including informational: "crit high med low info"
+get_counts_with_info() {
+    local file="$1"
+    if ! validate_file "$file"; then
+        echo "0 0 0 0 0"
+        return
+    fi
+
+    local critical high medium low info
+    critical=0  # ZAP has no critical severity
+    high=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "3")] | length' "$file" 2>/dev/null || echo "0")
+    medium=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "2")] | length' "$file" 2>/dev/null || echo "0")
+    low=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "1")] | length' "$file" 2>/dev/null || echo "0")
+    info=$(jq -r '[.site[]?.alerts[]? | select(.riskcode == "0")] | length' "$file" 2>/dev/null || echo "0")
+
+    echo "$critical $high $medium $low $info"
 }
 
 # Get total alert count
@@ -302,6 +321,9 @@ main() {
     case "$cmd" in
         counts)
             get_counts "$file"
+            ;;
+        counts-with-info)
+            get_counts_with_info "$file"
             ;;
         total)
             get_total "$file"
