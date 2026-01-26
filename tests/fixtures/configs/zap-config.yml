@@ -15,7 +15,7 @@ scans:
     config:
       max_duration: 5
       ajax_spider: false
-      
+
   # URL mode - full scan
   - name: "full-scan"
     type: "full"
@@ -24,7 +24,7 @@ scans:
     config:
       max_duration: 10
       ajax_spider: true
-      
+
   # Docker run mode - API scan
   - name: "api-scan"
     type: "api"
@@ -39,7 +39,7 @@ scans:
         url: "http://localhost:3000/health"
         max_wait: 30
     openapi_spec: "tests/fixtures/configs/openapi.yaml"
-    
+
   # Compose mode - baseline scan
   - name: "compose-baseline"
     type: "baseline"

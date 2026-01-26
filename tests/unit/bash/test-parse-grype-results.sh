@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Unit tests for parse-trivy-results.sh
-# Tests the Trivy results parser with synthetic fixture data
+# Unit tests for parse-grype-results.sh
+# Tests the Grype results parser with synthetic fixture data
 
 set -euo pipefail
 
@@ -17,8 +17,8 @@ TESTS_FAILED=0
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FIXTURES_DIR="${SCRIPT_DIR}/../../fixtures/scanner-outputs/trivy"
-PARSER_SCRIPT="${SCRIPT_DIR}/../../../.github/scripts/parse-trivy-results.sh"
+FIXTURES_DIR="${SCRIPT_DIR}/../../fixtures/scanner-outputs/grype"
+PARSER_SCRIPT="${SCRIPT_DIR}/../../../.github/scripts/parse-grype-results.sh"
 
 # Test helper functions
 assert_equals() {
@@ -242,7 +242,7 @@ test_help_flag() {
 
 main() {
     echo "========================================"
-    echo "Testing parse-trivy-results.sh"
+    echo "Testing parse-grype-results.sh"
     echo "========================================"
     echo ""
 
@@ -284,15 +284,6 @@ main() {
     test_cves_zero_findings
     test_cves_with_findings
     test_cves_contains_expected_cves
-    echo ""
-
-    echo -e "${YELLOW}Testing 'digest' command:${NC}"
-    test_digest_with_metadata
-    echo ""
-
-    echo -e "${YELLOW}Testing 'image' command:${NC}"
-    test_image_with_metadata
-    test_image_zero_findings
     echo ""
 
     echo -e "${YELLOW}Testing error handling:${NC}"

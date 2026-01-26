@@ -10,11 +10,11 @@ scans:
     # ERROR: Missing required type field
     mode: "url"
     url: "http://localhost:3000"
-    
+
   - name: "invalid-mode"
     type: "baseline"
     mode: "invalid-mode"  # ERROR: invalid mode value
-    
+
   - name: "missing-docker-config"
     type: "api"
     mode: "docker-run"

@@ -40,9 +40,9 @@ scanner_config:
   trivy:
     severity: "CRITICAL,HIGH,MEDIUM"
     vuln_type: "os,library"
-    
+
   grype:
     fail_on: "high"
-    
+
   syft:
     output_format: "json"

@@ -164,8 +164,8 @@ Use fixtures in GitHub Actions workflows:
   uses: ./.github/actions/scanner-bandit
   with:
     python_path: tests/fixtures/test-apps/python-app
-    
-- name: Test Container Scanner  
+
+- name: Test Container Scanner
   uses: ./.github/actions/scanner-container
   with:
     config_file: tests/fixtures/configs/container-config.yml
@@ -266,11 +266,11 @@ Before committing new fixtures:
 
 ## Benefits of This Approach
 
-✅ **No Security Alerts** - GitHub Advanced Security won't flag test files  
-✅ **Predictable Tests** - Exact control over test scenarios  
-✅ **Fast Execution** - No actual scanning during tests  
-✅ **Easy Maintenance** - Update fixtures independently of code  
-✅ **Clear Intent** - Obvious these are test files, not real vulnerabilities  
+✅ **No Security Alerts** - GitHub Advanced Security won't flag test files
+✅ **Predictable Tests** - Exact control over test scenarios
+✅ **Fast Execution** - No actual scanning during tests
+✅ **Easy Maintenance** - Update fixtures independently of code
+✅ **Clear Intent** - Obvious these are test files, not real vulnerabilities
 
 ## See Also
 

@@ -7,12 +7,12 @@ images:
     # ERROR: dockerfile or image required
     tags:
       - "invalid:latest"
-    
+
   - name: "invalid-scanner"
     image: "alpine:latest"
     scanners:
       - "nonexistent-scanner"  # ERROR: invalid scanner
-      
+
   # ERROR: missing name field
   - dockerfile: "test/Dockerfile"
     context: "."

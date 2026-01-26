@@ -29,7 +29,10 @@
       "issue_severity": "HIGH",
       "issue_text": "Consider possible security implications associated with the pickle module.",
       "line_number": 12,
-      "line_range": [12, 13],
+      "line_range": [
+        12,
+        13
+      ],
       "more_info": "https://bandit.readthedocs.io/en/latest/blacklists/blacklist_imports.html#b403-import-pickle",
       "test_id": "B403",
       "test_name": "blacklist"
@@ -46,7 +49,9 @@
       "issue_severity": "HIGH",
       "issue_text": "Use of exec detected.",
       "line_number": 25,
-      "line_range": [25],
+      "line_range": [
+        25
+      ],
       "more_info": "https://bandit.readthedocs.io/en/latest/plugins/b102_exec_used.html",
       "test_id": "B102",
       "test_name": "exec_used"
@@ -63,7 +68,9 @@
       "issue_severity": "MEDIUM",
       "issue_text": "Possible hardcoded password: 'hardcoded_password'",
       "line_number": 8,
-      "line_range": [8],
+      "line_range": [
+        8
+      ],
       "more_info": "https://bandit.readthedocs.io/en/latest/plugins/b105_hardcoded_password_string.html",
       "test_id": "B105",
       "test_name": "hardcoded_password_string"
@@ -80,7 +87,9 @@
       "issue_severity": "MEDIUM",
       "issue_text": "Consider possible security implications associated with the subprocess module.",
       "line_number": 15,
-      "line_range": [15],
+      "line_range": [
+        15
+      ],
       "more_info": "https://bandit.readthedocs.io/en/latest/plugins/b605_start_process_with_a_shell.html",
       "test_id": "B605",
       "test_name": "start_process_with_a_shell"
@@ -97,7 +106,9 @@
       "issue_severity": "MEDIUM",
       "issue_text": "Standard pseudo-random generators are not suitable for security/cryptographic purposes.",
       "line_number": 22,
-      "line_range": [22],
+      "line_range": [
+        22
+      ],
       "more_info": "https://bandit.readthedocs.io/en/latest/plugins/b108_hardcoded_tmp_directory.html",
       "test_id": "B108",
       "test_name": "hardcoded_tmp_directory"
@@ -114,7 +125,9 @@
       "issue_severity": "LOW",
       "issue_text": "Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
       "line_number": 10,
-      "line_range": [10],
+      "line_range": [
+        10
+      ],
       "more_info": "https://bandit.readthedocs.io/en/latest/plugins/b101_assert_used.html",
       "test_id": "B101",
       "test_name": "assert_used"
