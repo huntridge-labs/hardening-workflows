@@ -1,0 +1,48 @@
+---
+# Test container configuration for scanner testing
+# This configuration exercises all features of the container-config schema
+
+images:
+  - name: "test-python-app"
+    dockerfile: "tests/fixtures/test-apps/python-app/Dockerfile"
+    context: "tests/fixtures/test-apps/python-app"
+    tags:
+      - "test-python-app:latest"
+      - "test-python-app:v1.0.0"
+    scanners:
+      - trivy
+      - grype
+
+  - name: "test-node-app"
+    dockerfile: "tests/fixtures/test-apps/node-app/Dockerfile"
+    context: "tests/fixtures/test-apps/node-app"
+    tags:
+      - "test-node-app:latest"
+    scanners:
+      - trivy
+    build_args:
+      NODE_ENV: "production"
+
+  - name: "alpine-base"
+    image: "alpine:latest"
+    scanners:
+      - trivy
+      - syft
+
+  - name: "private-registry-image"
+    image: "ghcr.io/huntridge-labs/test-image:latest"
+    registry_auth_secret: "GHCR_TOKEN"
+    scanners:
+      - trivy
+
+# Global scanner configuration
+scanner_config:
+  trivy:
+    severity: "CRITICAL,HIGH,MEDIUM"
+    vuln_type: "os,library"
+    
+  grype:
+    fail_on: "high"
+    
+  syft:
+    output_format: "json"

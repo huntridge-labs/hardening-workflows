@@ -1,0 +1,62 @@
+---
+# Test ZAP configuration for scanner testing
+# This configuration demonstrates all scan modes and types
+
+target:
+  name: "test-web-app"
+  base_url: "http://localhost:3000"
+
+scans:
+  # URL mode - baseline scan
+  - name: "baseline-scan"
+    type: "baseline"
+    mode: "url"
+    url: "http://localhost:3000"
+    config:
+      max_duration: 5
+      ajax_spider: false
+      
+  # URL mode - full scan
+  - name: "full-scan"
+    type: "full"
+    mode: "url"
+    url: "http://localhost:3000"
+    config:
+      max_duration: 10
+      ajax_spider: true
+      
+  # Docker run mode - API scan
+  - name: "api-scan"
+    type: "api"
+    mode: "docker-run"
+    docker:
+      image: "test-node-app:latest"
+      ports:
+        - "3000:3000"
+      environment:
+        NODE_ENV: "test"
+      readiness:
+        url: "http://localhost:3000/health"
+        max_wait: 30
+    openapi_spec: "tests/fixtures/configs/openapi.yaml"
+    
+  # Compose mode - baseline scan
+  - name: "compose-baseline"
+    type: "baseline"
+    mode: "compose"
+    compose:
+      file: "tests/fixtures/configs/docker-compose.test.yml"
+      service: "web"
+      readiness:
+        url: "http://localhost:8080/health"
+        max_wait: 45
+    url: "http://localhost:8080"
+
+# Global ZAP configuration
+zap_config:
+  fail_on_severity: "high"
+  generate_report: true
+  report_formats:
+    - "json"
+    - "html"
+  passive_scan_wait: 10
