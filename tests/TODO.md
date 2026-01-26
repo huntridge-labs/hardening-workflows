@@ -260,11 +260,15 @@ Use GitHub Actions workflows in `.github/workflows/test-*.yml` that run on PR/pu
 - [x] test-parse-grype-results.sh - 13 tests passing ✅
 - [x] test-parse-container-config.js - 27 tests passing ✅
 - [x] test-parse-zap-config.js - 33 tests passing ✅
-- [ ] test-parse-clamav-report.py (existing tests in .github/scripts/tests/)
+- [x] test_parse_clamav_report.py - 7 tests passing ✅ (migrated from .github/scripts/tests/)
+- [x] test_extract_archives.py - 37 tests passing ✅ (migrated from .github/scripts/tests/)
 - [ ] test-generate-container-summary.sh
 - [ ] test-generate-zap-summary.sh
 
-**Status**: 110 tests passing! 5 of 8 parsers tested (bash + JS complete). Summary generators remaining.
+**Status**: 154 tests passing! 7 of 9 parsers tested. Summary generators remaining.
+- Bash: 50 tests (Trivy 16, ZAP 21, Grype 13)
+- JavaScript: 60 tests (container-config 27, zap-config 33)
+- Python: 44 tests (ClamAV 7, extract-archives 37)
 
 #### Phase 3: Action Integration Tests (Week 3-4)
 - [ ] Write unit tests for all parser scripts
