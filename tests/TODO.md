@@ -254,7 +254,19 @@ Use GitHub Actions workflows in `.github/workflows/test-*.yml` that run on PR/pu
 
 **Status**: Phase 1 complete! See [PHASE1-COMPLETE.md](PHASE1-COMPLETE.md) for details.
 
-#### Phase 2: Script Unit Tests (Week 2)
+#### Phase 2: Script Unit Tests (Week 2) 🚧 IN PROGRESS
+- [x] test-parse-trivy-results.sh - 16 tests passing ✅
+- [x] test-parse-zap-results.sh - 21 tests passing ✅
+- [x] test-parse-grype-results.sh - 13 tests passing ✅
+- [ ] test-parse-clamav-report.py (Python)
+- [ ] test-parse-container-config.js (JavaScript/Node)
+- [ ] test-parse-zap-config.js (JavaScript/Node)
+- [ ] test-generate-container-summary.sh
+- [ ] test-generate-zap-summary.sh
+
+**Status**: 50 tests passing! Bash parsers complete. Python/JS tests next.
+
+#### Phase 3: Action Integration Tests (Week 3-4)
 - [ ] Write unit tests for all parser scripts
 - [ ] Write unit tests for all summary generator scripts
 - [ ] Write unit tests for config parsers

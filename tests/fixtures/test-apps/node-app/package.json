@@ -7,7 +7,11 @@
     "start": "node server.js",
     "test": "echo \"No tests yet\" && exit 0"
   },
-  "keywords": ["test", "security", "scanner"],
+  "keywords": [
+    "test",
+    "security",
+    "scanner"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {

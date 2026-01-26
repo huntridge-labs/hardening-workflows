@@ -16,9 +16,45 @@
         "check_result": {
           "result": "passed"
         },
-        "code_block": [[1, "resource \"aws_instance\" \"web\" {\n"], [2, "  ami           = var.ami_id\n"], [3, "  instance_type = \"t3.micro\"\n"], [4, "\n"], [5, "  metadata_options {\n"], [6, "    http_tokens = \"required\"\n"], [7, "  }\n"], [8, "}\n"]],
+        "code_block": [
+          [
+            1,
+            "resource \"aws_instance\" \"web\" {\n"
+          ],
+          [
+            2,
+            "  ami           = var.ami_id\n"
+          ],
+          [
+            3,
+            "  instance_type = \"t3.micro\"\n"
+          ],
+          [
+            4,
+            "\n"
+          ],
+          [
+            5,
+            "  metadata_options {\n"
+          ],
+          [
+            6,
+            "    http_tokens = \"required\"\n"
+          ],
+          [
+            7,
+            "  }\n"
+          ],
+          [
+            8,
+            "}\n"
+          ]
+        ],
         "file_path": "/tests/fixtures/test-apps/terraform/main.tf",
-        "file_line_range": [1, 8],
+        "file_line_range": [
+          1,
+          8
+        ],
         "resource": "aws_instance.web",
         "evaluations": null,
         "check_class": "checkov.terraform.checks.resource.aws.IMDSv1Disabled",

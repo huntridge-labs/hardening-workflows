@@ -177,7 +177,7 @@ Once unit tests are solid:
 
 - 16 scanner output fixtures
 - 7 test application files
-- 6 configuration files  
+- 6 configuration files
 - 1 comprehensive README
 - 1 unit test suite (16 tests)
 - 1 progress summary (this file)
