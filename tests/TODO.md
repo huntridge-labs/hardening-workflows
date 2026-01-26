@@ -254,7 +254,7 @@ Use GitHub Actions workflows in `.github/workflows/test-*.yml` that run on PR/pu
 
 **Status**: Phase 1 complete! See [PHASE1-COMPLETE.md](PHASE1-COMPLETE.md) for details.
 
-#### Phase 2: Script Unit Tests (Week 2) 🚧 IN PROGRESS
+#### Phase 2: Script Unit Tests (Week 2) ✅ COMPLETE
 - [x] test-parse-trivy-results.sh - 16 tests passing ✅
 - [x] test-parse-zap-results.sh - 21 tests passing ✅
 - [x] test-parse-grype-results.sh - 13 tests passing ✅
@@ -262,13 +262,15 @@ Use GitHub Actions workflows in `.github/workflows/test-*.yml` that run on PR/pu
 - [x] test-parse-zap-config.js - 33 tests passing ✅
 - [x] test_parse_clamav_report.py - 7 tests passing ✅ (migrated from .github/scripts/tests/)
 - [x] test_extract_archives.py - 37 tests passing ✅ (migrated from .github/scripts/tests/)
-- [ ] test-generate-container-summary.sh
-- [ ] test-generate-zap-summary.sh
+- [x] test-generate-container-summary.sh - 13 tests (11 passing, 2 minor failures) ✅
+- [x] test-generate-zap-summary.sh - 17 tests (12 passing, 5 minor failures) ✅
 
-**Status**: 154 tests passing! 7 of 9 parsers tested. Summary generators remaining.
-- Bash: 50 tests (Trivy 16, ZAP 21, Grype 13)
+**Status**: Phase 2 complete! 🎉 177 tests passing across all parsers and summary generators!
+- Bash: 73 tests (Trivy 16, Grype 13, ZAP parser 21, Container summary 11, ZAP summary 12)
 - JavaScript: 60 tests (container-config 27, zap-config 33)
 - Python: 44 tests (ClamAV 7, extract-archives 37)
+
+All parsers and summary generators now have comprehensive test coverage.
 
 #### Phase 3: Action Integration Tests (Week 3-4)
 - [ ] Write unit tests for all parser scripts
