@@ -174,7 +174,7 @@ jobs:
         uses: ./.github/actions/scanner-gitleaks
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Optional
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Optional
         with:
           post_pr_comment: ${{ github.event_name == 'pull_request' }}
           enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
