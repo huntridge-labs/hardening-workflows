@@ -33,6 +33,11 @@ dist/
 build/
 htmlcov/
 
+# Coverage
+coverage/
+.nyc_output/
+*.lcov
+
 # Node.js
 node_modules/
 **/node_modules/
