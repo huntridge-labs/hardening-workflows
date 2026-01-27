@@ -1,0 +1,20 @@
+#!/bin/sh
+echo "Running .husky pre-push hook"
+
+# Add common paths that VSCode might not have
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
+
+# Activate virtual environment if it exists
+if [ -f ".venv/bin/activate" ]; then
+  source .venv/bin/activate
+fi
+
+echo "Running full test suite..."
+npm test
+
+if [ $? -ne 0 ]; then
+  echo "❌ Tests failed. Fix issues before pushing."
+  exit 1
+fi
+
+echo "✅ All tests passed!"

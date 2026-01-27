@@ -272,17 +272,37 @@ Use GitHub Actions workflows in `.github/workflows/test-*.yml` that run on PR/pu
 
 All parsers and summary generators now have comprehensive test coverage.
 
-#### Phase 3: Action Integration Tests (Week 3-4)
-- [ ] Write unit tests for all parser scripts
-- [ ] Write unit tests for all summary generator scripts
-- [ ] Write unit tests for config parsers
-- [ ] Set up test runner (bash test framework or bats)
+#### Phase 3: Action Integration Tests (Week 3-4) - Pragmatic Hybrid Approach
+**Goal**: Validate composite actions work correctly with minimal CI overhead
 
-#### Phase 3: Action Integration Tests (Week 3-4)
-- [ ] Create test workflows for each action
-- [ ] Run tests on PR/push to test branches
-- [ ] Verify outputs and artifacts
-- [ ] Document test results
+**Fast Layer** (action contract validation):
+- [ ] Create `tests/unit/actions/validate-action-schemas.sh`
+  - [ ] Validate all action.yml files have required fields (name, description, runs)
+  - [ ] Verify inputs have descriptions and handle required/optional correctly
+  - [ ] Verify outputs are defined
+  - [ ] Check for common mistakes (typos in `runs.using`, missing steps)
+
+**Integration Layer** (smoke tests with matrix strategy):
+- [ ] Create `.github/workflows/test-actions-scanners.yml`
+  - [ ] Matrix: scanner-trivy-iac, scanner-checkov, scanner-gitleaks, scanner-clamav
+  - [ ] Run each against fixtures, verify exits 0, verify artifacts exist
+
+- [ ] Create `.github/workflows/test-actions-container.yml`
+  - [ ] Test scanner-container with alpine:latest
+  - [ ] Verify Trivy+Grype run, summary generated, outputs set
+
+- [ ] Create `.github/workflows/test-actions-utilities.yml`
+  - [ ] Test parse-container-config (config → matrix)
+  - [ ] Test security-summary (summaries → aggregated report)
+  - [ ] Test linting-summary (linter outputs → aggregated report)
+
+**Documentation**:
+- [ ] Create `tests/CONTRIBUTING.md` (2-4 min read)
+  - [ ] Quick start: running tests locally
+  - [ ] How to add a test for a new action
+  - [ ] How to update fixtures
+  - [ ] Test patterns and examples
+  - [ ] When to add unit vs integration tests
 
 #### Phase 4: Cleanup & Migration (Week 5)
 - [ ] Move vulnerable files to isolated fixtures
