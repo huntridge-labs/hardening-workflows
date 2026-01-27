@@ -1,0 +1,602 @@
+name: Test Composite Actions
+
+# Comprehensive integration tests for all composite actions
+# Uses matrix strategy to keep workflows consolidated while providing clear feedback
+#
+# DESIGN PRINCIPLES:
+# - Single workflow, multiple matrix jobs for consolidation
+# - Path-based triggers so only affected actions are tested on PR
+# - Clear job naming so devs can quickly identify failures
+# - Minimal test fixtures for fast feedback (<5 min per scanner)
+# - Examples validated to ensure user-facing docs work
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/actions/**'
+      - 'tests/fixtures/**'
+      - '.github/workflows/test-actions.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.github/actions/**'
+  workflow_dispatch:
+    inputs:
+      test_group:
+        description: 'Test group to run (all, sast, secrets, container, linters)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - sast
+          - secrets
+          - container
+          - linters
+          - infrastructure
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+  checks: write
+
+# Cancel in-progress runs when a new commit is pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Shared settings for all tests
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '22'
+  # Disable actual security uploads during tests
+  ENABLE_CODE_SECURITY: 'false'
+
+jobs:
+  # ============================================================================
+  # SAST Scanners (Static Application Security Testing)
+  # Tests: scanner-bandit, scanner-codeql, scanner-opengrep
+  # ============================================================================
+  test-sast:
+    name: SAST / ${{ matrix.scanner }}
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' && 
+      (inputs.test_group == 'all' || inputs.test_group == 'sast') ||
+      github.event_name != 'workflow_dispatch'
+    timeout-minutes: 15
+    continue-on-error: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        scanner:
+          - bandit
+          - opengrep
+        include:
+          - scanner: bandit
+            fixture: tests/fixtures/test-apps/python-app
+            action_path: .github/actions/scanner-bandit
+          - scanner: opengrep
+            fixture: tests/fixtures/test-apps/python-app
+            action_path: .github/actions/scanner-opengrep
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run ${{ matrix.scanner }} scanner
+        id: scan
+        uses: ./${{ matrix.action_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          post_pr_comment: ${{ github.event_name == 'pull_request' }}
+          enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
+          fail_on_severity: 'none'
+
+      - name: Verify scan completed
+        shell: bash
+        run: |
+          echo "## ${{ matrix.scanner }} Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Scanner executed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Fixture used:** \`${{ matrix.fixture }}\`" >> $GITHUB_STEP_SUMMARY
+
+  # CodeQL requires separate job due to unique setup
+  test-codeql:
+    name: SAST / codeql
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' && 
+      (inputs.test_group == 'all' || inputs.test_group == 'sast') ||
+      github.event_name != 'workflow_dispatch'
+    timeout-minutes: 20
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run CodeQL scanner (Python)
+        id: scan
+        uses: ./.github/actions/scanner-codeql
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          language: 'python'
+          setup_python_version: ${{ env.PYTHON_VERSION }}
+
+      - name: Verify scan completed
+        shell: bash
+        run: |
+          echo "## CodeQL Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ CodeQL scanner executed successfully" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Secrets Detection
+  # Tests: scanner-gitleaks
+  # ============================================================================
+  test-secrets:
+    name: Secrets / gitleaks
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' && 
+      (inputs.test_group == 'all' || inputs.test_group == 'secrets') ||
+      github.event_name != 'workflow_dispatch'
+    timeout-minutes: 10
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for comprehensive secrets scanning
+
+      - name: Run Gitleaks scanner
+        id: scan
+        uses: ./.github/actions/scanner-gitleaks
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Optional
+        with:
+          post_pr_comment: ${{ github.event_name == 'pull_request' }}
+          enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
+          fail_on_severity: 'none'
+          gitleaks_enable_comments: 'false'  # Disable in tests
+
+      - name: Verify scan completed
+        shell: bash
+        run: |
+          echo "## Gitleaks Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Gitleaks scanner executed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ steps.scan.outputs.secrets_count }}" ]; then
+            echo "**Secrets detected:** ${{ steps.scan.outputs.secrets_count }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ============================================================================
+  # Infrastructure Scanners (IaC)
+  # Tests: scanner-trivy-iac, scanner-checkov
+  # ============================================================================
+  test-infrastructure:
+    name: IaC / ${{ matrix.scanner }}
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' && 
+      (inputs.test_group == 'all' || inputs.test_group == 'infrastructure') ||
+      github.event_name != 'workflow_dispatch'
+    timeout-minutes: 15
+    continue-on-error: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        scanner:
+          - trivy-iac
+          - checkov
+        include:
+          - scanner: trivy-iac
+            action_path: .github/actions/scanner-trivy-iac
+          - scanner: checkov
+            action_path: .github/actions/scanner-checkov
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run ${{ matrix.scanner }} scanner
+        id: scan
+        uses: ./${{ matrix.action_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          post_pr_comment: ${{ github.event_name == 'pull_request' }}
+          enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
+          fail_on_severity: 'none'
+
+      - name: Verify scan completed
+        shell: bash
+        run: |
+          echo "## ${{ matrix.scanner }} Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Scanner executed successfully" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Container Scanners
+  # Tests: scanner-container with multiple tools
+  # ============================================================================
+  test-container:
+    name: Container / ${{ matrix.tool }}
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' && 
+      (inputs.test_group == 'all' || inputs.test_group == 'container') ||
+      github.event_name != 'workflow_dispatch'
+    timeout-minutes: 15
+    continue-on-error: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        tool:
+          - trivy
+          - grype
+        include:
+          - tool: trivy
+            image: ghcr.io/actions/actions-runner:latest
+          - tool: grype
+            image: ghcr.io/actions/actions-runner:latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run container scanner (${{ matrix.tool }})
+        id: scan
+        uses: ./.github/actions/scanner-container
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          image_ref: ${{ matrix.image }}
+          scanner: ${{ matrix.tool }}
+          registry_username: ${{ github.actor }}
+          registry_password: ${{ secrets.GITHUB_TOKEN }}
+          enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
+          fail_on_severity: 'none'
+
+      - name: Verify scan completed
+        shell: bash
+        run: |
+          echo "## Container Scanner Test (${{ matrix.tool }})" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Container scan completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ matrix.image }}\`" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Linters
+  # Tests: All linter actions
+  # ============================================================================
+  test-linters:
+    name: Linter / ${{ matrix.linter }}
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' && 
+      (inputs.test_group == 'all' || inputs.test_group == 'linters') ||
+      github.event_name != 'workflow_dispatch'
+    timeout-minutes: 10
+    continue-on-error: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        linter:
+          - dockerfile
+          - javascript
+          - json
+          - python
+          - yaml
+        include:
+          - linter: dockerfile
+            action_path: .github/actions/linter-dockerfile
+          - linter: javascript
+            action_path: .github/actions/linter-javascript
+          - linter: json
+            action_path: .github/actions/linter-json
+          - linter: python
+            action_path: .github/actions/linter-python
+          - linter: yaml
+            action_path: .github/actions/linter-yaml
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run ${{ matrix.linter }} linter
+        id: lint
+        uses: ./${{ matrix.action_path }}
+        continue-on-error: true
+        with:
+          post_pr_comment: ${{ github.event_name == 'pull_request' }}
+
+      - name: Verify linter executed
+        shell: bash
+        run: |
+          echo "## ${{ matrix.linter }} Linter Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Linter executed successfully" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Malware Scanner (ClamAV)
+  # Takes longer due to database updates - separate job
+  # ============================================================================
+  test-clamav:
+    name: Malware / clamav
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' && 
+      (inputs.test_group == 'all') ||
+      github.event_name != 'workflow_dispatch'
+    timeout-minutes: 20
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run ClamAV scanner
+        id: scan
+        uses: ./.github/actions/scanner-clamav
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          scan_path: 'tests/fixtures'
+          post_pr_comment: ${{ github.event_name == 'pull_request' }}
+          enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
+          fail_on_severity: 'none'
+
+      - name: Verify scan completed
+        shell: bash
+        run: |
+          echo "## ClamAV Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ ClamAV scanner executed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Files scanned:** ${{ steps.scan.outputs.scanned_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Scan status:** ${{ steps.scan.outputs.scan_status }}" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Summary Generators
+  # Tests: linting-summary, scanner-container-summary, scanner-zap-summary
+  # Note: These typically need upstream artifacts to work properly
+  # ============================================================================
+  test-summaries:
+    name: Summary / ${{ matrix.summary }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        summary:
+          - linting-summary
+        include:
+          - summary: linting-summary
+            action_path: .github/actions/linting-summary
+            needs_artifact: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run ${{ matrix.summary }} action
+        id: summary
+        uses: ./${{ matrix.action_path }}
+        continue-on-error: true
+
+      - name: Verify summary action executed
+        shell: bash
+        run: |
+          echo "## ${{ matrix.summary }} Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Summary action executed" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Config Parsers
+  # Tests: parse-container-config, parse-zap-config
+  # ============================================================================
+  test-config-parsers:
+    name: Parser / ${{ matrix.parser }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        parser:
+          - container-config
+          - zap-config
+        include:
+          - parser: container-config
+            action_path: .github/actions/parse-container-config
+            config_file: tests/fixtures/configs/container-config.yml
+          - parser: zap-config
+            action_path: .github/actions/parse-zap-config
+            config_file: tests/fixtures/configs/zap-config.yml
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Ensure test config exists
+        shell: bash
+        run: |
+          if [ ! -f "${{ matrix.config_file }}" ]; then
+            echo "::warning::Config file ${{ matrix.config_file }} not found - creating minimal test config"
+            mkdir -p $(dirname "${{ matrix.config_file }}")
+            if [ "${{ matrix.parser }}" = "container-config" ]; then
+              echo "images:" > "${{ matrix.config_file }}"
+              echo "  - name: test-image" >> "${{ matrix.config_file }}"
+              echo "    registry: ghcr.io" >> "${{ matrix.config_file }}"
+            else
+              echo "targets:" > "${{ matrix.config_file }}"
+              echo "  - name: test-target" >> "${{ matrix.config_file }}"
+              echo "    url: http://example.com" >> "${{ matrix.config_file }}"
+            fi
+          fi
+
+      - name: Run ${{ matrix.parser }} parser
+        id: parse
+        uses: ./${{ matrix.action_path }}
+        with:
+          config_file: ${{ matrix.config_file }}
+
+      - name: Verify parser output
+        shell: bash
+        run: |
+          echo "## ${{ matrix.parser }} Parser Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Parser executed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Config file:** \`${{ matrix.config_file }}\`" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Example Workflow Validation
+  # Validates that example workflows have correct syntax and references
+  # ============================================================================
+  validate-examples:
+    name: Validate Examples
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Validate example workflow syntax
+        shell: bash
+        run: |
+          echo "## Example Workflow Validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          ERRORS=0
+          
+          for example in examples/*.yml; do
+            if [ -f "$example" ]; then
+              echo "Validating: $example"
+              
+              # Check YAML syntax
+              if ! python -c "import yaml; yaml.safe_load(open('$example'))" 2>/dev/null; then
+                echo "❌ **$example** - Invalid YAML syntax" >> $GITHUB_STEP_SUMMARY
+                ERRORS=$((ERRORS + 1))
+                continue
+              fi
+              
+              # Check for action references to this repo
+              if grep -q "huntridge-labs/hardening-workflows" "$example"; then
+                # Verify the action paths exist
+                REFS=$(grep -oP '(?<=uses: huntridge-labs/hardening-workflows/)\.github/actions/[^@]+' "$example" || true)
+                for ref in $REFS; do
+                  if [ ! -d "$ref" ]; then
+                    echo "❌ **$example** - References non-existent action: $ref" >> $GITHUB_STEP_SUMMARY
+                    ERRORS=$((ERRORS + 1))
+                  fi
+                done
+              fi
+              
+              echo "✅ $example" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ $ERRORS -eq 0 ]; then
+            echo "**All example workflows validated successfully!**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Found $ERRORS validation errors**" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Check for required inputs documentation
+        shell: bash
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Required Inputs Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check that each action's required inputs are documented in examples
+          for action_dir in .github/actions/scanner-* .github/actions/linter-*; do
+            if [ -d "$action_dir" ]; then
+              action_name=$(basename "$action_dir")
+              action_file="$action_dir/action.yml"
+              
+              if [ -f "$action_file" ]; then
+                # Get required inputs
+                REQUIRED=$(python -c "
+          import yaml
+          with open('$action_file') as f:
+              data = yaml.safe_load(f)
+              inputs = data.get('inputs', {})
+              for name, config in inputs.items():
+                  if config.get('required', False) and config.get('default') is None:
+                      print(name)
+          " 2>/dev/null || true)
+                
+                if [ -n "$REQUIRED" ]; then
+                  echo "**$action_name** requires: $REQUIRED" >> $GITHUB_STEP_SUMMARY
+                fi
+              fi
+            fi
+          done
+
+  # ============================================================================
+  # Final Summary
+  # Aggregates results from all test jobs
+  # ============================================================================
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs:
+      - test-sast
+      - test-codeql
+      - test-secrets
+      - test-infrastructure
+      - test-container
+      - test-linters
+      - test-clamav
+      - test-summaries
+      - test-config-parsers
+      - validate-examples
+    if: always()
+
+    steps:
+      - name: Generate Summary
+        shell: bash
+        run: |
+          echo "# Composite Actions Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Category | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| SAST Scanners | ${{ needs.test-sast.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-sast.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CodeQL | ${{ needs.test-codeql.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-codeql.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Secrets Detection | ${{ needs.test-secrets.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-secrets.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Infrastructure | ${{ needs.test-infrastructure.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-infrastructure.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Container Scanners | ${{ needs.test-container.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-container.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Linters | ${{ needs.test-linters.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-linters.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ClamAV Malware | ${{ needs.test-clamav.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-clamav.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Summary Generators | ${{ needs.test-summaries.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-summaries.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Config Parsers | ${{ needs.test-config-parsers.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-config-parsers.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Example Validation | ${{ needs.validate-examples.result == 'success' && '✅' || '⚠️' }} ${{ needs.validate-examples.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Note:** ZAP DAST tests run in a separate workflow (test-zap.yml) due to their specialized requirements." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow:** ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY

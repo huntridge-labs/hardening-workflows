@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - '.github/actions/scanner-zap/**'
+      - '.github/actions/scanner-zap-summary/**'
+      - '.github/actions/parse-zap-config/**'
       - '.github/workflows/scanner-zap.yml'
       - '.github/workflows/scanner-zap-from-config.yml'
       - '.github/scripts/parse-zap-config.js'

@@ -240,6 +240,58 @@ Tests run automatically on:
 - Every push to any branch
 - Every pull request
 
+### Test Workflows Overview
+
+| Workflow | Triggers On | Tests |
+|----------|-------------|-------|
+| `test-unit.yml` | Any PR / push to main | Unit tests (bash/JS/Python), coverage |
+| `test-actions.yml` | Changes to `.github/actions/**` | Integration tests for all composite actions |
+| `test-zap.yml` | Changes to ZAP actions/workflows | ZAP DAST scanner (needs running target) |
+| `test-container-scanners.yml` | Changes to container actions | Grype, Syft, Trivy container scans |
+
+### Understanding Integration Test Results
+
+When a PR changes composite actions, `test-actions.yml` runs:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Composite Actions Test Summary                          │
+├──────────────────────────┬──────────────────────────────┤
+│ Category                 │ Status                       │
+├──────────────────────────┼──────────────────────────────┤
+│ SAST Scanners            │ ✅ success                   │
+│ CodeQL                   │ ✅ success                   │
+│ Secrets Detection        │ ✅ success                   │
+│ Infrastructure           │ ⚠️ failure                   │  ← Fix this!
+│ Container Scanners       │ ✅ success                   │
+│ Linters                  │ ✅ success                   │
+│ ClamAV Malware           │ ✅ success                   │
+└──────────────────────────┴──────────────────────────────┘
+```
+
+**To debug a failure:**
+1. Click the failed job name (e.g., "IaC / checkov")
+2. Expand step logs to see the actual error
+3. Most failures are input mismatches or missing dependencies
+
+### Adding Your Action to Integration Tests
+
+If you create a new action, add it to the appropriate matrix in `.github/workflows/test-actions.yml`:
+
+```yaml
+# Example: Adding scanner-newscan to SAST tests
+strategy:
+  matrix:
+    scanner:
+      - bandit
+      - opengrep
+      - newscan          # ← Add here
+    include:
+      - scanner: newscan
+        fixture: tests/fixtures/test-apps/python-app
+        action_path: .github/actions/scanner-newscan
+```
+
 **Pre-commit hooks** run:
 - Whitespace cleanup
 - YAML/JSON validation
