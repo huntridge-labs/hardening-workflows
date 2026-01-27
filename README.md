@@ -3,6 +3,7 @@
 # Hardening Workflows
 
 ![GitHub Release](https://img.shields.io/github/v/release/huntridge-labs/hardening-workflows?style=plastic)
+![Tests](https://github.com/huntridge-labs/hardening-workflows/actions/workflows/test-unit.yml/badge.svg)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg?style=plastic)](https://www.gnu.org/licenses/agpl-3.0)
 
 Reusable GitHub Actions workflows for comprehensive security scanning.<br>

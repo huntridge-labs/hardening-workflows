@@ -1,0 +1,17 @@
+{
+  "all": true,
+  "include": [
+    "tests/unit/javascript/**/*.js"
+  ],
+  "exclude": [
+    "coverage/**",
+    "tests/fixtures/**",
+    "node_modules/**"
+  ],
+  "reporter": [
+    "lcov",
+    "text",
+    "text-summary"
+  ],
+  "report-dir": "coverage/js"
+}

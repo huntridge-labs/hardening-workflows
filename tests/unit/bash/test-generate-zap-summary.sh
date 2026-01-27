@@ -461,7 +461,7 @@ test_required_env_vars() {
 
   # Save original value
   local original_parser="$ZAP_PARSER"
-  
+
   # Unset required vars
   unset ZAP_PARSER
 
@@ -474,7 +474,7 @@ test_required_env_vars() {
 
   # Restore original value
   export ZAP_PARSER="$original_parser"
-  
+
   cleanup_test
 }
 

@@ -37,11 +37,46 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
+      - name: Install kcov (bash coverage)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y kcov
+
       - name: Make bash tests executable
         run: chmod +x tests/unit/bash/*.sh
 
       - name: Run all tests
         run: npm test
+
+      - name: Run tests with coverage
+        run: |
+          # JavaScript coverage (config parsers)
+          npm run test:coverage:js
+
+          # Python coverage (logistics scripts only - scanner scripts are being migrated to actions)
+          pytest tests/unit/python/ --cov=.github/scripts/extract-archives --cov-report=lcov:coverage/python.lcov --cov-report=term -q || true
+
+          # Bash coverage (best effort - may have limitations)
+          npm run test:coverage:bash || echo "Bash coverage collection had issues, continuing..."
+
+      - name: Coverage Report Summary
+        if: always()
+        run: |
+          echo "## Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # JavaScript coverage
+          if [ -f coverage/js/lcov.info ]; then
+            echo "### JavaScript Coverage" >> $GITHUB_STEP_SUMMARY
+            npm run test:coverage:js 2>&1 | grep -A5 "All files" >> $GITHUB_STEP_SUMMARY || true
+          fi
+
+          # Python coverage
+          if [ -f coverage/python.lcov ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Python Coverage" >> $GITHUB_STEP_SUMMARY
+            pytest tests/unit/python/ --cov=.github/scripts/extract-archives --cov-report=term -q 2>&1 | grep -A10 "coverage:" >> $GITHUB_STEP_SUMMARY || true
+          fi
 
       - name: Test Summary
         if: always()
@@ -55,3 +90,15 @@ jobs:
           echo "- JavaScript tests (config parsers)" >> $GITHUB_STEP_SUMMARY
           echo "- Python tests (utilities & ClamAV)" >> $GITHUB_STEP_SUMMARY
           echo "- Action schema validation (174 tests)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See detailed coverage reports in artifacts" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            coverage/
+            htmlcov/
+          retention-days: 30
