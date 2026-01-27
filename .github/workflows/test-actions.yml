@@ -292,7 +292,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           image_ref: ${{ matrix.image }}
-          scanner: ${{ matrix.tool }}
+          container_name: test-${{ matrix.tool }}
+          scanners: ${{ matrix.tool }}
           registry_username: ${{ github.actor }}
           registry_password: ${{ secrets.GITHUB_TOKEN }}
           enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
