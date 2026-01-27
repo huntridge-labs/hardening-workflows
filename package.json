@@ -28,7 +28,7 @@
   "scripts": {
     "prepare": "husky",
     "test": "npm run test:bash && npm run test:js && npm run test:python && npm run test:actions",
-    "test:bash": "for f in tests/unit/bash/test-*.sh; do \"$f\" || exit 1; done",
+    "test:bash": "for f in tests/unit/bash/test-*.sh; do bash \"$f\" || exit 1; done",
     "test:js": "for f in tests/unit/javascript/test-*.js; do node \"$f\" || exit 1; done",
     "test:python": "pytest tests/unit/python/ --no-cov -q",
     "test:actions": "python tests/unit/actions/validate-action-schemas.py",
