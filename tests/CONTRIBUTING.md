@@ -2,6 +2,21 @@
 
 This guide helps you add or modify tests when contributing to hardening-workflows.
 
+## Setup
+
+### Prerequisites
+
+```bash
+# Install Node.js dependencies
+npm install
+
+# Install Python dependencies
+pip install -r requirements-dev.txt
+
+# Verify setup
+npm test
+```
+
 ## Test Structure
 
 We use a **pragmatic hybrid approach**:
