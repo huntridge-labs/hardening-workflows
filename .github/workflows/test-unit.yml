@@ -37,11 +37,6 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      - name: Install kcov (bash coverage)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y kcov
-
       - name: Make bash tests executable
         run: chmod +x tests/unit/bash/*.sh
 
@@ -52,12 +47,9 @@ jobs:
         run: |
           # JavaScript coverage (config parsers)
           npm run test:coverage:js
-
+          
           # Python coverage (logistics scripts only - scanner scripts are being migrated to actions)
           pytest tests/unit/python/ --cov=.github/scripts/extract-archives --cov-report=lcov:coverage/python.lcov --cov-report=term -q || true
-
-          # Bash coverage (best effort - may have limitations)
-          npm run test:coverage:bash || echo "Bash coverage collection had issues, continuing..."
 
       - name: Coverage Report Summary
         if: always()
