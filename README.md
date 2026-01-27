@@ -306,6 +306,19 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 - Pull request process
 - Commit message format
 
+### Development Setup
+
+```bash
+# Install dependencies
+npm install
+pip install -r requirements-dev.txt
+
+# Run tests
+npm test
+
+# See tests/CONTRIBUTING.md for detailed testing guide
+```
+
 ## License
 
 AGPL v3 License - see [LICENSE.md](LICENSE.md) for details.
