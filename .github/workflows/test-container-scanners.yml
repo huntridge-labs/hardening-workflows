@@ -4,10 +4,14 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - '.github/actions/scanner-container/**'
+      - '.github/actions/scanner-container-summary/**'
+      - '.github/actions/parse-container-config/**'
       - '.github/workflows/scanner-grype.yml'
       - '.github/workflows/scanner-syft.yml'
       - '.github/workflows/scanner-trivy-container.yml'
       - '.github/workflows/test-container-scanners.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
