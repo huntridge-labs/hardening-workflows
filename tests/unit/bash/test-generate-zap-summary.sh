@@ -459,6 +459,9 @@ test_required_env_vars() {
   local test_name="generate_zap_summary_required_env"
   setup_test
 
+  # Save original value
+  local original_parser="$ZAP_PARSER"
+  
   # Unset required vars
   unset ZAP_PARSER
 
@@ -469,6 +472,9 @@ test_required_env_vars() {
     assert_fail "$test_name" "Missing required env var check failed"
   fi
 
+  # Restore original value
+  export ZAP_PARSER="$original_parser"
+  
   cleanup_test
 }
 
