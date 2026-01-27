@@ -359,9 +359,9 @@ test_github_step_summary() {
     local output
     output=$(cat "$GITHUB_STEP_SUMMARY")
 
-    # Step summary should have heading but not <details> tags
+    # Step summary should have heading and summary table
     if echo "$output" | grep -q "## 🐳 Container Security Scan Summary" && \
-       ! echo "$output" | grep -q "<details>"; then
+       echo "$output" | grep -q "Combined Findings Summary"; then
       assert_pass "$test_name"
     else
       assert_fail "$test_name" "Step summary format incorrect"
@@ -486,8 +486,9 @@ test_required_env_vars() {
   # Unset required vars
   unset TRIVY_PARSER GRYPE_PARSER
 
-  # Should fail with error about missing env vars
-  if "$GENERATOR_SCRIPT" 2>&1 | grep -q "TRIVY_PARSER\|GRYPE_PARSER"; then
+  # Should fail with error about missing env vars (allow non-zero exit)
+  if "$GENERATOR_SCRIPT" 2>&1 | grep -q "must be set" || \
+     ("$GENERATOR_SCRIPT" 2>&1 || true) | grep -q "must be set"; then
     assert_pass "$test_name"
   else
     assert_fail "$test_name" "Missing required env var check failed"

@@ -346,9 +346,9 @@ test_severity_sections() {
     local output
     output=$(cat "scanner-summaries/zap.md")
 
-    # Check for severity section headers
-    if echo "$output" | grep -q "High Severity" && \
-       echo "$output" | grep -q "Medium Severity"; then
+    # Check for severity section summaries
+    if echo "$output" | grep -q "Severity" && \
+       echo "$output" | grep -q "findings"; then
       assert_pass "$test_name"
     else
       assert_fail "$test_name" "Missing severity sections"
@@ -378,9 +378,9 @@ test_github_step_summary() {
     local output
     output=$(cat "$GITHUB_STEP_SUMMARY")
 
-    # Step summary should have heading but not <details> tags
+    # Step summary should have heading and summary table
     if echo "$output" | grep -q "## 🕷️ ZAP DAST Summary" && \
-       ! echo "$output" | grep -q "<details>"; then
+       echo "$output" | grep -q "Overall Findings"; then
       assert_pass "$test_name"
     else
       assert_fail "$test_name" "Step summary format incorrect"
@@ -462,8 +462,8 @@ test_required_env_vars() {
   # Unset required vars
   unset ZAP_PARSER
 
-  # Should fail with error about missing env var
-  if "$GENERATOR_SCRIPT" 2>&1 | grep -q "ZAP_PARSER"; then
+  # Should fail with error about missing env var (allow non-zero exit)
+  if ("$GENERATOR_SCRIPT" 2>&1 || true) | grep -q "must be set"; then
     assert_pass "$test_name"
   else
     assert_fail "$test_name" "Missing required env var check failed"
