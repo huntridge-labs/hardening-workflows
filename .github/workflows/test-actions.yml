@@ -12,7 +12,6 @@ name: Test Composite Actions
 
 on:
   pull_request:
-    branches: [main]
     paths:
       - '.github/actions/**'
       - 'tests/fixtures/**'
