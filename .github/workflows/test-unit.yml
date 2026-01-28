@@ -34,6 +34,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-cov pyyaml
 
+      - name: Pull kcov Docker image
+        run: docker pull kcov/kcov:latest
+
       - name: Install Node dependencies
         run: npm ci
 
@@ -43,13 +46,29 @@ jobs:
       - name: Run all tests
         run: npm test
 
-      - name: Run tests with coverage
+      - name: JavaScript Coverage
+        if: always()
+        run: npm run test:coverage:js
+
+      - name: Python Coverage
+        if: always()
+        run: pytest --cov-report=lcov:coverage/python.lcov --cov-report=term
+
+      - name: Bash Coverage
+        if: always()
         run: |
-          # JavaScript coverage (config parsers)
-          npm run test:coverage:js
-          
-          # Python coverage (logistics scripts only - scanner scripts are being migrated to actions)
-          pytest tests/unit/python/ --cov=.github/scripts/extract-archives --cov-report=lcov:coverage/python.lcov --cov-report=term -q || true
+          mkdir -p coverage/bash
+          for test_file in tests/unit/bash/test-*.sh; do
+            test_name=$(basename "$test_file" .sh)
+            echo "Running coverage for $test_name"
+            docker run --rm \
+              -v "$PWD:/src" \
+              -w /src \
+              kcov/kcov:latest \
+              kcov --exclude-pattern=/usr/share,/usr/lib \
+                   /src/coverage/bash/"$test_name" \
+                   /src/"$test_file" || true
+          done
 
       - name: Coverage Report Summary
         if: always()
@@ -61,13 +80,27 @@ jobs:
           if [ -f coverage/js/lcov.info ]; then
             echo "### JavaScript Coverage" >> $GITHUB_STEP_SUMMARY
             npm run test:coverage:js 2>&1 | grep -A5 "All files" >> $GITHUB_STEP_SUMMARY || true
+          else
+            echo "No JavaScript coverage data found" >> $GITHUB_STEP_SUMMARY
           fi
 
           # Python coverage
           if [ -f coverage/python.lcov ]; then
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Python Coverage" >> $GITHUB_STEP_SUMMARY
-            pytest tests/unit/python/ --cov=.github/scripts/extract-archives --cov-report=term -q 2>&1 | grep -A10 "coverage:" >> $GITHUB_STEP_SUMMARY || true
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            head -20 coverage/python.lcov >> $GITHUB_STEP_SUMMARY || true
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Bash coverage
+          if [ -d coverage/bash ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Bash Coverage" >> $GITHUB_STEP_SUMMARY
+            echo "Coverage reports generated for $(ls -1 coverage/bash | wc -l) bash test files" >> $GITHUB_STEP_SUMMARY
+            if [ -f coverage/bash/test-parse-grype-results/index.json ]; then
+              echo "✓ Bash coverage tracked with kcov" >> $GITHUB_STEP_SUMMARY
+            fi
           fi
 
       - name: Test Summary
@@ -84,6 +117,22 @@ jobs:
           echo "- Action schema validation (174 tests)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "See detailed coverage reports in artifacts" >> $GITHUB_STEP_SUMMARY
+
+      - name: List generated coverage files
+        shell: bash
+        run: |
+          echo "Coverage files generated:"
+          find coverage -type f -name "*.lcov" -o -name "*.info" 2>/dev/null || echo "No coverage files found"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          directory: ./coverage
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+          verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Upload coverage artifacts
         if: always()

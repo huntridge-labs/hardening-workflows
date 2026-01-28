@@ -11,7 +11,7 @@
 
 **Quick Links:**
 - [Phase Implementation Details](#implementation-timeline)
-- [Test Structure](#test-data-organization) 
+- [Test Structure](#test-data-organization)
 - [Completed Cleanup](#cleanup-filesdiretories-to-delete-after-migration--completed)
 - [Additional Resources](#additional-resources)
 
@@ -91,7 +91,7 @@ tests/
 
 #### Parser Script Tests - ALL COMPLETE ✅
 - [x] parse-trivy-results.sh - 16 tests
-- [x] parse-grype-results.sh - 13 tests  
+- [x] parse-grype-results.sh - 13 tests
 - [x] parse-zap-results.sh - 21 tests
 - [x] parse-clamav-report.py - 7 tests
 - [x] extract-archives.py - 37 tests
@@ -648,6 +648,29 @@ All parsers and summary generators now have comprehensive test coverage.
 ---
 
 ## References
+
+### Post-Migration Python Coverage Strategy
+
+**Current Approach:**
+- Python scripts are being migrated from `.github/scripts/` into composite actions
+- Example: `extract-archives.py` migrated to `.github/actions/scanner-clamav/scripts/`
+- Tests remain in `tests/unit/python/` but reference legacy `.github/scripts/` location
+
+**Coverage Status:**
+- ✅ JavaScript: 93.57% (config parsers)
+- ✅ Python: ~87% (extract-archives.py, parse-clamav-report.py via `PYTHONPATH` workaround)
+- ⚠️ Note: Python coverage uses `PYTHONPATH` to make legacy `.github/scripts/` importable
+
+**Future Options:**
+1. **Keep current approach** - Continue using `PYTHONPATH` for legacy scripts during migration
+2. **Test at action level** - Integration test Python scripts as part of composite action tests (most realistic)
+3. **Refactor for testability** - Make Python scripts proper importable modules with unit tests
+
+**Recommendation:** Option 1 for now (maintain current coverage), then Option 2 post-migration (test Python in context of actions).
+
+---
+
+### Legacy File Tracking
 
 - Current vulnerable files to migrate:
   - `src/vulnerable_code.py`

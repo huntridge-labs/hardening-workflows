@@ -34,18 +34,18 @@ jobs:
     outputs:
       workflow-examples: ${{ steps.discover.outputs.workflow-examples }}
       config-examples: ${{ steps.discover.outputs.config-examples }}
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Discover example files
         id: discover
         run: |
           # Find workflow examples (simple - just in workflows/ subdirectory)
           WORKFLOW_EXAMPLES=$(find examples/workflows -name "*.yml" -type f 2>/dev/null | jq -R -s -c 'split("\n")[:-1]')
           echo "workflow-examples=$WORKFLOW_EXAMPLES" >> $GITHUB_OUTPUT
-          
+
           echo "## Discovered Examples" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Workflow Examples:**" >> $GITHUB_STEP_SUMMARY
@@ -65,47 +65,47 @@ jobs:
       fail-fast: false
       matrix:
         example: ${{ fromJson(needs.discover-examples.outputs.workflow-examples) }}
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      
+
       - name: Install PyYAML
         run: pip install PyYAML
-      
+
       - name: Validate YAML syntax
         run: |
           echo "Validating: ${{ matrix.example }}"
           python -c "import yaml; yaml.safe_load(open('${{ matrix.example }}'))"
           echo "✅ Valid YAML syntax" >> $GITHUB_STEP_SUMMARY
-      
+
       - name: Validate action references
         run: |
           # Extract and validate action paths exist locally
           REMOTE_ACTIONS=$(grep -oE 'huntridge-labs/hardening-workflows/\.github/actions/[^@[:space:]]+' "${{ matrix.example }}" || true)
-          
+
           ERRORS=0
           for action in $REMOTE_ACTIONS; do
             # Remove the repo prefix to get local path
             LOCAL_PATH="${action#huntridge-labs/hardening-workflows/}"
-            
+
             if [ ! -d "$LOCAL_PATH" ]; then
               echo "❌ **Referenced action does not exist:** \`$action\`" >> $GITHUB_STEP_SUMMARY
               ERRORS=$((ERRORS + 1))
             fi
           done
-          
+
           if [ $ERRORS -gt 0 ]; then
             exit 1
           fi
-          
+
           echo "✅ All action references valid" >> $GITHUB_STEP_SUMMARY
-      
+
       - name: Validate required structure
         run: |
           # Check that workflow has required elements
@@ -113,17 +113,17 @@ jobs:
             echo "❌ **Missing workflow name**" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
-          
+
           if ! grep -q "on:" "${{ matrix.example }}"; then
             echo "❌ **Missing trigger (on:)**" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
-          
+
           if ! grep -q "jobs:" "${{ matrix.example }}"; then
             echo "❌ **Missing jobs definition**" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
-          
+
           echo "✅ Required workflow structure present" >> $GITHUB_STEP_SUMMARY
 
   # ============================================================================
@@ -134,28 +134,28 @@ jobs:
     runs-on: ubuntu-latest
     needs: discover-examples
     timeout-minutes: 5
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-      
+
       - name: Validate container configs
         run: |
           echo "## Configuration Validation" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           ERRORS=0
-          
+
           # Validate container config examples
           for config in examples/configs/container-config.example.{yml,json}; do
             if [ -f "$config" ]; then
               echo "Testing: $config"
-              
+
               # Validate it's valid YAML/JSON
               if [[ "$config" == *.yml ]]; then
                 if python -c "import yaml; yaml.safe_load(open('$config'))" 2>/dev/null; then
@@ -174,11 +174,11 @@ jobs:
               fi
             fi
           done
-          
+
           if [ $ERRORS -gt 0 ]; then
             exit 1
           fi
-      
+
       - name: Validate ZAP configs
         run: |
           for config in examples/configs/zap-config*.yml; do
@@ -199,7 +199,7 @@ jobs:
       - validate-examples
       - validate-configs
     if: always()
-    
+
     steps:
       - name: Generate Summary
         run: |
@@ -213,7 +213,7 @@ jobs:
           echo "> **Note**: Functional testing of actions is handled by \`test-actions.yml\`" >> $GITHUB_STEP_SUMMARY
           echo "> This workflow focuses on validating example **documentation** is correct." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [[ "${{ needs.validate-examples.result }}" == "success" && \
                 "${{ needs.validate-configs.result }}" == "success" ]]; then
             echo "✅ **All examples validated successfully!**" >> $GITHUB_STEP_SUMMARY
