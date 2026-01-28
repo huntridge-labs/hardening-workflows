@@ -391,7 +391,7 @@ jobs:
 
   # ============================================================================
   # DAST Scanner (ZAP)
-  # Tests against a live vulnerable app to validate end-to-end functionality
+  # Tests against a live app to validate end-to-end functionality
   # ============================================================================
   test-zap:
     name: DAST / zap
@@ -404,33 +404,28 @@ jobs:
     continue-on-error: true
 
     services:
-      juice-shop:
-        image: bkimminich/juice-shop:latest
+      podinfo:
+        image: stefanprodan/podinfo:latest
         ports:
-          - 3000:3000
-        options: >-
-          --health-cmd "curl -f http://localhost:3000 || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
+          - 9898:9898
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Wait for Juice Shop to be ready
+      - name: Wait for podinfo to be ready
         shell: bash
         run: |
-          echo "Waiting for Juice Shop to be ready..."
+          echo "Waiting for podinfo to be ready..."
           for i in {1..30}; do
-            if curl -sf http://localhost:3000 > /dev/null; then
-              echo "✅ Juice Shop is ready"
+            if curl -sf http://localhost:9898/healthz > /dev/null; then
+              echo "✅ Podinfo is ready"
               exit 0
             fi
             echo "Attempt $i/30 - waiting..."
             sleep 2
           done
-          echo "❌ Juice Shop failed to start"
+          echo "❌ Podinfo failed to start"
           exit 1
 
       - name: Run ZAP scanner
@@ -439,7 +434,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          target_url: 'http://localhost:3000'
+          target_url: 'http://localhost:9898'
           scan_type: 'baseline'
           post_pr_comment: ${{ github.event_name == 'pull_request' }}
           enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
@@ -450,9 +445,9 @@ jobs:
         shell: bash
         run: |
           echo "## ZAP DAST Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "✅ ZAP scanner executed successfully against Juice Shop" >> $GITHUB_STEP_SUMMARY
+          echo "✅ ZAP scanner executed successfully against podinfo" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Target:** http://localhost:3000" >> $GITHUB_STEP_SUMMARY
+          echo "**Target:** http://localhost:9898" >> $GITHUB_STEP_SUMMARY
           echo "**Scan type:** baseline" >> $GITHUB_STEP_SUMMARY
 
   # ============================================================================
