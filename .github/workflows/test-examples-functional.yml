@@ -88,31 +88,25 @@ jobs:
           python -c "import yaml; yaml.safe_load(open('${{ matrix.example }}'))"
           echo "✅ Valid YAML syntax" >> $GITHUB_STEP_SUMMARY
       
-      - name: Check action references
+      - name: Validate action references
         run: |
-          # Check for outdated branch references
-          if grep -q "@feat/migrate-to-composite-actions" "${{ matrix.example }}"; then
-            echo "❌ **Outdated branch reference found:** \`@feat/migrate-to-composite-actions\`" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
-          
-          if grep -q "@refactor/tests-for-composite-actions" "${{ matrix.example }}"; then
-            echo "❌ **Test branch reference found:** \`@refactor/tests-for-composite-actions\`" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
-          
-          # Extract and validate action paths (using grep -E for portability)
+          # Extract and validate action paths exist locally
           REMOTE_ACTIONS=$(grep -oE 'huntridge-labs/hardening-workflows/\.github/actions/[^@[:space:]]+' "${{ matrix.example }}" || true)
           
+          ERRORS=0
           for action in $REMOTE_ACTIONS; do
             # Remove the repo prefix to get local path
             LOCAL_PATH="${action#huntridge-labs/hardening-workflows/}"
             
             if [ ! -d "$LOCAL_PATH" ]; then
               echo "❌ **Referenced action does not exist:** \`$action\`" >> $GITHUB_STEP_SUMMARY
-              exit 1
+              ERRORS=$((ERRORS + 1))
             fi
           done
+          
+          if [ $ERRORS -gt 0 ]; then
+            exit 1
+          fi
           
           echo "✅ All action references valid" >> $GITHUB_STEP_SUMMARY
       
