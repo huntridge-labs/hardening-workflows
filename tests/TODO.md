@@ -636,11 +636,13 @@ All parsers and summary generators now have comprehensive test coverage.
   - [x] Created `.github/workflows/test-examples-functional.yml` for validation
   - [x] Dynamic discovery - auto-finds all example files, no duplication
   - [x] Matrix validation - each example validated independently
-  - [x] Validates: YAML syntax, branch refs, action paths, structure
+  - [x] Validates: YAML syntax, action paths, structure
   - [x] Config validation for container-config and zap-config examples
-  - [x] Updated `examples/README.md` with testing documentation
+  - [x] Reorganized examples into `workflows/` and `configs/` subdirectories for clarity
+  - [x] Updated `examples/README.md` with new structure and testing documentation
   - [x] Added example validation guidelines to `.github/copilot-instructions.md`
   - [x] Removed redundant smoke tests (already covered by test-actions.yml)
+  - [x] Removed brittle branch reference checks (managed by release-it)
   - [x] Clear separation: test-actions.yml tests functionality, test-examples-functional.yml validates documentation
 
 ---

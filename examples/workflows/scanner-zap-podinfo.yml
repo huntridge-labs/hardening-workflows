@@ -70,8 +70,8 @@ jobs:
     uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-zap-from-config.yml@2.12.0
     with:
       # Path to config file in your repository
-      # See examples/zap-config.example.yml for full schema
-      config_file: examples/zap-config.example.yml
+      # See examples/configs/zap-config.example.yml for full schema
+      config_file: examples/configs/zap-config.example.yml
     secrets: inherit  # Required for authentication secrets
 
 # =============================================================================
