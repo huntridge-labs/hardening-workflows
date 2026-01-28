@@ -63,7 +63,7 @@ jobs:
     name: SAST / bandit
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'workflow_dispatch' && 
+      github.event_name == 'workflow_dispatch' &&
       (inputs.test_group == 'all' || inputs.test_group == 'sast') ||
       github.event_name != 'workflow_dispatch'
     timeout-minutes: 15
@@ -93,7 +93,7 @@ jobs:
     name: SAST / opengrep
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'workflow_dispatch' && 
+      github.event_name == 'workflow_dispatch' &&
       (inputs.test_group == 'all' || inputs.test_group == 'sast') ||
       github.event_name != 'workflow_dispatch'
     timeout-minutes: 15
@@ -109,7 +109,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          post_pr_comment: ${{ github.event_name == 'pull_request' }}
           enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
           fail_on_severity: 'none'
 
@@ -124,7 +123,7 @@ jobs:
     name: SAST / codeql
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'workflow_dispatch' && 
+      github.event_name == 'workflow_dispatch' &&
       (inputs.test_group == 'all' || inputs.test_group == 'sast') ||
       github.event_name != 'workflow_dispatch'
     timeout-minutes: 20
@@ -157,7 +156,7 @@ jobs:
     name: Secrets / gitleaks
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'workflow_dispatch' && 
+      github.event_name == 'workflow_dispatch' &&
       (inputs.test_group == 'all' || inputs.test_group == 'secrets') ||
       github.event_name != 'workflow_dispatch'
     timeout-minutes: 10
@@ -199,7 +198,7 @@ jobs:
     name: IaC / trivy-iac
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'workflow_dispatch' && 
+      github.event_name == 'workflow_dispatch' &&
       (inputs.test_group == 'all' || inputs.test_group == 'infrastructure') ||
       github.event_name != 'workflow_dispatch'
     timeout-minutes: 15
@@ -229,7 +228,7 @@ jobs:
     name: IaC / checkov
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'workflow_dispatch' && 
+      github.event_name == 'workflow_dispatch' &&
       (inputs.test_group == 'all' || inputs.test_group == 'infrastructure') ||
       github.event_name != 'workflow_dispatch'
     timeout-minutes: 15
@@ -263,7 +262,7 @@ jobs:
     name: Container / ${{ matrix.tool }}
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'workflow_dispatch' && 
+      github.event_name == 'workflow_dispatch' &&
       (inputs.test_group == 'all' || inputs.test_group == 'container') ||
       github.event_name != 'workflow_dispatch'
     timeout-minutes: 15
@@ -309,13 +308,13 @@ jobs:
 
   # ============================================================================
   # Linters
-  # Tests: All linter actions  
+  # Tests: All linter actions
   # ============================================================================
   test-linter-dockerfile:
     name: Linter / dockerfile
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'workflow_dispatch' && 
+      github.event_name == 'workflow_dispatch' &&
       (inputs.test_group == 'all' || inputs.test_group == 'linters') ||
       github.event_name != 'workflow_dispatch'
     timeout-minutes: 10
@@ -328,8 +327,6 @@ jobs:
       - name: Run Dockerfile linter
         uses: ./.github/actions/linter-dockerfile
         continue-on-error: true
-        with:
-          post_pr_comment: ${{ github.event_name == 'pull_request' }}
 
       - name: Verify linter executed
         shell: bash
@@ -341,7 +338,7 @@ jobs:
     name: Linter / python
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'workflow_dispatch' && 
+      github.event_name == 'workflow_dispatch' &&
       (inputs.test_group == 'all' || inputs.test_group == 'linters') ||
       github.event_name != 'workflow_dispatch'
     timeout-minutes: 10
@@ -354,8 +351,6 @@ jobs:
       - name: Run Python linter
         uses: ./.github/actions/linter-python
         continue-on-error: true
-        with:
-          post_pr_comment: ${{ github.event_name == 'pull_request' }}
 
       - name: Verify linter executed
         shell: bash
@@ -367,7 +362,7 @@ jobs:
     name: Linter / yaml
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'workflow_dispatch' && 
+      github.event_name == 'workflow_dispatch' &&
       (inputs.test_group == 'all' || inputs.test_group == 'linters') ||
       github.event_name != 'workflow_dispatch'
     timeout-minutes: 10
@@ -380,8 +375,6 @@ jobs:
       - name: Run YAML linter
         uses: ./.github/actions/linter-yaml
         continue-on-error: true
-        with:
-          post_pr_comment: ${{ github.event_name == 'pull_request' }}
 
       - name: Verify linter executed
         shell: bash
@@ -397,7 +390,7 @@ jobs:
     name: DAST / zap
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'workflow_dispatch' && 
+      github.event_name == 'workflow_dispatch' &&
       (inputs.test_group == 'all') ||
       github.event_name != 'workflow_dispatch'
     timeout-minutes: 25
@@ -437,7 +430,6 @@ jobs:
           target_url: 'http://localhost:9898'
           scan_type: 'baseline'
           post_pr_comment: ${{ github.event_name == 'pull_request' }}
-          enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
           fail_on_severity: 'none'
           rules_file_name: '.zap/rules.tsv'
 
@@ -458,7 +450,7 @@ jobs:
     name: Malware / clamav
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'workflow_dispatch' && 
+      github.event_name == 'workflow_dispatch' &&
       (inputs.test_group == 'all') ||
       github.event_name != 'workflow_dispatch'
     timeout-minutes: 20
@@ -585,20 +577,20 @@ jobs:
         run: |
           echo "## Example Workflow Validation" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           ERRORS=0
-          
+
           for example in examples/*.yml; do
             if [ -f "$example" ]; then
               echo "Validating: $example"
-              
+
               # Check YAML syntax
               if ! python -c "import yaml; yaml.safe_load(open('$example'))" 2>/dev/null; then
                 echo "❌ **$example** - Invalid YAML syntax" >> $GITHUB_STEP_SUMMARY
                 ERRORS=$((ERRORS + 1))
                 continue
               fi
-              
+
               # Check for action references to this repo
               if grep -q "huntridge-labs/hardening-workflows" "$example"; then
                 # Verify the action paths exist
@@ -610,11 +602,11 @@ jobs:
                   fi
                 done
               fi
-              
+
               echo "✅ $example" >> $GITHUB_STEP_SUMMARY
             fi
           done
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ $ERRORS -eq 0 ]; then
             echo "**All example workflows validated successfully!**" >> $GITHUB_STEP_SUMMARY
@@ -629,13 +621,13 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Required Inputs Check" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           # Check that each action's required inputs are documented in examples
           for action_dir in .github/actions/scanner-* .github/actions/linter-*; do
             if [ -d "$action_dir" ]; then
               action_name=$(basename "$action_dir")
               action_file="$action_dir/action.yml"
-              
+
               if [ -f "$action_file" ]; then
                 # Get required inputs
                 REQUIRED=$(python -c "
@@ -647,7 +639,7 @@ jobs:
                   if config.get('required', False) and config.get('default') is None:
                       print(name)
           " 2>/dev/null || true)
-                
+
                 if [ -n "$REQUIRED" ]; then
                   echo "**$action_name** requires: $REQUIRED" >> $GITHUB_STEP_SUMMARY
                 fi

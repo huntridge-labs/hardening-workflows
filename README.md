@@ -5,6 +5,7 @@
 ![GitHub Release](https://img.shields.io/github/v/release/huntridge-labs/hardening-workflows?style=plastic)
 ![Unit Tests](https://github.com/huntridge-labs/hardening-workflows/actions/workflows/test-unit.yml/badge.svg)
 ![Integration Tests](https://github.com/huntridge-labs/hardening-workflows/actions/workflows/test-actions.yml/badge.svg)
+[![codecov](https://codecov.io/gh/huntridge-labs/hardening-workflows/graph/badge.svg?token=LG3BOJYDZY)](https://codecov.io/gh/huntridge-labs/hardening-workflows)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg?style=plastic)](https://www.gnu.org/licenses/agpl-3.0)
 
 Reusable GitHub Actions workflows for comprehensive security scanning.<br>
