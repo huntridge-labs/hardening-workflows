@@ -42,19 +42,15 @@ jobs:
       - name: Discover example files
         id: discover
         run: |
-          # Find all workflow example files
-          WORKFLOW_EXAMPLES=$(find examples -name "*.yml" -type f | jq -R -s -c 'split("\n")[:-1]')
+          # Find workflow examples (simple - just in workflows/ subdirectory)
+          WORKFLOW_EXAMPLES=$(find examples/workflows -name "*.yml" -type f 2>/dev/null | jq -R -s -c 'split("\n")[:-1]')
           echo "workflow-examples=$WORKFLOW_EXAMPLES" >> $GITHUB_OUTPUT
-          
-          # Find all config example files
-          CONFIG_EXAMPLES=$(find examples -name "*.example.*" -o -name "*-config*.yml" -o -name "*-config*.json" | jq -R -s -c 'split("\n")[:-1]')
-          echo "config-examples=$CONFIG_EXAMPLES" >> $GITHUB_OUTPUT
           
           echo "## Discovered Examples" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Workflow Examples:**" >> $GITHUB_STEP_SUMMARY
           echo "$WORKFLOW_EXAMPLES" | jq -r '.[]' | while read file; do
-            echo "- \`$file\`" >> $GITHUB_STEP_SUMMARY
+            [ -n "$file" ] && echo "- \`$file\`" >> $GITHUB_STEP_SUMMARY
           done
 
   # ============================================================================
@@ -155,10 +151,8 @@ jobs:
           
           ERRORS=0
           
-          # Note: Full schema validation requires the schema files which would be
-          # in consuming repos. Here we just validate structure and syntax.
-          
-          for config in examples/container-config.example.{yml,json}; do
+          # Validate container config examples
+          for config in examples/configs/container-config.example.{yml,json}; do
             if [ -f "$config" ]; then
               echo "Testing: $config"
               
@@ -187,7 +181,7 @@ jobs:
       
       - name: Validate ZAP configs
         run: |
-          for config in examples/zap-config*.yml; do
+          for config in examples/configs/zap-config*.yml; do
             if [ -f "$config" ]; then
               echo "Validating: $config"
               python -c "import yaml; yaml.safe_load(open('$config'))"

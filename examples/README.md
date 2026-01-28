@@ -2,13 +2,29 @@
 
 This directory contains example workflows and configurations demonstrating different approaches to using hardening-workflows security scanners.
 
+## Directory Structure
+
+```
+examples/
+├── workflows/         # Complete workflow examples
+│   ├── composite-actions-example.yml
+│   ├── actions-linting-example.yml
+│   ├── scanner-zap-podinfo.yml
+│   └── ...
+├── configs/          # Configuration file examples
+│   ├── container-config.example.yml
+│   ├── zap-config.example.yml
+│   └── ...
+└── README.md
+```
+
 ## Quick Start Guide
 
 Choose the approach that best fits your needs:
 
 ### 1. Composite Actions (Recommended for Most Projects) ⭐
 
-**File:** [`composite-actions-example.yml`](composite-actions-example.yml)
+**File:** [`workflows/composite-actions-example.yml`](workflows/composite-actions-example.yml)
 
 **Best for:**
 - Projects that want full control over workflow execution
@@ -41,7 +57,7 @@ Choose the approach that best fits your needs:
 
 ### 2. Reusable Workflows (Easiest to Get Started)
 
-**File:** [`use-reusable-workflow.yml`](use-reusable-workflow.yml)
+**File:** [`use-reusable-workflow.yml`](workflows/use-reusable-workflow.yml)
 
 **Best for:**
 - Quick setup with sensible defaults
@@ -73,7 +89,7 @@ jobs:
 
 ### 3. Configuration-Driven Scanning
 
-**File:** [`container-config.example.yml`](container-config.example.yml)
+**File:** [`container-config.example.yml`](configs/container-config.example.yml)
 
 **Best for:**
 - Container-focused projects
@@ -96,10 +112,10 @@ jobs:
 
 | Example File | Description | Use Case |
 |--------------|-------------|----------|
-| [`composite-actions-example.yml`](composite-actions-example.yml) | Full example using composite actions | Most flexible approach |
-| [`use-reusable-workflow.yml`](use-reusable-workflow.yml) | Simple reusable workflow call | Quick setup |
+| [`composite-actions-example.yml`](workflows/composite-actions-example.yml) | Full example using composite actions | Most flexible approach |
+| [`use-reusable-workflow.yml`](workflows/use-reusable-workflow.yml) | Simple reusable workflow call | Quick setup |
 | [`individual-scanner-workflows.yml`](individual-scanner-workflows.yml) | Individual scanner workflow calls | Granular control |
-| [`container-config.example.yml`](container-config.example.yml) | Container scanning configuration | Container security |
+| [`container-config.example.yml`](configs/container-config.example.yml) | Container scanning configuration | Container security |
 | [`scanner-zap-podinfo.yml`](scanner-zap-podinfo.yml) | ZAP DAST scanning example | Web app security |
 | [`actions-container-scan-matrix.yml`](actions-container-scan-matrix.yml) | Matrix-based container scanning | Multiple images |
 
@@ -139,7 +155,7 @@ The following composite actions are available for direct use:
 
 If you're currently using reusable workflows and want more control:
 
-1. Copy [`composite-actions-example.yml`](composite-actions-example.yml) to `.github/workflows/security.yml`
+1. Copy [`composite-actions-example.yml`](workflows/composite-actions-example.yml) to `.github/workflows/security.yml`
 2. Remove scanners you don't need
 3. Customize inputs for remaining scanners
 4. Test the workflow

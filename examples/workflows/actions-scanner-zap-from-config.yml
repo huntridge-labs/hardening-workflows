@@ -10,7 +10,7 @@ on:
       config_file:
         description: 'Path to ZAP config file'
         required: false
-        default: 'examples/zap-config.example.yml'
+        default: 'examples/configs/zap-config.example.yml'
         type: string
 
 permissions:
@@ -35,7 +35,7 @@ jobs:
         id: parse
         uses: huntridge-labs/hardening-workflows/.github/actions/parse-zap-config@feat/migrate-to-composite-actions
         with:
-          config_file: ${{ inputs.config_file || 'examples/zap-config.example.yml' }}
+          config_file: ${{ inputs.config_file || 'examples/configs/zap-config.example.yml' }}
 
       - name: Display parsed config
         run: |
