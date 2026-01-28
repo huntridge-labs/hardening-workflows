@@ -275,11 +275,12 @@ When creating or modifying example workflows in `examples/`, ensure they are val
 
 All example workflows must:
 1. ✅ Use valid YAML syntax
-2. ✅ Reference current branches (`@main` or version tags like `@v3.0.0`)
+2. ✅ Reference existing action paths (paths must exist in `.github/actions/`)
 3. ✅ Include all required action inputs
-4. ✅ Reference existing action paths
-5. ✅ Have clear documentation and comments
-6. ✅ Follow current conventions and best practices
+4. ✅ Have clear documentation and comments
+5. ✅ Follow current conventions and best practices
+
+**Note:** Version references (e.g., `@main`, `@v3.0.0`) are managed by `release-it` during releases. Examples should use appropriate references that will be updated automatically.
 
 ### Testing Examples Locally
 
@@ -291,19 +292,18 @@ for example in examples/*.yml; do
   python -c "import yaml; yaml.safe_load(open('$example'))" || echo "❌ Invalid: $example"
 done
 
-# Check for outdated branch references
-grep -r "@feat/" examples/ && echo "❌ Update branch references to @main"
-
 # Validate config examples parse correctly
 python -c "import yaml; yaml.safe_load(open('examples/container-config.example.yml'))"
 python -c "import json; json.load(open('examples/container-config.example.json'))"
+
+# Run full validation suite
+npm test
 ```
 
 ### Example Quality Checklist
 
 When adding/updating examples:
 - [ ] YAML syntax is valid (run `python -c "import yaml; yaml.safe_load(open('example.yml'))"`)
-- [ ] Uses `@main` or version tags (not `@feat/...` or `@refactor/...`)
 - [ ] All action references point to existing actions in `.github/actions/`
 - [ ] Required inputs are documented with clear comments
 - [ ] Optional inputs show sensible defaults
@@ -311,16 +311,17 @@ When adding/updating examples:
 - [ ] Includes `on:` trigger section (even if just `workflow_dispatch`)
 - [ ] Permissions are explicitly set (principle of least privilege)
 - [ ] Comments explain the purpose and key configuration options
+- [ ] Uses version references compatible with release-it (e.g., `@main`, `@v3.0.0`)
 
 ### Automated Validation
 
 Examples are automatically validated by `.github/workflows/test-examples-functional.yml`:
 - Runs on PRs that modify `examples/` or `.github/actions/`
 - Validates each example using a dynamic matrix strategy
-- Checks syntax, branch refs, action paths, and structure
+- Checks syntax, action paths, and structure
 - No duplication - validates the actual example files themselves
 
-**Note**: Example validation focuses on documentation quality. Functional testing of actions themselves is handled by `test-actions.yml`.
+**Note**: Example validation focuses on documentation quality. Functional testing of actions themselves is handled by `test-actions.yml`. Version references are managed by release-it during the release process.
 
 ## Important Files
 
