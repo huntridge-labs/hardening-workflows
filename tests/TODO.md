@@ -631,7 +631,17 @@ All parsers and summary generators now have comprehensive test coverage.
 - [x] `tests/fixtures/README.md` - How to generate/update test data ✅
 - [x] `tests/CONTRIBUTING.md` - How to add new tests ✅
 - [ ] In-line comments in test scripts (optional polish)
-- [ ] Test workflow examples in `examples/` (optional, low priority)
+- [x] Test workflow examples in `examples/` ✅ **COMPLETE**
+  - [x] Fixed all outdated branch references (`@feat/migrate-to-composite-actions` → `@main`)
+  - [x] Created `.github/workflows/test-examples-functional.yml` for validation
+  - [x] Dynamic discovery - auto-finds all example files, no duplication
+  - [x] Matrix validation - each example validated independently
+  - [x] Validates: YAML syntax, branch refs, action paths, structure
+  - [x] Config validation for container-config and zap-config examples
+  - [x] Updated `examples/README.md` with testing documentation
+  - [x] Added example validation guidelines to `.github/copilot-instructions.md`
+  - [x] Removed redundant smoke tests (already covered by test-actions.yml)
+  - [x] Clear separation: test-actions.yml tests functionality, test-examples-functional.yml validates documentation
 
 ---
 

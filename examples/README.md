@@ -197,10 +197,58 @@ Run everything:
 
 ---
 
+## Testing Examples
+
+All examples in this directory are functionally tested to ensure they work correctly:
+
+### Automated Testing
+
+- **Syntax Validation**: All `.yml` files are validated for YAML syntax
+- **Action Path Verification**: All action references are checked to ensure they exist
+- **Branch Reference Checks**: Examples use `@main` or versioned tags (e.g., `@v2.11.2`)
+- **Functional Tests**: Example patterns are tested against real test fixtures
+
+### CI/CD Integration
+
+- **Workflow**: `.github/workflows/test-examples-functional.yml`
+- **Trigger**: Runs on PRs that modify examples or actions
+- **Coverage**: Tests composite actions, configurations, ZAP/DAST, linting, and container scanning patterns
+
+### Local Testing
+
+To test examples locally before publishing:
+
+```bash
+# Validate YAML syntax
+for example in examples/*.yml; do
+  python -c "import yaml; yaml.safe_load(open('$example'))"
+done
+
+# Test configuration parsers
+node .github/scripts/parse-container-config.js examples/container-config.example.yml
+node .github/scripts/parse-container-config.js examples/container-config.example.json
+
+# Run npm validation
+npm test
+```
+
+### Example Quality Standards
+
+All examples must:
+- ✅ Use current branch references (`@main` or versioned tags, not feature branches)
+- ✅ Include all required inputs for actions
+- ✅ Have clear documentation and comments
+- ✅ Pass YAML syntax validation
+- ✅ Reference actual, existing actions
+- ✅ Work with provided test fixtures
+
+---
+
 ## Need Help?
 
 - **Documentation**: See [main README](../README.md)
 - **Scanner Docs**: Check individual scanner documentation in [`docs/`](../docs/)
+- **Testing Guide**: See [tests/CONTRIBUTING.md](../tests/CONTRIBUTING.md)
 - **Issues**: [Report issues](https://github.com/huntridge-labs/hardening-workflows/issues)
 - **Contributing**: See [CONTRIBUTING.md](../CONTRIBUTING.md)
 

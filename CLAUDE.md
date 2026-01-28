@@ -267,11 +267,68 @@ See `CONTRIBUTING-v3.md` for:
 
 **Note**: `CONTRIBUTING.md` contains v2.x reusable workflow documentation (legacy)
 
+## Example Workflow Validation
+
+When creating or modifying example workflows in `examples/`, ensure they are valid and functional:
+
+### Validation Requirements
+
+All example workflows must:
+1. ✅ Use valid YAML syntax
+2. ✅ Reference current branches (`@main` or version tags like `@v3.0.0`)
+3. ✅ Include all required action inputs
+4. ✅ Reference existing action paths
+5. ✅ Have clear documentation and comments
+6. ✅ Follow current conventions and best practices
+
+### Testing Examples Locally
+
+Before committing example changes, validate them:
+
+```bash
+# Validate YAML syntax for all examples
+for example in examples/*.yml; do
+  python -c "import yaml; yaml.safe_load(open('$example'))" || echo "❌ Invalid: $example"
+done
+
+# Check for outdated branch references
+grep -r "@feat/" examples/ && echo "❌ Update branch references to @main"
+
+# Validate config examples parse correctly
+python -c "import yaml; yaml.safe_load(open('examples/container-config.example.yml'))"
+python -c "import json; json.load(open('examples/container-config.example.json'))"
+```
+
+### Example Quality Checklist
+
+When adding/updating examples:
+- [ ] YAML syntax is valid (run `python -c "import yaml; yaml.safe_load(open('example.yml'))"`)
+- [ ] Uses `@main` or version tags (not `@feat/...` or `@refactor/...`)
+- [ ] All action references point to existing actions in `.github/actions/`
+- [ ] Required inputs are documented with clear comments
+- [ ] Optional inputs show sensible defaults
+- [ ] Has descriptive workflow name and job names
+- [ ] Includes `on:` trigger section (even if just `workflow_dispatch`)
+- [ ] Permissions are explicitly set (principle of least privilege)
+- [ ] Comments explain the purpose and key configuration options
+
+### Automated Validation
+
+Examples are automatically validated by `.github/workflows/test-examples-functional.yml`:
+- Runs on PRs that modify `examples/` or `.github/actions/`
+- Validates each example using a dynamic matrix strategy
+- Checks syntax, branch refs, action paths, and structure
+- No duplication - validates the actual example files themselves
+
+**Note**: Example validation focuses on documentation quality. Functional testing of actions themselves is handled by `test-actions.yml`.
+
 ## Important Files
 
 - `CLAUDE.md` - Human-readable reference guide (identical to this file)
 - `CONTRIBUTING-v3.md` - **Composite actions contributor guide (v3.0)**
 - `CONTRIBUTING.md` - Legacy reusable workflows guide (v2.x)
 - `tests/TODO.md` - Testing strategy and roadmap
+- `tests/CONTRIBUTING.md` - How to add tests for actions
+- `examples/README.md` - Example usage patterns and testing info
 - `.github/actions/scanner-zap/TODO.md` - ZAP action feature roadmap
 - `examples/` - Usage examples for all actions
