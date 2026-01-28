@@ -390,6 +390,72 @@ jobs:
           echo "✅ Linter executed successfully" >> $GITHUB_STEP_SUMMARY
 
   # ============================================================================
+  # DAST Scanner (ZAP)
+  # Tests against a live vulnerable app to validate end-to-end functionality
+  # ============================================================================
+  test-zap:
+    name: DAST / zap
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' && 
+      (inputs.test_group == 'all') ||
+      github.event_name != 'workflow_dispatch'
+    timeout-minutes: 25
+    continue-on-error: true
+
+    services:
+      juice-shop:
+        image: bkimminich/juice-shop:latest
+        ports:
+          - 3000:3000
+        options: >-
+          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Wait for Juice Shop to be ready
+        shell: bash
+        run: |
+          echo "Waiting for Juice Shop to be ready..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:3000 > /dev/null; then
+              echo "✅ Juice Shop is ready"
+              exit 0
+            fi
+            echo "Attempt $i/30 - waiting..."
+            sleep 2
+          done
+          echo "❌ Juice Shop failed to start"
+          exit 1
+
+      - name: Run ZAP scanner
+        id: scan
+        uses: ./.github/actions/scanner-zap
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          target_url: 'http://localhost:3000'
+          scan_type: 'baseline'
+          post_pr_comment: ${{ github.event_name == 'pull_request' }}
+          enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
+          fail_on_severity: 'none'
+          rules_file_name: '.zap/rules.tsv'
+
+      - name: Verify scan completed
+        shell: bash
+        run: |
+          echo "## ZAP DAST Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ ZAP scanner executed successfully against Juice Shop" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Target:** http://localhost:3000" >> $GITHUB_STEP_SUMMARY
+          echo "**Scan type:** baseline" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
   # Malware Scanner (ClamAV)
   # Takes longer due to database updates - separate job
   # ============================================================================
@@ -612,6 +678,7 @@ jobs:
       - test-linter-dockerfile
       - test-linter-python
       - test-linter-yaml
+      - test-zap
       - test-clamav
       - test-linting-summary
       - test-parse-container-config
@@ -637,6 +704,7 @@ jobs:
           echo "| Dockerfile Linter | ${{ needs.test-linter-dockerfile.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-linter-dockerfile.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Python Linter | ${{ needs.test-linter-python.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-linter-python.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| YAML Linter | ${{ needs.test-linter-yaml.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-linter-yaml.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ZAP DAST | ${{ needs.test-zap.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-zap.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| ClamAV Malware | ${{ needs.test-clamav.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-clamav.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Linting Summary | ${{ needs.test-linting-summary.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-linting-summary.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Container Config Parser | ${{ needs.test-parse-container-config.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-parse-container-config.result }} |" >> $GITHUB_STEP_SUMMARY
@@ -644,8 +712,6 @@ jobs:
           echo "| Example Validation | ${{ needs.validate-examples.result == 'success' && '✅' || '⚠️' }} ${{ needs.validate-examples.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Note:** ZAP DAST tests run in a separate workflow (test-zap.yml) due to their specialized requirements." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Workflow:** ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
           echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
