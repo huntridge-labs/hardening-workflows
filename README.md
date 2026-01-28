@@ -3,7 +3,8 @@
 # Hardening Workflows
 
 ![GitHub Release](https://img.shields.io/github/v/release/huntridge-labs/hardening-workflows?style=plastic)
-![Tests](https://github.com/huntridge-labs/hardening-workflows/actions/workflows/test-unit.yml/badge.svg)
+![Unit Tests](https://github.com/huntridge-labs/hardening-workflows/actions/workflows/test-unit.yml/badge.svg)
+![Integration Tests](https://github.com/huntridge-labs/hardening-workflows/actions/workflows/test-actions.yml/badge.svg)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg?style=plastic)](https://www.gnu.org/licenses/agpl-3.0)
 
 Reusable GitHub Actions workflows for comprehensive security scanning.<br>
@@ -78,6 +79,10 @@ For detailed scanner configuration, see [Scanner Reference](docs/scanners.md).
 - [Failure Control](docs/failure-control.md) - Severity-based workflow failure configuration
 
 ### Developer Docs
+
+- [Development Guide](docs/developer/DEVELOPMENT.md) - Architecture and development workflows
+- [Testing Guide](tests/CONTRIBUTING.md) - How to add and run tests (281+ tests)
+- [CI/CD Pipeline](docs/developer/ci-cd.md) - Continuous integration setup
 
 - [PR Workflow Sync](docs/developer/pr-workflow-sync.md) - Keep PR workflow in sync with main
 - [Release Management](docs/developer/release-management.md) - Release process and versioning

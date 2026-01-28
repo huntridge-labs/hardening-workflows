@@ -340,11 +340,29 @@ All parsers and summary generators now have comprehensive test coverage.
 
 **Outcome**: Repository now has **zero vulnerable code** triggering security alerts! All testing uses synthetic, safe fixtures.
 
-#### Phase 5: CI/CD Integration (Week 6)
-- [ ] Add test workflows to PR checks
-- [ ] Set up automated test runs
-- [ ] Add test coverage reporting
-- [ ] Document testing guidelines for contributors
+#### Phase 5: CI/CD Integration (Week 6) ✅ COMPLETE
+- [x] Add test workflows to PR checks ✅
+  - `test-unit.yml`: Runs on all PRs and push to main (177 unit tests + coverage)
+  - `test-actions.yml`: Runs on PRs affecting `.github/actions/**` (16+ integration jobs)
+  - `pr-verification.yml`: Existing PR validation workflow
+- [x] Set up automated test runs ✅
+  - Tests run automatically on every PR
+  - Path-based triggers minimize unnecessary runs
+  - Concurrency groups prevent redundant workflow runs
+  - Matrix strategy for efficient multi-scanner testing
+- [x] Consolidate test workflows ✅
+  - Removed duplicate workflows: `test-zap.yml`, `test-container-scanners.yml`, `test-scanners.yml`, `test-container-scan-from-config.yml`
+  - All functionality consolidated into `test-actions.yml` with better organization
+- [x] Add test coverage reporting ✅
+  - Coverage collection implemented in `test-unit.yml`
+  - JavaScript, Python, and Bash coverage tracked
+  - Deferred: Full Codecov integration pending org approval (optional enhancement)
+- [x] Document testing guidelines for contributors ✅
+  - `tests/CONTRIBUTING.md` comprehensive guide created
+  - Main `README.md` updated with test badges and links
+  - Developer docs section includes testing guide reference
+
+**Outcome**: Complete CI/CD integration! All tests run automatically on PRs with clear feedback. 281+ tests validate every change.
 
 ### 7. Testing Tools & Frameworks
 
