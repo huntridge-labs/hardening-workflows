@@ -627,11 +627,11 @@ All parsers and summary generators now have comprehensive test coverage.
 
 ### Documentation Requirements
 
-- [ ] `tests/README.md` - Overview of test architecture
-- [ ] `tests/fixtures/README.md` - How to generate/update test data
-- [ ] `tests/CONTRIBUTING.md` - How to add new tests
-- [ ] In-line comments in test scripts
-- [ ] Test workflow examples in `examples/`
+- [x] `tests/README.md` - Overview of test architecture ✅
+- [x] `tests/fixtures/README.md` - How to generate/update test data ✅
+- [x] `tests/CONTRIBUTING.md` - How to add new tests ✅
+- [ ] In-line comments in test scripts (optional polish)
+- [ ] Test workflow examples in `examples/` (optional, low priority)
 
 ---
 
