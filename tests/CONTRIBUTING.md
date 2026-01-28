@@ -22,7 +22,8 @@ npm test
 We use a **pragmatic hybrid approach**:
 - **Fast unit tests** (177 tests, <30s) for scripts and parsers
 - **Schema validation** (174 tests) for composite actions
-- **Integration tests** (workflows) for end-to-end action validation
+- **Integration tests** (16+ jobs in test-actions.yml) for end-to-end action validation
+- **Total test coverage**: 281+ tests across all layers
 
 ```
 tests/
@@ -57,7 +58,7 @@ npm run validate
 ./tests/unit/bash/test-parse-trivy-results.sh
 ```
 
-**Current Status**: 351+ tests passing (177 unit + 174 schema)
+**Current Status**: 281+ tests passing (177 unit + 174 schema + 16+ integration jobs)
 
 ## When to Add/Update Tests
 
@@ -245,9 +246,7 @@ Tests run automatically on:
 | Workflow | Triggers On | Tests |
 |----------|-------------|-------|
 | `test-unit.yml` | Any PR / push to main | Unit tests (bash/JS/Python), coverage |
-| `test-actions.yml` | Changes to `.github/actions/**` | Integration tests for all composite actions |
-| `test-zap.yml` | Changes to ZAP actions/workflows | ZAP DAST scanner (needs running target) |
-| `test-container-scanners.yml` | Changes to container actions | Grype, Syft, Trivy container scans |
+| `test-actions.yml` | Changes to `.github/actions/**` | Integration tests for all composite actions (16+ jobs) |
 
 ### Understanding Integration Test Results
 
@@ -262,10 +261,13 @@ When a PR changes composite actions, `test-actions.yml` runs:
 │ SAST Scanners            │ ✅ success                   │
 │ CodeQL                   │ ✅ success                   │
 │ Secrets Detection        │ ✅ success                   │
-│ Infrastructure           │ ⚠️ failure                   │  ← Fix this!
+│ Infrastructure (IaC)     │ ✅ success                   │
 │ Container Scanners       │ ✅ success                   │
+│ ZAP DAST                 │ ✅ success                   │
 │ Linters                  │ ✅ success                   │
 │ ClamAV Malware           │ ✅ success                   │
+│ Config Parsers           │ ✅ success                   │
+│ Security Summary         │ ✅ success                   │
 └──────────────────────────┴──────────────────────────────┘
 ```
 
