@@ -4,12 +4,14 @@ echo "Running .husky pre-push hook"
 # Add common paths that VSCode might not have
 export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
 
-# Activate virtual environment if it exists
-if [ -f ".venv/bin/activate" ]; then
+# Activate virtual environment if it exists (support both .venv and .dev.venv)
+if [ -f ".dev.venv/bin/activate" ]; then
+  source .dev.venv/bin/activate
+elif [ -f ".venv/bin/activate" ]; then
   source .venv/bin/activate
 fi
 
-echo "Running full test suite..."
+echo "⏳ Running full test suite (bash, javascript, python, action validation)..."
 npm test
 
 if [ $? -ne 0 ]; then
@@ -17,4 +19,4 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-echo "✅ All tests passed!"
+echo "✅ All tests passed! Safe to push."
