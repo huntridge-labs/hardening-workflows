@@ -19,6 +19,7 @@ devcontainer.json
 
 # Python
 .venv/
+.dev.venv/
 *.pyc
 __pycache__/
 *.pyo

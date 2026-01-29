@@ -1,0 +1,16 @@
+{
+  "name": "Hardening Workflows Dev Environment",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "remoteEnv": {
+    "VIRTUAL_ENV": "${containerWorkspaceFolder}/.dev.venv",
+    "PATH": "${containerWorkspaceFolder}/.dev.venv/bin:${containerEnv:PATH}"
+  },
+  "forwardPorts": [
+    3000,
+    8080
+  ],
+  "remoteUser": "vscode"
+}

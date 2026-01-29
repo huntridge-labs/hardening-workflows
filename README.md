@@ -306,7 +306,19 @@ Most secrets are optional and inherited via `secrets: inherit`. Scanner-specific
 
 ## Contributing
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Development Setup
+
+**Quick Start with Dev Container (Recommended):**
+
+[![Open in Dev Containers](https://img.shields.io/static/v1?label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/huntridge-labs/hardening-workflows)
+
+1. Install [VS Code](https://code.visualstudio.com/) + [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+2. Open repository → "Reopen in Container"
+3. All dependencies ready! Run `npm test`
+
+See [.devcontainer/README.md](.devcontainer/README.md) for details.
 
 - Code of Conduct
 - Development setup
