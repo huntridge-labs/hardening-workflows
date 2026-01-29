@@ -10,9 +10,9 @@ const path = require('path');
 const assert = require('assert');
 
 // Get paths
-const REPO_ROOT = path.join(__dirname, '../../..');
-const SCRIPT_PATH = path.join(REPO_ROOT, '.github/scripts/parse-container-config.js');
-const FIXTURES_DIR = path.join(__dirname, '../../fixtures/configs');
+const REPO_ROOT = path.join(__dirname, '../../../..');
+const SCRIPT_PATH = path.join(__dirname, '../scripts/parse-container-config.js');
+const FIXTURES_DIR = path.join(REPO_ROOT, 'tests/fixtures/configs');
 
 // Import the script's functions
 const {

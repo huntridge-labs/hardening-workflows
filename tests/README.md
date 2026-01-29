@@ -6,7 +6,9 @@ Comprehensive testing suite for hardening-workflows composite actions and suppor
 
 This testing infrastructure validates all components of the hardening-workflows project:
 
-- **281+ tests** across multiple languages (Bash, JavaScript, Python)
+- **174+ tests** across multiple languages (Bash, JavaScript, Python)
+- **Co-located tests** - tests live alongside the actions they validate
+- **Shared fixtures** - mock data in `tests/fixtures/` reused across tests
 - **Zero vulnerable code** - all tests use synthetic fixtures
 - **Automated CI/CD** - tests run on every PR
 - **Fast feedback** - unit tests complete in <30 seconds
@@ -14,19 +16,31 @@ This testing infrastructure validates all components of the hardening-workflows 
 ## Test Structure
 
 ```
+.github/actions/
+├── scanner-*/
+│   ├── action.yml         # Action definition
+│   ├── scripts/           # Action scripts (parsers, generators)
+│   └── tests/             # Co-located tests for this action
+│       ├── test-*.sh      # Bash tests
+│       ├── test-*.test.js # JavaScript tests
+│       └── test_*.py      # Python tests
+├── parse-*/
+│   ├── action.yml
+│   ├── scripts/
+│   └── tests/
+└── ...
+
 tests/
-├── fixtures/              # Synthetic test data (no real vulnerabilities)
+├── fixtures/              # Shared test data (no real vulnerabilities)
 │   ├── scanner-outputs/   # Mock scanner results (Bandit, Trivy, ZAP, etc.)
 │   ├── test-apps/         # Minimal test applications
 │   └── configs/           # Test configuration files
-├── unit/                  # Unit tests for scripts and parsers
-│   ├── bash/              # Bash script tests (73 tests)
-│   ├── javascript/        # JS config parser tests (60 tests)
-│   ├── python/            # Python utility tests (44 tests)
-│   └── actions/           # Action schema validation (174 tests)
+├── unit/actions/          # Action schema validation tests
 ├── CONTRIBUTING.md        # Detailed testing guide
 └── TODO.md                # Testing roadmap and status
 ```
+
+**Key Design**: Tests are co-located with the actions they test, but share fixtures from `tests/fixtures/` since multiple actions use the same mock data.
 
 ## Quick Start
 
@@ -50,12 +64,14 @@ npm run validate
 
 ## Test Coverage
 
-| Category | Tests | Purpose |
-|----------|-------|---------|
-| **Unit Tests** | 177 | Parser scripts, summary generators, config parsers |
-| **Schema Validation** | 174 | Composite action metadata validation |
-| **Integration Tests** | 16+ jobs | End-to-end action testing in workflows |
-| **Total** | **281+** | Complete validation of all components |
+| Category | Tests | Location | Purpose |
+|----------|-------|----------|----------|
+| **Bash Script Tests** | 54 | `.github/actions/*/tests/` | Parser scripts, summary generators |
+| **JavaScript Tests** | 60 | `.github/actions/parse-*/tests/` | Config parsers |
+| **Python Tests** | 8 | `.github/actions/scanner-clamav/tests/` | Python utilities |
+| **Schema Validation** | 52 | `tests/unit/actions/` | Composite action metadata |
+| **Integration Tests** | 16+ jobs | `.github/workflows/test-actions*.yml` | End-to-end workflows |
+| **Total** | **174+** | - | Complete validation of all components |
 
 ## CI/CD Integration
 
@@ -90,4 +106,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidance on:
 
 ---
 
-**Current Status**: All 5 phases complete! 🎉 Zero vulnerable code, comprehensive CI/CD integration, 281+ tests validating every change.
+**Current Status**: All 5 phases complete! 🎉 Tests co-located with actions, shared fixtures, 174+ tests validating every change.

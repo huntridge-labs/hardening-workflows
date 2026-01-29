@@ -29,15 +29,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Set up Ruby for bash coverage
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.2'
-          bundler-cache: false
-
-      - name: Install bashcov
+      - name: Install system dependencies
         run: |
-          gem install bashcov simplecov-cobertura
+          sudo apt-get update
+          sudo apt-get install -y ruby-full
+          sudo gem install bashcov simplecov-cobertura
 
       - name: Install Python dependencies
         run: |
@@ -48,7 +44,7 @@ jobs:
         run: npm ci
 
       - name: Make bash tests executable
-        run: chmod +x tests/unit/bash/*.sh
+        run: find .github/actions -path '*/tests/*.bats' -type f -exec chmod +x {} \;
 
       - name: Run all tests
         run: npm test
@@ -59,22 +55,18 @@ jobs:
 
       - name: Python Coverage
         if: always()
-        run: pytest --cov-report=lcov:coverage/python.lcov --cov-report=term
+        run: npm run test:coverage:python
 
       - name: Bash Coverage
         if: always()
         run: |
-          mkdir -p coverage
-          for test_file in tests/unit/bash/test-*.sh; do
-            test_name=$(basename "$test_file" .sh)
-            echo "Running coverage for $test_name with bashcov"
-            bashcov --root . "$test_file" || true
-          done
+          echo "Running bash tests with kcov coverage..."
+          bash scripts/run-bash-coverage.sh || echo "⚠ Bash coverage failed, continuing..."
 
-          # bashcov generates coverage/coverage.xml by default
-          if [ -f coverage/coverage.xml ]; then
-            echo "✓ Bash coverage generated: coverage/coverage.xml"
-            ls -lh coverage/coverage.xml
+          # Copy cobertura.xml to expected location for Codecov
+          if [ -f coverage/bash/cobertura.xml ]; then
+            echo "✓ Bash coverage generated: coverage/bash/cobertura.xml"
+            ls -lh coverage/bash/cobertura.xml
           fi
 
       - name: Coverage Report Summary
@@ -104,9 +96,15 @@ jobs:
           if [ -d coverage/bash ]; then
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Bash Coverage" >> $GITHUB_STEP_SUMMARY
-            echo "Coverage reports generated for $(ls -1 coverage/bash | wc -l) bash test files" >> $GITHUB_STEP_SUMMARY
-            if [ -f coverage/bash/test-parse-grype-results/index.json ]; then
-              echo "✓ Bash coverage tracked with kcov" >> $GITHUB_STEP_SUMMARY
+
+            # Extract coverage percentage from kcov's index.json
+            if [ -f coverage/bash/index.json ]; then
+              percent=$(jq -r '.percent_covered // "N/A"' coverage/bash/index.json 2>/dev/null || echo "N/A")
+              lines_covered=$(jq -r '.lines_covered // "N/A"' coverage/bash/index.json 2>/dev/null || echo "N/A")
+              lines_total=$(jq -r '.lines_total // "N/A"' coverage/bash/index.json 2>/dev/null || echo "N/A")
+              echo "- **Coverage:** ${percent}%" >> $GITHUB_STEP_SUMMARY
+              echo "- **Lines Covered:** ${lines_covered} / ${lines_total}" >> $GITHUB_STEP_SUMMARY
+              echo "✓ Bash coverage tracked with kcov via bats" >> $GITHUB_STEP_SUMMARY
             fi
           fi
 
@@ -126,17 +124,28 @@ jobs:
           echo "See detailed coverage reports in artifacts" >> $GITHUB_STEP_SUMMARY
 
       - name: List generated coverage files
+        if: always()
         shell: bash
         run: |
           echo "Coverage files generated:"
-          find coverage -type f -name "*.lcov" -o -name "*.info" 2>/dev/null || echo "No coverage files found"
+          find coverage -type f \( -name "*.lcov" -o -name "*.xml" -o -name "cobertura.xml" \) 2>/dev/null || echo "No coverage files found"
+          echo ""
+          echo "Coverage directory structure:"
+          ls -laR coverage/ 2>/dev/null || echo "No coverage directory"
+          echo ""
+          echo "Checking coverage file contents (first 10 lines of each):"
+          for file in $(find coverage -type f \( -name "*.lcov" -o -name "cobertura.xml" \) 2>/dev/null); do
+            echo "=== $file ==="
+            head -10 "$file"
+            echo ""
+          done
 
       - name: Upload coverage to Codecov
         if: always()
         uses: codecov/codecov-action@v4
         with:
           directory: ./coverage
-          flags: javascript,python,bash
+          flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
           verbose: true

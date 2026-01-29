@@ -15,19 +15,9 @@ const path = require('path');
 const yaml = require('js-yaml');
 const Ajv = require('ajv');
 
-// Configuration from environment
+// Configuration from environment (only validate when running as main script)
 const CONFIG_FILE = process.env.CONFIG_FILE;
 const SCHEMA_FILE = process.env.SCHEMA_FILE;
-
-if (!CONFIG_FILE) {
-  console.error('❌ Error: CONFIG_FILE environment variable is required');
-  process.exit(1);
-}
-
-if (!SCHEMA_FILE) {
-  console.error('❌ Error: SCHEMA_FILE environment variable is required');
-  process.exit(1);
-}
 
 /**
  * Expand environment variables in a string
@@ -283,4 +273,21 @@ function main() {
   }
 }
 
-main();
+// Export functions for testing
+module.exports = { loadConfig, validateConfig, generateMatrix, buildImageReference };
+
+// Only run main when executed directly, not when imported for testing
+if (require.main === module) {
+  // Validate required environment variables
+  if (!CONFIG_FILE) {
+    console.error('❌ Error: CONFIG_FILE environment variable is required');
+    process.exit(1);
+  }
+
+  if (!SCHEMA_FILE) {
+    console.error('❌ Error: SCHEMA_FILE environment variable is required');
+    process.exit(1);
+  }
+
+  main();
+}

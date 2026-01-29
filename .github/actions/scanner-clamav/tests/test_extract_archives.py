@@ -16,10 +16,12 @@ import pytest
 
 # Import the modules to test
 import sys
-sys.path.insert(0, str(Path(__file__).parent.parent))
+REPO_ROOT = Path(__file__).parent.parent.parent.parent.parent
+SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
+sys.path.insert(0, str(SCRIPTS_DIR))
 
 import importlib.util
-spec = importlib.util.spec_from_file_location("extract_archives", Path(__file__).parent.parent / "extract-archives.py")
+spec = importlib.util.spec_from_file_location("extract_archives", SCRIPTS_DIR / "extract-archives.py")
 extract_archives = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(extract_archives)
 

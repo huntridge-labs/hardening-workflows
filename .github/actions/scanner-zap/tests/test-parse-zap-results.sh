@@ -17,8 +17,8 @@ TESTS_FAILED=0
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FIXTURES_DIR="${SCRIPT_DIR}/../../fixtures/scanner-outputs/zap"
-PARSER_SCRIPT="${SCRIPT_DIR}/../../../.github/scripts/parse-zap-results.sh"
+FIXTURES_DIR="${SCRIPT_DIR}/../../../../tests/fixtures/scanner-outputs/zap"
+PARSER_SCRIPT="${SCRIPT_DIR}/../scripts/parse-zap-results.sh"
 
 # Test helper functions
 assert_equals() {

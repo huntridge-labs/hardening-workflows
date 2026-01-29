@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 TESTS_PASSED=0
 TESTS_FAILED=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 FIXTURES_DIR="$REPO_ROOT/tests/fixtures"
 
 # Test helper functions
@@ -47,8 +47,8 @@ print_summary() {
 }
 
 # Script under test
-GENERATOR_SCRIPT="$REPO_ROOT/.github/scripts/generate-zap-summary.sh"
-ZAP_PARSER="$REPO_ROOT/.github/scripts/parse-zap-results.sh"
+GENERATOR_SCRIPT="$REPO_ROOT/.github/actions/scanner-zap/scripts/generate-zap-summary.sh"
+ZAP_PARSER="$REPO_ROOT/.github/actions/scanner-zap/scripts/parse-zap-results.sh"
 
 # Verify scripts exist
 if [ ! -f "$GENERATOR_SCRIPT" ]; then
