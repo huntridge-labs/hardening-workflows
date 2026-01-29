@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 TESTS_PASSED=0
 TESTS_FAILED=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 FIXTURES_DIR="$REPO_ROOT/tests/fixtures"
 
 # Test helper functions
@@ -47,9 +47,9 @@ print_summary() {
 }
 
 # Script under test
-GENERATOR_SCRIPT="$REPO_ROOT/.github/scripts/generate-container-summary.sh"
-TRIVY_PARSER="$REPO_ROOT/.github/scripts/parse-trivy-results.sh"
-GRYPE_PARSER="$REPO_ROOT/.github/scripts/parse-grype-results.sh"
+GENERATOR_SCRIPT="$REPO_ROOT/.github/actions/scanner-container/scripts/generate-container-summary.sh"
+TRIVY_PARSER="$REPO_ROOT/.github/actions/scanner-container/scripts/parse-trivy-results.sh"
+GRYPE_PARSER="$REPO_ROOT/.github/actions/scanner-container/scripts/parse-grype-results.sh"
 
 # Verify scripts exist
 if [ ! -f "$GENERATOR_SCRIPT" ]; then

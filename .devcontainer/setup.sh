@@ -23,9 +23,23 @@ echo "📦 Installing Python dependencies..."
 pip install --upgrade pip
 pip install pytest pytest-cov pyyaml pre-commit
 
-# Install Ruby gems
+# Install Ruby gems (for bash coverage reporting)
 echo "💎 Installing Ruby gems..."
 gem install --user-install bashcov simplecov-cobertura
+
+# Add gem bin directory to PATH in shell rc files
+GEM_BIN_PATH="$HOME/.local/share/gem/ruby/3.2.0/bin"
+for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    if [ -f "$rc_file" ]; then
+        if ! grep -q "$GEM_BIN_PATH" "$rc_file"; then
+            echo "export PATH=\"$GEM_BIN_PATH:\$PATH\"" >> "$rc_file"
+            echo "  Added gem bin to PATH in $(basename $rc_file)"
+        fi
+    fi
+done
+
+# Also export for current session
+export PATH="$GEM_BIN_PATH:$PATH"
 
 # Setup pre-commit hooks (using absolute path)
 echo "🪝 Installing pre-commit hooks..."
@@ -35,7 +49,8 @@ pre-commit install --hook-type pre-push
 
 # Make scripts executable
 echo "🔧 Making scripts executable..."
-chmod +x tests/unit/bash/*.sh
+find .github/actions -path '*/tests/*.sh' -type f -exec chmod +x {} \; 2>/dev/null || true
+find .github/actions -path '*/scripts/*.sh' -type f -exec chmod +x {} \; 2>/dev/null || true
 chmod +x scripts/*.sh 2>/dev/null || true
 
 echo "✅ Development environment ready!"

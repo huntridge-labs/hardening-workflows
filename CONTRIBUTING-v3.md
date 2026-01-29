@@ -44,10 +44,10 @@ examples/
 ├── composite-actions-example.yml     # Complete security workflow
 └── composite-linting-example.yml     # Complete linting workflow
 
+.github/actions/*/tests/         # Co-located unit tests
 tests/
-├── fixtures/                    # Mock data and test apps
-├── unit/                        # Script unit tests
-└── integration/                 # Action integration tests
+├── fixtures/                    # Shared mock data and test apps
+└── unit/actions/                # Action schema validation
 ```
 
 ### Key Concepts
@@ -293,13 +293,41 @@ Add your scanner to `examples/composite-actions-example.yml`:
 
 ### Current Testing Approach
 
-See `tests/TODO.md` for the comprehensive testing strategy being implemented.
+**Co-located tests** - tests live with the actions they validate:
+```
+.github/actions/scanner-myScanner/
+├── action.yml
+├── scripts/
+│   ├── parse-results.sh
+│   └── generate-summary.sh
+└── tests/                      # ← Tests co-located here
+    ├── test-parse-results.sh
+    └── test-generate-summary.sh
+```
+
+**Shared fixtures** - mock data centralized for reuse:
+```
+tests/fixtures/
+├── scanner-outputs/            # Mock scanner results
+├── test-apps/                  # Minimal test apps
+└── configs/                    # Test configurations
+```
+
+**Run tests**:
+```bash
+npm test                        # All 174+ tests
+npm run test:bash               # Bash tests
+npm run test:js                 # JavaScript tests
+npm run test:python             # Python tests
+```
 
 **Key principles**:
-1. Use synthetic fixtures, not real vulnerabilities
-2. Test scripts with mock data
-3. Test actions in actual workflows
+1. Tests co-located with actions they test
+2. Fixtures shared across actions (avoid duplication)
+3. Use synthetic data, not real vulnerabilities
 4. Measure coverage with Codecov
+
+See `tests/TODO.md` and `tests/CONTRIBUTING.md` for detailed testing guide.
 
 ### Manual Testing
 
@@ -323,14 +351,15 @@ jobs:
           scan_path: 'tests/fixtures/test-apps/example-app'
 ```
 
-### TODO: Automated Testing
+### Automated Testing ✅
 
-Once the test framework is in place (see `tests/TODO.md`):
+Test infrastructure is complete:
 
-- [ ] Unit tests for parser scripts
-- [ ] Unit tests for summary generators
-- [ ] Integration tests for full action
-- [ ] Coverage reporting via Codecov
+- ✅ Unit tests for parser scripts (co-located in `.github/actions/*/tests/`)
+- ✅ Unit tests for summary generators (co-located)
+- ✅ Integration tests for full actions (`.github/workflows/test-actions*.yml`)
+- ✅ Coverage reporting via Codecov
+- ✅ 174+ tests running in CI/CD
 
 ### Validation Checklist
 
@@ -338,6 +367,9 @@ Once the test framework is in place (see `tests/TODO.md`):
 - [ ] All outputs are set correctly
 - [ ] Parser handles various input formats
 - [ ] Summary markdown is valid
+- [ ] Unit tests added in `.github/actions/*/tests/`
+- [ ] Tests use shared fixtures from `tests/fixtures/`
+- [ ] All tests pass: `npm test`
 - [ ] SARIF upload works (if applicable)
 - [ ] Artifacts upload with correct names
 - [ ] PR comments work

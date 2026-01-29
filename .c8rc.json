@@ -1,12 +1,13 @@
 {
   "all": true,
   "include": [
-    "tests/unit/javascript/**/*.js"
+    ".github/actions/*/scripts/*.js"
   ],
   "exclude": [
     "coverage/**",
     "tests/fixtures/**",
-    "node_modules/**"
+    "node_modules/**",
+    ".github/actions/*/tests/**"
   ],
   "reporter": [
     "lcov",

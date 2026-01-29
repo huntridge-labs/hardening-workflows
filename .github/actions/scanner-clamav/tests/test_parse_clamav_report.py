@@ -10,8 +10,8 @@ from pathlib import Path
 import pytest
 
 # Add the scripts directory to the path
-REPO_ROOT = Path(__file__).parent.parent.parent.parent
-SCRIPTS_DIR = REPO_ROOT / ".github" / "scripts"
+REPO_ROOT = Path(__file__).parent.parent.parent.parent.parent
+SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 # Import the script as a module
