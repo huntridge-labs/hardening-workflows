@@ -1,5 +1,5 @@
 # Development and Testing Requirements
-# Install with: pip install -r requirements-dev.txt
+# Install with: pip install -r .devcontainer/requirements.txt
 
 # Testing framework
 pytest>=8.0.0

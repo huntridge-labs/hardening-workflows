@@ -13,7 +13,7 @@ This guide helps you add or modify tests when contributing to hardening-workflow
 npm install
 
 # Install Python dependencies
-pip install -r requirements-dev.txt
+pip install -r .devcontainer/requirements.txt
 
 # Verify setup
 npm test

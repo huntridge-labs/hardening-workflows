@@ -330,7 +330,7 @@ See [.devcontainer/README.md](.devcontainer/README.md) for details.
 ```bash
 # Install dependencies
 npm install
-pip install -r requirements-dev.txt
+pip install -r .devcontainer/requirements.txt
 
 # Run tests
 npm test
