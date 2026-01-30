@@ -18,10 +18,11 @@ fi
 # Activate Python virtual environment
 source .dev.venv/bin/activate
 
-# Install Python dependencies (using absolute path to pip)
+# Install Python dependencies
 echo "📦 Installing Python dependencies..."
 pip install --upgrade pip
-pip install pytest pytest-cov pyyaml pre-commit
+pip install -r .devcontainer/requirements.txt
+pip install pre-commit
 
 # Install Ruby gems (for bash coverage reporting)
 echo "💎 Installing Ruby gems..."
