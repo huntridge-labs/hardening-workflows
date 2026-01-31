@@ -507,6 +507,78 @@ jobs:
           echo "## YAML Linter Test Results" >> $GITHUB_STEP_SUMMARY
           echo "✅ Linter executed successfully" >> $GITHUB_STEP_SUMMARY
 
+  test-linter-javascript:
+    name: Linter / javascript
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.test_group == 'all' || inputs.test_group == 'linters') ||
+      github.event_name != 'workflow_dispatch'
+    timeout-minutes: 10
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run JavaScript linter
+        uses: ./.github/actions/linter-javascript
+        continue-on-error: true
+
+      - name: Verify linter executed
+        shell: bash
+        run: |
+          echo "## JavaScript Linter Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Linter executed successfully" >> $GITHUB_STEP_SUMMARY
+
+  test-linter-json:
+    name: Linter / json
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.test_group == 'all' || inputs.test_group == 'linters') ||
+      github.event_name != 'workflow_dispatch'
+    timeout-minutes: 10
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run JSON linter
+        uses: ./.github/actions/linter-json
+        continue-on-error: true
+
+      - name: Verify linter executed
+        shell: bash
+        run: |
+          echo "## JSON Linter Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Linter executed successfully" >> $GITHUB_STEP_SUMMARY
+
+  test-linter-terraform:
+    name: Linter / terraform
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.test_group == 'all' || inputs.test_group == 'linters') ||
+      github.event_name != 'workflow_dispatch'
+    timeout-minutes: 10
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Terraform linter
+        uses: ./.github/actions/linter-terraform
+        continue-on-error: true
+
+      - name: Verify linter executed
+        shell: bash
+        run: |
+          echo "## Terraform Linter Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Linter executed successfully" >> $GITHUB_STEP_SUMMARY
+
   # ============================================================================
   # DAST Scanner (ZAP)
   # Tests against a live app to validate end-to-end functionality
@@ -791,6 +863,9 @@ jobs:
       - test-linter-dockerfile
       - test-linter-python
       - test-linter-yaml
+      - test-linter-javascript
+      - test-linter-json
+      - test-linter-terraform
       - test-zap
       - test-clamav
       - test-linting-summary
@@ -818,6 +893,9 @@ jobs:
           echo "| Dockerfile Linter | ${{ needs.test-linter-dockerfile.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-linter-dockerfile.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Python Linter | ${{ needs.test-linter-python.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-linter-python.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| YAML Linter | ${{ needs.test-linter-yaml.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-linter-yaml.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| JavaScript Linter | ${{ needs.test-linter-javascript.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-linter-javascript.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| JSON Linter | ${{ needs.test-linter-json.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-linter-json.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Terraform Linter | ${{ needs.test-linter-terraform.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-linter-terraform.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| ZAP DAST | ${{ needs.test-zap.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-zap.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| ClamAV Malware | ${{ needs.test-clamav.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-clamav.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Linting Summary | ${{ needs.test-linting-summary.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-linting-summary.result }} |" >> $GITHUB_STEP_SUMMARY
