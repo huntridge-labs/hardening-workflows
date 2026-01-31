@@ -3,7 +3,7 @@
 ## Status: ALL 5 PHASES COMPLETE! 🎉
 
 **Achievement Summary:**
-- ✅ 281+ tests implemented (177 unit + 174 schema + 16+ integration jobs)
+- ✅ 333+ tests implemented (229 unit + 174 schema + 16+ integration jobs)
 - ✅ Zero vulnerable code in repository (18 legacy files removed)
 - ✅ Comprehensive CI/CD integration (automated testing on all PRs)
 - ✅ Complete test infrastructure with npm scripts and pre-commit hooks
@@ -70,21 +70,6 @@ tests/
 - [x] Zero actual vulnerable code in repo ✅
 
 **Result**: No security alerts, predictable test data, fast execution, complete test control.
-  - [ ] Test with valid JSON (0 findings, 1 finding, multiple findings)
-  - [ ] Test with missing fields
-  - [ ] Test severity counting (HIGH, MEDIUM, LOW)
-  - [ ] Test with malformed JSON
-  - [ ] Test `counts` command output format
-
-- [ ] **parse-codeql-results.sh**
-  - [ ] Test SARIF parsing with various result counts
-  - [ ] Test severity mapping
-  - [ ] Test with empty results
-  - [ ] Test with multiple SARIF files
-
-- [ ] **parse-checkov-results.sh**
-  - [ ] Test with and without severity data (API key scenarios)
-  - [ ] Test framework detection
 ### 3. Script Unit Testing ✅ COMPLETE
 
 **Implemented**: 177 unit tests across all parsers and generators
@@ -99,12 +84,16 @@ tests/
 #### Summary Generator Tests - ALL COMPLETE ✅
 - [x] generate-container-summary.sh - 11 tests
 - [x] generate-zap-summary.sh - 12 tests
+- [x] scanner-checkov/generate-summary.sh - 15 tests (pytest)
+- [x] scanner-codeql/generate-summary.sh - 13 tests (pytest)
+- [x] scanner-trivy-iac/generate-summary.sh - 12 tests (pytest)
+- [x] scanner-opengrep/generate-summary.sh - 12 tests (pytest)
 
 #### Config Parser Tests - ALL COMPLETE ✅
 - [x] parse-container-config.js - 27 tests
 - [x] parse-zap-config.js - 33 tests
 
-**Total**: 177 unit tests passing
+**Total**: 229 unit tests passing (177 original + 52 new summary generator tests)
 
 ### 4. Composite Action Integration Tests ✅ COMPLETE
 
@@ -214,10 +203,10 @@ All actions tested with proper fixtures, output verification, and artifact valid
 - [x] test-generate-container-summary.sh - 13 tests (11 passing, 2 minor failures) ✅
 - [x] test-generate-zap-summary.sh - 17 tests (12 passing, 5 minor failures) ✅
 
-**Status**: Phase 2 complete! 🎉 177 tests passing across all parsers and summary generators!
+**Status**: Phase 2 complete! 🎉 229 tests passing across all parsers and summary generators!
 - Bash: 73 tests (Trivy 16, Grype 13, ZAP parser 21, Container summary 11, ZAP summary 12)
 - JavaScript: 60 tests (container-config 27, zap-config 33)
-- Python: 44 tests (ClamAV 7, extract-archives 37)
+- Python: 96 tests (ClamAV 7, extract-archives 37, Checkov summary 15, CodeQL summary 13, Trivy-IaC summary 12, OpenGrep summary 12)
 
 All parsers and summary generators now have comprehensive test coverage.
 
