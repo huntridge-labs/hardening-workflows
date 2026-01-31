@@ -58,6 +58,7 @@ jobs:
   # ============================================================================
   # E2E Test Coverage Validation
   # Reports which actions have E2E tests and which are missing
+  # Posts coverage report as PR comment and fails if coverage is incomplete
   # ============================================================================
   validate-e2e-coverage:
     name: Validate E2E Coverage
@@ -69,8 +70,11 @@ jobs:
       - name: Check action E2E test coverage
         id: coverage
         run: |
-          echo "## E2E Test Coverage Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          # Build report content for both step summary and PR comment
+          report_file=$(mktemp)
+
+          echo "## E2E Test Coverage Report" >> "$report_file"
+          echo "" >> "$report_file"
 
           # Get all actions (directories containing action.yml)
           actions=$(find .github/actions -maxdepth 2 -name "action.yml" -exec dirname {} \; | xargs -n1 basename | sort)
@@ -87,10 +91,11 @@ jobs:
             ["security-summary"]="Tested in test-summary job"
           )
 
-          echo "| Action | E2E Test Status | Notes |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|-----------------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Action | E2E Test Status | Notes |" >> "$report_file"
+          echo "|--------|-----------------|-------|" >> "$report_file"
 
           missing=0
+          missing_list=""
           total=0
           covered=0
 
@@ -98,34 +103,82 @@ jobs:
             total=$((total + 1))
 
             if echo "$tested" | grep -q "^$action$"; then
-              echo "| \`$action\` | ✅ Tested | |" >> $GITHUB_STEP_SUMMARY
+              echo "| \`$action\` | ✅ Tested | |" >> "$report_file"
               covered=$((covered + 1))
             elif [[ -v "exceptions[$action]" ]]; then
-              echo "| \`$action\` | ⚪ Exception | ${exceptions[$action]} |" >> $GITHUB_STEP_SUMMARY
+              echo "| \`$action\` | ⚪ Exception | ${exceptions[$action]} |" >> "$report_file"
               covered=$((covered + 1))
             else
-              echo "| \`$action\` | ❌ Missing | Needs E2E test |" >> $GITHUB_STEP_SUMMARY
+              echo "| \`$action\` | ❌ Missing | Needs E2E test |" >> "$report_file"
               missing=$((missing + 1))
+              missing_list="${missing_list}- \`${action}\`\n"
             fi
           done
 
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Total Actions:** $total" >> $GITHUB_STEP_SUMMARY
-          echo "- **Covered:** $covered" >> $GITHUB_STEP_SUMMARY
-          echo "- **Missing E2E Tests:** $missing" >> $GITHUB_STEP_SUMMARY
-
           coverage_pct=$((covered * 100 / total))
-          echo "- **Coverage:** ${coverage_pct}%" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> "$report_file"
+          echo "### Summary" >> "$report_file"
+          echo "- **Total Actions:** $total" >> "$report_file"
+          echo "- **Covered:** $covered" >> "$report_file"
+          echo "- **Missing E2E Tests:** $missing" >> "$report_file"
+          echo "- **Coverage:** ${coverage_pct}%" >> "$report_file"
 
           if [ $missing -gt 0 ]; then
-            echo "::warning::$missing actions are missing E2E tests"
+            echo "" >> "$report_file"
+            echo "### ❌ Actions Missing E2E Tests" >> "$report_file"
+            echo -e "$missing_list" >> "$report_file"
+            echo "" >> "$report_file"
+            echo "> **Action Required:** Add E2E tests for the missing actions in \`test-actions.yml\` or add them to the exceptions list with justification." >> "$report_file"
+          else
+            echo "" >> "$report_file"
+            echo "### ✅ All Actions Have E2E Coverage" >> "$report_file"
           fi
 
-          # Output for potential use by other jobs
+          # Write to step summary
+          cat "$report_file" >> $GITHUB_STEP_SUMMARY
+
+          # Save report for PR comment step
+          cat "$report_file" >> $GITHUB_WORKSPACE/coverage-report.md
+
+          # Output for other steps/jobs
           echo "missing=$missing" >> $GITHUB_OUTPUT
           echo "coverage=$coverage_pct" >> $GITHUB_OUTPUT
+          echo "report_file=$GITHUB_WORKSPACE/coverage-report.md" >> $GITHUB_OUTPUT
+
+      - name: Post coverage report to PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Add comment header for identification (allows updating existing comment)
+          comment_marker="<!-- e2e-coverage-report -->"
+
+          # Check if comment already exists
+          existing_comment=$(gh pr view ${{ github.event.pull_request.number }} --json comments -q '.comments[] | select(.body | contains("<!-- e2e-coverage-report -->")) | .id' | head -1)
+
+          comment_body="${comment_marker}
+          $(cat $GITHUB_WORKSPACE/coverage-report.md)"
+
+          if [ -n "$existing_comment" ]; then
+            # Update existing comment
+            gh api \
+              --method PATCH \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${{ github.repository }}/issues/comments/${existing_comment}" \
+              -f body="$comment_body"
+            echo "Updated existing PR comment"
+          else
+            # Create new comment
+            gh pr comment ${{ github.event.pull_request.number }} --body "$comment_body"
+            echo "Created new PR comment"
+          fi
+
+      - name: Fail if missing E2E tests
+        if: steps.coverage.outputs.missing != '0'
+        run: |
+          echo "::error::${{ steps.coverage.outputs.missing }} actions are missing E2E tests. Add tests or document exceptions."
+          exit 1
 
   # ============================================================================
   # SAST Scanners (Static Application Security Testing)
