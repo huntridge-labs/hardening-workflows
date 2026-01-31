@@ -56,6 +56,78 @@ env:
 
 jobs:
   # ============================================================================
+  # E2E Test Coverage Validation
+  # Reports which actions have E2E tests and which are missing
+  # ============================================================================
+  validate-e2e-coverage:
+    name: Validate E2E Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check action E2E test coverage
+        id: coverage
+        run: |
+          echo "## E2E Test Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Get all actions (directories containing action.yml)
+          actions=$(find .github/actions -maxdepth 2 -name "action.yml" -exec dirname {} \; | xargs -n1 basename | sort)
+
+          # Get tested actions from this workflow file
+          tested=$(grep -oP 'uses: \./\.github/actions/\K[^"]+' .github/workflows/test-actions.yml | sort -u)
+
+          # Actions that are tested indirectly or are utilities
+          # These are documented exceptions that don't need direct E2E tests
+          declare -A exceptions=(
+            ["get-job-id"]="Utility action - tested indirectly by other jobs"
+            ["scanner-container-summary"]="Tested as part of scanner-container"
+            ["scanner-zap-summary"]="Tested as part of scanner-zap"
+            ["security-summary"]="Tested in test-summary job"
+          )
+
+          echo "| Action | E2E Test Status | Notes |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-----------------|-------|" >> $GITHUB_STEP_SUMMARY
+
+          missing=0
+          total=0
+          covered=0
+
+          for action in $actions; do
+            total=$((total + 1))
+
+            if echo "$tested" | grep -q "^$action$"; then
+              echo "| \`$action\` | ✅ Tested | |" >> $GITHUB_STEP_SUMMARY
+              covered=$((covered + 1))
+            elif [[ -v "exceptions[$action]" ]]; then
+              echo "| \`$action\` | ⚪ Exception | ${exceptions[$action]} |" >> $GITHUB_STEP_SUMMARY
+              covered=$((covered + 1))
+            else
+              echo "| \`$action\` | ❌ Missing | Needs E2E test |" >> $GITHUB_STEP_SUMMARY
+              missing=$((missing + 1))
+            fi
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total Actions:** $total" >> $GITHUB_STEP_SUMMARY
+          echo "- **Covered:** $covered" >> $GITHUB_STEP_SUMMARY
+          echo "- **Missing E2E Tests:** $missing" >> $GITHUB_STEP_SUMMARY
+
+          coverage_pct=$((covered * 100 / total))
+          echo "- **Coverage:** ${coverage_pct}%" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ $missing -gt 0 ]; then
+            echo "::warning::$missing actions are missing E2E tests"
+          fi
+
+          # Output for potential use by other jobs
+          echo "missing=$missing" >> $GITHUB_OUTPUT
+          echo "coverage=$coverage_pct" >> $GITHUB_OUTPUT
+
+  # ============================================================================
   # SAST Scanners (Static Application Security Testing)
   # Tests: scanner-bandit, scanner-opengrep
   # ============================================================================
@@ -655,6 +727,7 @@ jobs:
     name: Test Summary
     runs-on: ubuntu-latest
     needs:
+      - validate-e2e-coverage
       - test-bandit
       - test-opengrep
       - test-codeql
@@ -681,6 +754,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Category | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| E2E Coverage Validation | ${{ needs.validate-e2e-coverage.result == 'success' && '✅' || '⚠️' }} ${{ needs.validate-e2e-coverage.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Bandit (SAST) | ${{ needs.test-bandit.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-bandit.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Opengrep (SAST) | ${{ needs.test-opengrep.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-opengrep.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| CodeQL (SAST) | ${{ needs.test-codeql.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-codeql.result }} |" >> $GITHUB_STEP_SUMMARY
