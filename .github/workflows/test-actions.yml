@@ -626,7 +626,8 @@ jobs:
         with:
           target_url: 'http://localhost:9898'
           scan_type: 'baseline'
-          post_pr_comment: ${{ github.event_name == 'pull_request' }}
+          post_pr_comment: 'false'      # Disables both custom and ZAP native PR comments
+          allow_issue_writing: 'false' # Disable ZAP native issue creation for tests
           fail_on_severity: 'none'
           rules_file_name: '.zap/rules.tsv'
 

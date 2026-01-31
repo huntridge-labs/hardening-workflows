@@ -7,6 +7,12 @@ description: |
   **Required Environment Variables:**
   - GITHUB_TOKEN: GitHub token for API access (set automatically in workflows)
 
+  **ZAP Native GitHub Integration:**
+  This action wraps the official zaproxy GitHub actions which have built-in PR commenting
+  and Issue creation capabilities:
+  - `post_pr_comment`: Controls both custom summary comments AND ZAP's native PR comments (default: false)
+  - `allow_issue_writing`: Enable/disable ZAP's native GitHub Issue creation (default: false)
+
   **Usage Example:**
   ```yaml
   - uses: ./.github/actions/scanner-zap
@@ -16,6 +22,8 @@ description: |
       scan_type: baseline
       target_url: 'http://localhost:8080'
       fail_on_severity: 'high'
+      post_pr_comment: 'true'      # Enable PR comments (both custom and ZAP native)
+      allow_issue_writing: 'false' # Disable ZAP's GitHub Issue creation
   ```
 
 inputs:
@@ -100,7 +108,11 @@ inputs:
     required: false
     default: 'false'
   post_pr_comment:
-    description: 'Post results as PR comment (string true/false)'
+    description: 'Post results as PR comment (string true/false). Controls both custom summary comments and ZAP native PR comments.'
+    required: false
+    default: 'false'
+  allow_issue_writing:
+    description: 'Enable ZAP native GitHub Issue creation for findings (default: false)'
     required: false
     default: 'false'
   job_id:
@@ -326,7 +338,8 @@ runs:
       uses: zaproxy/action-baseline@v0.15.0
       continue-on-error: ${{ inputs.allow_failure == 'true' }}
       with:
-        allow_issue_writing: false
+        token: ${{ inputs.post_pr_comment == 'true' && github.token || '' }}
+        allow_issue_writing: ${{ inputs.allow_issue_writing == 'true' }}
         fail_action: false
         artifact_name: zap-reports-${{ steps.validate.outputs.artifact_prefix }}
         target: ${{ inputs.target_url }}
@@ -338,7 +351,8 @@ runs:
       uses: zaproxy/action-full-scan@v0.13.0
       continue-on-error: ${{ inputs.allow_failure == 'true' }}
       with:
-        allow_issue_writing: false
+        token: ${{ inputs.post_pr_comment == 'true' && github.token || '' }}
+        allow_issue_writing: ${{ inputs.allow_issue_writing == 'true' }}
         fail_action: false
         artifact_name: zap-reports-${{ steps.validate.outputs.artifact_prefix }}
         target: ${{ inputs.target_url }}
@@ -350,7 +364,8 @@ runs:
       uses: zaproxy/action-api-scan@v0.10.0
       continue-on-error: ${{ inputs.allow_failure == 'true' }}
       with:
-        allow_issue_writing: false
+        token: ${{ inputs.post_pr_comment == 'true' && github.token || '' }}
+        allow_issue_writing: ${{ inputs.allow_issue_writing == 'true' }}
         fail_action: false
         artifact_name: zap-reports-${{ steps.validate.outputs.artifact_prefix }}
         format: openapi
