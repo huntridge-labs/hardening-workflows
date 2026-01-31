@@ -154,8 +154,8 @@ jobs:
           # Add comment header for identification (allows updating existing comment)
           comment_marker="<!-- e2e-coverage-report -->"
 
-          # Check if comment already exists
-          existing_comment=$(gh pr view ${{ github.event.pull_request.number }} --json comments -q '.comments[] | select(.body | contains("<!-- e2e-coverage-report -->")) | .id' | head -1)
+          # Check if comment already exists (use databaseId for REST API)
+          existing_comment=$(gh api "/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" --jq '.[] | select(.body | contains("<!-- e2e-coverage-report -->")) | .id' | head -1)
 
           comment_body="${comment_marker}
           $(cat $GITHUB_WORKSPACE/coverage-report.md)"
