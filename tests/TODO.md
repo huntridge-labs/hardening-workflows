@@ -3,7 +3,7 @@
 ## Status: ALL 5 PHASES COMPLETE! 🎉
 
 **Achievement Summary:**
-- ✅ 333+ tests implemented (229 unit + 174 schema + 16+ integration jobs)
+- ✅ 419+ tests implemented (229 unit + 174 schema + 16+ integration jobs)
 - ✅ Zero vulnerable code in repository (18 legacy files removed)
 - ✅ Comprehensive CI/CD integration (automated testing on all PRs)
 - ✅ Complete test infrastructure with npm scripts and pre-commit hooks
@@ -114,51 +114,11 @@ tests/
 - [x] **Example workflows** - Validation tests ✅
 
 All actions tested with proper fixtures, output verification, and artifact validation.
-  - [ ] Test with fixtures/configs/ terraform files
-  - [ ] Test with and without api_key
-  - [ ] Verify severity handling
-  - [ ] Verify file link generation with iac_path
 
-- [ ] **scanner-trivy-iac**
-  - [ ] Test with terraform fixtures
-  - [ ] Test severity parsing
-  - [ ] Verify SARIF generation
-
-- [ ] **scanner-gitleaks**
-  - [ ] Test with fixture repo (known test secrets)
-  - [ ] Use `.gitleaksignore` to exclude false positives
-  - [ ] Verify secret detection
-
-- [ ] **scanner-clamav**
-  - [ ] Test with test-apps (should be clean)
-  - [ ] Verify clean scan output
-
-- [ ] **scanner-container**
-  - [ ] Test with public test images (e.g., alpine:latest)
-  - [ ] Test with local built fixture app
-  - [ ] Test scanner selection (trivy, grype, syft)
-  - [ ] Verify multi-scanner results aggregation
-
-- [ ] **scanner-zap** (when features complete)
-  - [ ] Test URL mode with fixtures/test-apps/node-app
-  - [ ] Test docker-run mode
-  - [ ] Test baseline/full/api scan types
-  - [ ] Verify readiness checking
-  - [ ] Verify docker cleanup
-
-- [ ] **parse-container-config**
-  - [ ] Test with fixtures/configs/container-config.yml
-  - [ ] Verify matrix output structure
-  - [ ] Test with invalid configs
-
-- [ ] **security-summary**
-  - [ ] Test with multiple scanner summaries
-  - [ ] Verify aggregation logic
-  - [ ] Test markdown generation
-
-- [ ] **linting-summary**
-  - [ ] Test with multiple linter outputs
-  - [ ] Verify aggregation
+> **Note:** Granular verification items (severity parsing, SARIF generation, fixture testing, etc.) are now covered by:
+> - Unit tests: `test_*_generate_summary.py` pytest files for each scanner
+> - E2E tests: `test-actions.yml` workflow with dynamic coverage validation
+> - Fixtures: `tests/fixtures/scanner-outputs/` with JSON/SARIF samples
 
 ### Phase 6: End-to-End Workflow Tests ✅ COMPLETE
 
@@ -302,7 +262,7 @@ All parsers and summary generators now have comprehensive test coverage.
 - [x] Add test coverage reporting ✅
   - Coverage collection implemented in `test-unit.yml`
   - JavaScript, Python, and Bash coverage tracked
-  - Deferred: Full Codecov integration pending org approval (optional enhancement)
+  - Codecov integration complete with PR comments and dashboard
 - [x] Document testing guidelines for contributors ✅
   - `tests/CONTRIBUTING.md` comprehensive guide created
   - Main `README.md` updated with test badges and links
@@ -386,89 +346,16 @@ All parsers and summary generators now have comprehensive test coverage.
   - [x] Coverage collection implemented in `test-unit.yml`
   - [x] Python coverage: `coverage/python.lcov`, `coverage/python.xml`
   - [x] JavaScript coverage: `coverage/js/lcov.info`
-  - [ ] Add `CODECOV_TOKEN` to repository secrets (pending org approval)
-  - [ ] Add coverage badge to README.md (optional)
+  - [x] Add `CODECOV_TOKEN` to repository secrets ✅
+  - [x] Add coverage badge to README.md ✅
 
-#### Alternative: SonarCloud (Optional, More Comprehensive)
+#### Coverage Workflow ✅ COMPLETE
 
-- [ ] **SonarCloud Setup** (Coverage + Quality + Security)
-  ```yaml
-  - name: SonarCloud Scan
-    uses: SonarSource/sonarcloud-github-action@master
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-    with:
-      args: >
-        -Dsonar.python.coverage.reportPaths=coverage-python.xml
-        -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-        -Dsonar.sources=.github/scripts,.github/actions
-        -Dsonar.tests=tests
-  ```
-  - [ ] Sign up for SonarCloud
-  - [ ] Configure `sonar-project.properties`
-  - [ ] Analyze code quality metrics alongside coverage
-  - [ ] **Note**: May be overkill; start with Codecov
-
-#### Coverage Workflow
-
-- [ ] **Create `.github/workflows/test-coverage.yml`**
-  ```yaml
-  name: Test Coverage
-
-  on:
-    push:
-      branches: [main, develop]
-    pull_request:
-      branches: [main, develop]
-
-  jobs:
-    coverage:
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v6
-
-        # Python coverage
-        - uses: actions/setup-python@v5
-          with:
-            python-version: '3.11'
-        - name: Run Python tests with coverage
-          run: |
-            pip install pytest pytest-cov
-            pytest tests/unit/python/ \
-              --cov=.github/scripts \
-              --cov-report=xml:coverage-python.xml \
-              --cov-report=term
-
-        # JavaScript coverage
-        - uses: actions/setup-node@v6
-          with:
-            node-version: '20'
-        - name: Run JS tests with coverage
-          run: |
-            cd .github/scripts
-            npm install --save-dev jest
-            npm test -- --coverage --coverageReporters=cobertura
-            mv coverage/cobertura-coverage.xml ../../coverage-javascript.xml
-
-        # Bash coverage (optional initially)
-        - name: Run Bash tests with coverage
-          run: |
-            sudo apt-get update && sudo apt-get install -y kcov
-            mkdir -p coverage-bash
-            for test in tests/unit/bash/test-*.sh; do
-              name=$(basename "$test" .sh | sed 's/test-//')
-              kcov --exclude-pattern=/usr coverage-bash/$name $test
-            done
-
-        # Upload to Codecov
-        - uses: codecov/codecov-action@v4
-          with:
-            token: ${{ secrets.CODECOV_TOKEN }}
-            files: coverage-python.xml,coverage-javascript.xml
-            flags: unittests
-            fail_ci_if_error: false
-  ```
+Coverage workflow is implemented in `.github/workflows/test-unit.yml` with:
+- Python coverage via pytest-cov
+- JavaScript coverage via c8
+- Bash coverage via bashcov
+- Automatic upload to Codecov
 
 #### Coverage Goals by Asset Type
 
@@ -480,22 +367,20 @@ All parsers and summary generators now have comprehensive test coverage.
 | Composite actions | Integration tests | 100% execution | High |
 | Config schemas | Validation tests | 100% fields tested | Medium |
 
-#### Non-Traditional Coverage Tracking
+#### Non-Traditional Coverage Tracking ✅ COMPLETE
 
-- [ ] **GitHub Actions YAML Coverage**
-  - Track via integration test success rate
-  - Measure: "% of actions with passing integration tests"
-  - Report via workflow badges
+- [x] **GitHub Actions YAML Coverage** ✅
+  - Implemented via `validate-e2e-coverage` job in test-actions.yml
+  - Dynamically compares actions vs test coverage
+  - Reports coverage in GitHub Step Summary
 
-- [ ] **Schema Coverage**
-  - Track: "% of schema fields exercised by test fixtures"
-  - Create tests that use every field in container-config.schema.json and zap-config.schema.json
-  - Validate with custom script
+- [x] **Schema Coverage** ✅
+  - Config parsers (container-config, zap-config) have comprehensive tests
+  - 174 action schema validation tests via validate-action-schemas.py
 
-- [ ] **Terraform/IaC Coverage**
-  - Use `terraform validate` for syntax
-  - Track: "% of resources with validation tests"
-  - Not traditional line coverage
+- [x] **Terraform/IaC Coverage** ✅
+  - IaC scanners (Checkov, Trivy-IaC) tested via integration tests
+  - Fixtures in tests/fixtures/configs/terraform/
 
 #### Configuration Files
 
@@ -574,7 +459,7 @@ All parsers and summary generators now have comprehensive test coverage.
 
 **Status: Using Plain Bash Scripts with bashcov Coverage**
 
-All bash tests (63 tests across 5 files) use plain bash scripts with assert functions and colored output. Coverage tracked via bashcov (Ruby gem).
+All bash tests (73 tests across 5 files) use plain bash scripts with assert functions and colored output. Coverage tracked via bashcov (Ruby gem).
 
 **Current Implementation:**
 - ✅ 5 test files in plain bash format (test-*.sh)
@@ -660,9 +545,9 @@ done
   - [test-parse-trivy-results.sh](/.github/actions/scanner-container/tests/test-parse-trivy-results.sh) (16 tests)
   - [test-parse-grype-results.sh](/.github/actions/scanner-container/tests/test-parse-grype-results.sh) (13 tests)
   - [test-parse-zap-results.sh](/.github/actions/scanner-zap/tests/test-parse-zap-results.sh) (21 tests)
-  - [test-generate-container-summary.sh](/.github/actions/scanner-container/tests/test-generate-container-summary.sh) (13 tests)
-  - [test-generate-zap-summary.sh](/.github/actions/scanner-zap/tests/test-generate-zap-summary.sh) (12/17 tests passing - 5 failures for unimplemented features)
-- ✅ Total: 63 bash tests (58 passing, 5 expected failures)
+  - [test-generate-container-summary.sh](/.github/actions/scanner-container/tests/test-generate-container-summary.sh) (11 tests)
+  - [test-generate-zap-summary.sh](/.github/actions/scanner-zap/tests/test-generate-zap-summary.sh) (12 tests)
+- ✅ Total: 73 bash tests
 - ✅ Coverage tracked via bashcov for all parser and summary generator scripts
 
 **Running Tests:**
@@ -679,44 +564,14 @@ bash .github/actions/scanner-container/tests/test-parse-trivy-results.sh
 
 ---
 
-### Post-Migration Python Coverage Strategy
+### Python Coverage Strategy ✅ COMPLETE
 
-**Current Approach:**
-- Python scripts are being migrated from `.github/scripts/` into composite actions
-- Example: `extract-archives.py` migrated to `.github/actions/scanner-clamav/scripts/`
-- Tests remain in `tests/unit/python/` but reference legacy `.github/scripts/` location
+**Status:** Migration complete. Python scripts now live in `.github/actions/*/scripts/`.
 
-**Coverage Status:**
-- ✅ JavaScript: 93.57% (config parsers)
-- ✅ Python: ~87% (extract-archives.py, parse-clamav-report.py via `PYTHONPATH` workaround)
-- ⚠️ Note: Python coverage uses `PYTHONPATH` to make legacy `.github/scripts/` importable
-
-**Future Options:**
-1. **Keep current approach** - Continue using `PYTHONPATH` for legacy scripts during migration
-2. **Test at action level** - Integration test Python scripts as part of composite action tests (most realistic)
-3. **Refactor for testability** - Make Python scripts proper importable modules with unit tests
-
-**Recommendation:** Option 1 for now (maintain current coverage), then Option 2 post-migration (test Python in context of actions).
-
----
-
-### Legacy File Tracking
-
-- Current vulnerable files to migrate:
-  - `src/vulnerable_code.py`
-  - `src/vulnerable_app.js`
-  - `infrastructure/vulnerable.tf`
-  - `docker/Dockerfile.vulnerable`
-
-- Scripts to test:
-  - `.github/scripts/parse-*-results.sh`
-  - `.github/scripts/generate-*-summary.sh`
-  - `.github/scripts/parse-*-config.js`
-
-- Actions to test:
-  - All scanners in `.github/actions/scanner-*/`
-  - All linters in `.github/actions/linter-*/`
-  - Utility actions (parse-container-config, security-summary, linting-summary)
+**Coverage:**
+- ✅ Python: 96 tests (ClamAV, extract-archives, summary generators)
+- ✅ JavaScript: 60 tests (config parsers)
+- ✅ All scripts tested via pytest with coverage reporting to Codecov
 
 ---
 
