@@ -717,6 +717,26 @@ jobs:
         pattern: container-*
       continue-on-error: true
 
+    - name: Copy container summary to expected location
+      if: needs.scan-coordinator.outputs.run_container == 'true'
+      shell: bash
+      run: |
+        # The container-scan-summary action uploads the summary - check multiple possible locations
+        if [ -f "container-scan-summary/container.md" ]; then
+          cp "container-scan-summary/container.md" "container.md"
+          echo "✅ Copied container summary from container-scan-summary/container.md"
+        elif [ -f "container-scan-summary/scanner-summaries/container.md" ]; then
+          cp "container-scan-summary/scanner-summaries/container.md" "container.md"
+          echo "✅ Copied container summary from container-scan-summary/scanner-summaries/container.md"
+        elif [ -f "scanner-summaries/container.md" ]; then
+          cp "scanner-summaries/container.md" "container.md"
+          echo "✅ Copied container summary from scanner-summaries/container.md"
+        else
+          echo "⚠️ No container summary found"
+          find . -name "container.md" -type f 2>/dev/null | head -5
+        fi
+      continue-on-error: true
+
     - name: Download Infrastructure artifacts
       if: needs.scan-coordinator.outputs.run_infrastructure == 'true'
       uses: actions/download-artifact@v7

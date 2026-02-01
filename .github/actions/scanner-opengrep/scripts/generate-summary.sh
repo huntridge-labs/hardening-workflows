@@ -29,7 +29,7 @@ RUN_ID="${10}"
 # Start output
 if [ "$IS_PR_COMMENT" = "true" ]; then
   echo "<details>" >> "$OUTPUT"
-  echo "<summary>OpenGrep SAST</summary>" >> "$OUTPUT"
+  echo "<summary>🔍 OpenGrep SAST</summary>" >> "$OUTPUT"
 else
   echo "## OpenGrep SAST Scan" >> "$OUTPUT"
 fi
