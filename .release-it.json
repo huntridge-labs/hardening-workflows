@@ -171,7 +171,8 @@
             ".github/workflows/scanner-*.yml",
             ".github/workflows/linting.yml",
             ".github/workflows/infrastructure-scan.yml",
-            ".github/workflows/container-scan.yml"
+            ".github/workflows/container-scan.yml",
+            ".github/workflows/reusable-security-hardening.yml"
           ],
           "search": {
             "pattern": "(huntridge-labs/hardening-workflows/.github/actions/[^@]+)@[^\\s]+",
