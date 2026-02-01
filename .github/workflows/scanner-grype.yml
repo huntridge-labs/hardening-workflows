@@ -71,6 +71,7 @@ permissions:
   security-events: write
   actions: read
   pull-requests: write
+  packages: read
 
 jobs:
   grype-container-scan:
