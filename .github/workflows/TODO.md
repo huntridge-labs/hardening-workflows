@@ -398,13 +398,13 @@ jobs:
 - [x] `scanner-trivy-iac.yml` → thin wrapper
 - [x] `scanner-checkov.yml` → thin wrapper
 - [x] `scanner-clamav.yml` → thin wrapper
-- [ ] `scanner-zap.yml` → thin wrapper
+- [x] `scanner-zap.yml` → thin wrapper
 - [x] `scanner-trivy-container.yml` → thin wrapper
 - [x] `scanner-grype.yml` → thin wrapper
 - [x] `scanner-syft.yml` → thin wrapper
-- [ ] `linting.yml` → thin wrapper (calls multiple linter actions)
-- [ ] `infrastructure-scan.yml` → thin wrapper
-- [ ] `container-scan.yml` → thin wrapper
+- [x] `linting.yml` → thin wrapper (calls multiple linter actions)
+- [x] `infrastructure-scan.yml` → thin wrapper
+- [x] `container-scan.yml` → thin wrapper (retains discovery/build orchestration)
 
 **Simplification achieved:** Removed HRL_REF, checkout complexity, and local vs external conditional steps. All scanner workflows now use direct action references (e.g., `huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@ref`).
 
@@ -580,7 +580,7 @@ Thin wrapper workflows currently use feature branch ref (`@refactor/depricate-re
 | 1 | Audit & Gap Analysis | [x] Complete - All scanners audited, syft action created |
 | 2 | Action Enhancement | [~] Partial - Most actions already have good parity |
 | 3 | Create Example Workflows | [x] Complete - GHES examples created in `examples/github-enterprise/` |
-| 4 | Migrate Reusable Workflows | [x] Complete - 10 scanner workflows converted to thin wrappers |
+| 4 | Migrate Reusable Workflows | [x] Complete - All scanner + orchestrator workflows converted to thin wrappers |
 | 5 | Documentation | [x] Complete - README.md and docs/scanners.md updated |
 | 6 | Testing | [~] In Progress - Testing via feature branch |
 | 7 | Release | [ ] Pending - Action refs use feature branch, release-it will update |
