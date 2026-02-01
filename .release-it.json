@@ -111,8 +111,7 @@
             "QUICK-START.md",
             "README.md",
             "docs/container-scanning.md",
-            "docs/failure-control.md",
-            "docs/developer/pr-workflow-sync.md"
+            "docs/failure-control.md"
           ],
           "search": {
             "pattern": "hardening-workflows/\\.github/workflows/([\\w-]+)\\.yml@[^\\s]+",
