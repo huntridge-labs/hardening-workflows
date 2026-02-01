@@ -413,7 +413,7 @@ jobs:
     name: Code Quality & Linting
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_lint == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@refactor/depricate-reusable-workflows
+    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@feat/migrate-to-composite-actions
     permissions:
       contents: read
       actions: read
@@ -425,7 +425,7 @@ jobs:
     name: CodeQL Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_codeql == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@refactor/depricate-reusable-workflows
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@feat/migrate-to-composite-actions
     with:
       codeql_languages: ${{ inputs.codeql_languages }}
       config_file: ${{ inputs.codeql_config_file }}
@@ -443,7 +443,7 @@ jobs:
     name: OpenGrep Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_opengrep == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@refactor/depricate-reusable-workflows
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@feat/migrate-to-composite-actions
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -459,7 +459,7 @@ jobs:
     name: Bandit Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_bandit == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@refactor/depricate-reusable-workflows
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@feat/migrate-to-composite-actions
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -475,7 +475,7 @@ jobs:
     name: Gitleaks Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_gitleaks == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@refactor/depricate-reusable-workflows
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@feat/migrate-to-composite-actions
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -497,7 +497,7 @@ jobs:
     name: ClamAV Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_clamav == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-clamav.yml@refactor/depricate-reusable-workflows
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-clamav.yml@feat/migrate-to-composite-actions
     with:
       post_pr_comment: ${{ inputs.post_pr_comment }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -514,7 +514,7 @@ jobs:
     name: Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_container == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@refactor/depricate-reusable-workflows
+    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@feat/migrate-to-composite-actions
     with:
       # Disable individual container PR comments - security-summary job provides comprehensive reporting
       post_pr_comment: false
@@ -532,7 +532,7 @@ jobs:
     name: Infrastructure Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_infrastructure == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/infrastructure-scan.yml@refactor/depricate-reusable-workflows
+    uses: huntridge-labs/hardening-workflows/.github/workflows/infrastructure-scan.yml@feat/migrate-to-composite-actions
     with:
       iac_path: ${{ inputs.iac_path }}
       enable_code_security: ${{ inputs.enable_code_security }}
@@ -548,7 +548,7 @@ jobs:
     name: SBOM Generator
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_sbom == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@refactor/depricate-reusable-workflows
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@feat/migrate-to-composite-actions
     with:
       enable_code_security: ${{ inputs.enable_code_security }}
     permissions:
@@ -563,7 +563,7 @@ jobs:
     name: Trivy IaC Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_trivy_iac == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@refactor/depricate-reusable-workflows
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@feat/migrate-to-composite-actions
     with:
       iac_path: ${{ inputs.iac_path }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -580,7 +580,7 @@ jobs:
     name: Checkov Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_checkov == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@refactor/depricate-reusable-workflows
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@feat/migrate-to-composite-actions
     with:
       iac_path: ${{ inputs.iac_path }}
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -597,7 +597,7 @@ jobs:
     name: Trivy Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_trivy_container == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@refactor/depricate-reusable-workflows
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@feat/migrate-to-composite-actions
     with:
       image_ref: 'nginx:latest'
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -615,7 +615,7 @@ jobs:
     name: Grype Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_grype == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@refactor/depricate-reusable-workflows
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@feat/migrate-to-composite-actions
     with:
       image_ref: 'nginx:latest'
       post_pr_comment: ${{ inputs.post_pr_comment }}
@@ -633,7 +633,7 @@ jobs:
     name: ZAP (DAST) Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_zap == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-zap.yml@refactor/depricate-reusable-workflows
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-zap.yml@feat/migrate-to-composite-actions
     with:
       scan_mode: ${{ inputs.zap_scan_mode }}
       scan_type: ${{ inputs.zap_scan_type }}
@@ -886,7 +886,7 @@ jobs:
 
     - name: Get job ID
       id: job_id
-      uses: huntridge-labs/hardening-workflows/.github/actions/get-job-id@refactor/depricate-reusable-workflows
+      uses: huntridge-labs/hardening-workflows/.github/actions/get-job-id@feat/migrate-to-composite-actions
       with:
         job-name-pattern: 'Security Hardening Summary'
         fallback-suffix: 'security-hardening-report'

@@ -133,7 +133,7 @@ runs:
 
     - name: Comment PR with security summary
       if: github.event_name == 'pull_request' && inputs.post_pr_comment == 'true'
-      uses: huntridge-labs/hardening-workflows/.github/actions/comment-pr@feat/actions-pr-comments
+      uses: huntridge-labs/hardening-workflows/.github/actions/comment-pr@feat/migrate-to-composite-actions
       with:
         summary_file: combined-summaries/security.md
         comment_marker: security-summary-comment-marker

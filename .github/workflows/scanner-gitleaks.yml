@@ -74,7 +74,7 @@ jobs:
 
     steps:
       - name: Run Gitleaks Scanner
-        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@refactor/depricate-reusable-workflows
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@feat/migrate-to-composite-actions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
