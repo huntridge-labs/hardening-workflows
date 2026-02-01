@@ -1,34 +1,51 @@
+# Infrastructure Security Scanner - Reusable Workflow
+#
+# THIN WRAPPER: This workflow delegates to scanner-trivy-iac and scanner-checkov actions.
+# All scanning logic is in:
+#   - .github/actions/scanner-trivy-iac/action.yml
+#   - .github/actions/scanner-checkov/action.yml
+#
+# For GHES users: Use the composite actions directly instead of this workflow.
+# See: examples/github-enterprise/infrastructure-scanning.yml
+
 name: Infrastructure Security Scanner
 
 on:
   workflow_dispatch:
+    inputs:
+      iac_path:
+        description: 'Relative path to the infrastructure-as-code directory to scan'
+        required: false
+        type: string
+        default: '.'
+      fail_on_severity:
+        description: 'Fail the job if vulnerabilities at or above this severity are found'
+        required: false
+        type: string
+        default: 'none'
+
   workflow_call:
     inputs:
       iac_path:
         description: 'Relative path to the infrastructure-as-code directory to scan'
         required: false
         type: string
-        default: 'infrastructure'
-      python_version:
-        description: 'Python version to use for IaC scanners'
-        required: false
-        type: string
-        default: '3.12'
-      aws_region:
-        description: 'AWS region used for IaC tooling that requires region context'
-        required: false
-        type: string
-        default: 'us-east-1'
+        default: '.'
       enable_code_security:
         description: 'Whether GitHub Code Security is enabled for this repository'
         required: false
         type: boolean
         default: false
       fail_on_severity:
-        description: 'Fail the job if vulnerabilities at or above this severity are found. Options: none, low, medium, high, critical. Set to "none" to never fail.'
+        description: 'Fail the job if vulnerabilities at or above this severity are found'
         required: false
         type: string
         default: 'none'
+      post_pr_comment:
+        description: 'Post results as PR comment'
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -36,336 +53,43 @@ permissions:
   actions: read
   pull-requests: write
 
-env:
-  PYTHON_VERSION: ${{ inputs.python_version }}
-  AWS_REGION: ${{ inputs.aws_region }}
-
 jobs:
-  infrastructure-security:
-    name: Infrastructure Security Analysis
+  trivy-iac:
+    name: Trivy IaC Scan
     runs-on: ubuntu-latest
     timeout-minutes: 20
     continue-on-error: true
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v6
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
+      - name: Run Trivy IaC Scanner
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-trivy-iac@refactor/depricate-reusable-workflows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          iac_path: ${{ inputs.iac_path }}
+          post_pr_comment: ${{ inputs.post_pr_comment }}
+          enable_code_security: ${{ inputs.enable_code_security }}
+          fail_on_severity: ${{ inputs.fail_on_severity }}
 
-    - name: Set up Terraform
-      uses: hashicorp/setup-terraform@v3
+  checkov:
+    name: Checkov Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
 
-    - name: Prepare infrastructure scan directory
-      run: |
-        IAC_PATH="${{ inputs.iac_path }}"
-        if [ -z "$IAC_PATH" ]; then
-          IAC_PATH='infrastructure'
-        fi
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-        if [ ! -d "$IAC_PATH" ]; then
-          echo "⚠️  Directory '$IAC_PATH' not found. Skipping infrastructure scans."
-          exit 0
-        fi
-
-        mkdir -p "$IAC_PATH"/security-reports
-        echo "📁 Created security reports directory: $IAC_PATH/security-reports"
-
-    - name: Run Trivy Infrastructure Scan
-      uses: aquasecurity/trivy-action@0.33.1
-      with:
-        scan-type: 'config'
-        scan-ref: '${{ inputs.iac_path }}'
-        format: 'sarif'
-        output: '${{ inputs.iac_path }}/security-reports/trivy-results.sarif'
-        hide-progress: true
-      continue-on-error: true
-
-    - name: Run Checkov Infrastructure Scan
-      uses: bridgecrewio/checkov-action@v12.3077.0
-      with:
-        directory: ${{ inputs.iac_path }}
-        framework: terraform
-        output_format: sarif, json
-        output_file_path: ${{ inputs.iac_path }}/security-reports/checkov-results.sarif,${{ inputs.iac_path }}/security-reports/checkov-results.json
-      continue-on-error: true
-
-    - name: Upload infrastructure SARIF results
-      uses: github/codeql-action/upload-sarif@v4
-      if: inputs.enable_code_security == true && always() && github.actor != 'nektos/act'
-      with:
-        sarif_file: ${{ inputs.iac_path }}/security-reports/trivy-results.sarif
-        category: infrastructure-trivy
-      continue-on-error: true
-
-    - name: Upload Checkov SARIF results
-      uses: github/codeql-action/upload-sarif@v4
-      if: inputs.enable_code_security == true && always() && github.actor != 'nektos/act'
-      with:
-        sarif_file: ${{ inputs.iac_path }}/security-reports/checkov-results.sarif
-        category: infrastructure-checkov
-      continue-on-error: true
-
-    - name: Upload infrastructure artifacts
-      uses: actions/upload-artifact@v6
-      if: always()
-      with:
-        name: infrastructure-security-reports
-        path: |
-          ${{ inputs.iac_path }}/security-reports/
-        retention-days: 30
-
-    - name: Check severity threshold
-      if: inputs.fail_on_severity != 'none' && inputs.fail_on_severity != ''
-      run: |
-        FAIL_ON="${{ inputs.fail_on_severity }}"
-        IAC_PATH="${{ inputs.iac_path }}"
-
-        echo "🔍 Checking for issues at or above severity: $FAIL_ON"
-
-        CRITICAL=0
-        HIGH=0
-        MEDIUM=0
-        LOW=0
-
-        # Parse Trivy JSON results
-        TRIVY_JSON="$IAC_PATH/security-reports/trivy-results.json"
-        if [ -f "$TRIVY_JSON" ]; then
-          CRITICAL=$((CRITICAL + $(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "CRITICAL")] | length' "$TRIVY_JSON" 2>/dev/null || echo "0")))
-          HIGH=$((HIGH + $(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "HIGH")] | length' "$TRIVY_JSON" 2>/dev/null || echo "0")))
-          MEDIUM=$((MEDIUM + $(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "MEDIUM")] | length' "$TRIVY_JSON" 2>/dev/null || echo "0")))
-          LOW=$((LOW + $(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "LOW")] | length' "$TRIVY_JSON" 2>/dev/null || echo "0")))
-        fi
-
-        # Parse Checkov JSON results
-        CHECKOV_JSON="$IAC_PATH/security-reports/checkov-results.json"
-        if [ -f "$CHECKOV_JSON" ]; then
-          CHECKOV_CRITICAL=$(jq '[.results.failed_checks[]? | select(.severity == "CRITICAL")] | length' "$CHECKOV_JSON" 2>/dev/null || echo "0")
-          CHECKOV_HIGH=$(jq '[.results.failed_checks[]? | select(.severity == "HIGH")] | length' "$CHECKOV_JSON" 2>/dev/null || echo "0")
-          CHECKOV_MEDIUM=$(jq '[.results.failed_checks[]? | select(.severity == "MEDIUM")] | length' "$CHECKOV_JSON" 2>/dev/null || echo "0")
-          CHECKOV_LOW=$(jq '[.results.failed_checks[]? | select(.severity == "LOW")] | length' "$CHECKOV_JSON" 2>/dev/null || echo "0")
-
-          # If no severity info, count all failures as high
-          if [ "$CHECKOV_CRITICAL" == "0" ] && [ "$CHECKOV_HIGH" == "0" ] && [ "$CHECKOV_MEDIUM" == "0" ] && [ "$CHECKOV_LOW" == "0" ]; then
-            CHECKOV_HIGH=$(jq '.results.failed_checks | length' "$CHECKOV_JSON" 2>/dev/null || echo "0")
-          fi
-
-          CRITICAL=$((CRITICAL + CHECKOV_CRITICAL))
-          HIGH=$((HIGH + CHECKOV_HIGH))
-          MEDIUM=$((MEDIUM + CHECKOV_MEDIUM))
-          LOW=$((LOW + CHECKOV_LOW))
-        fi
-
-        echo "📊 Combined severity counts: Critical=$CRITICAL, High=$HIGH, Medium=$MEDIUM, Low=$LOW"
-
-        SHOULD_FAIL=false
-        case "$FAIL_ON" in
-          low)
-            if [ "$LOW" -gt 0 ] || [ "$MEDIUM" -gt 0 ] || [ "$HIGH" -gt 0 ] || [ "$CRITICAL" -gt 0 ]; then
-              SHOULD_FAIL=true
-            fi
-            ;;
-          medium)
-            if [ "$MEDIUM" -gt 0 ] || [ "$HIGH" -gt 0 ] || [ "$CRITICAL" -gt 0 ]; then
-              SHOULD_FAIL=true
-            fi
-            ;;
-          high)
-            if [ "$HIGH" -gt 0 ] || [ "$CRITICAL" -gt 0 ]; then
-              SHOULD_FAIL=true
-            fi
-            ;;
-          critical)
-            if [ "$CRITICAL" -gt 0 ]; then
-              SHOULD_FAIL=true
-            fi
-            ;;
-        esac
-
-        if [ "$SHOULD_FAIL" = "true" ]; then
-          echo "❌ Found issues at or above $FAIL_ON severity level"
-          exit 1
-        else
-          echo "✅ No issues at or above $FAIL_ON severity level"
-        fi
-
-    - name: Generate Infrastructure summary section
-      if: always()
-      env:
-        HEAD_REF: ${{ github.head_ref || github.ref_name }}
-      run: |
-        mkdir -p scanner-summaries
-        IAC_PATH="${{ inputs.iac_path }}"
-
-        # Function to generate summary for a given output
-        generate_infrastructure_summary() {
-          local output="$1"
-          local is_pr_comment="$2"
-
-          if [ "$is_pr_comment" = "true" ]; then
-            echo "<details>" >> "$output"
-            echo "<summary>🏗️ Infrastructure Security</summary>" >> "$output"
-          else
-            echo "## 🏗️ Infrastructure Security Scan Summary" >> "$output"
-          fi
-          echo "" >> "$output"
-
-          if [ -d "$IAC_PATH/security-reports" ] && [ "$(ls -A $IAC_PATH/security-reports 2>/dev/null)" ]; then
-            if [ "$is_pr_comment" = "true" ]; then
-              echo "**Status:** ✅ Completed" >> "$output"
-              echo "" >> "$output"
-            fi
-
-            # Set up repo URL for clickable links
-            REPO_URL="https://github.com/${{ github.repository }}/blob/${HEAD_REF}"
-
-            # Initialize combined counts
-            TOTAL_ISSUES=0
-            CRITICAL_COUNT=0
-            HIGH_COUNT=0
-            MEDIUM_COUNT=0
-            LOW_COUNT=0
-
-            TRIVY_SARIF="$IAC_PATH/security-reports/trivy-results.sarif"
-            CHECKOV_JSON="$IAC_PATH/security-reports/checkov-results.json"
-
-            # Count Trivy issues from SARIF
-            TRIVY_ISSUES=0
-            if [ -f "$TRIVY_SARIF" ] && [ -s "$TRIVY_SARIF" ]; then
-              TRIVY_ISSUES=$(jq -r '[.runs[]?.results[]?] | length' "$TRIVY_SARIF" 2>/dev/null || echo "0")
-              TOTAL_ISSUES=$((TOTAL_ISSUES + TRIVY_ISSUES))
-
-              # Count by security-severity from rules
-              trivy_crit=$(jq -r '[.runs[]? | {rules: (.tool.driver.rules // []), results: .results} | .rules as $rules | .results[]? | . as $result | ($rules[] | select(.id == $result.ruleId) | .properties["security-severity"] // "0" | tonumber) as $sev | select($sev >= 9.0)] | length' "$TRIVY_SARIF" 2>/dev/null || echo "0")
-              trivy_high=$(jq -r '[.runs[]? | {rules: (.tool.driver.rules // []), results: .results} | .rules as $rules | .results[]? | . as $result | ($rules[] | select(.id == $result.ruleId) | .properties["security-severity"] // "0" | tonumber) as $sev | select($sev >= 7.0 and $sev < 9.0)] | length' "$TRIVY_SARIF" 2>/dev/null || echo "0")
-              trivy_med=$(jq -r '[.runs[]? | {rules: (.tool.driver.rules // []), results: .results} | .rules as $rules | .results[]? | . as $result | ($rules[] | select(.id == $result.ruleId) | .properties["security-severity"] // "0" | tonumber) as $sev | select($sev >= 4.0 and $sev < 7.0)] | length' "$TRIVY_SARIF" 2>/dev/null || echo "0")
-              trivy_low=$(jq -r '[.runs[]? | {rules: (.tool.driver.rules // []), results: .results} | .rules as $rules | .results[]? | . as $result | ($rules[] | select(.id == $result.ruleId) | .properties["security-severity"] // "0" | tonumber) as $sev | select($sev > 0 and $sev < 4.0)] | length' "$TRIVY_SARIF" 2>/dev/null || echo "0")
-
-              CRITICAL_COUNT=$((CRITICAL_COUNT + trivy_crit))
-              HIGH_COUNT=$((HIGH_COUNT + trivy_high))
-              MEDIUM_COUNT=$((MEDIUM_COUNT + trivy_med))
-              LOW_COUNT=$((LOW_COUNT + trivy_low))
-            fi
-
-            # Count Checkov issues from JSON
-            CHECKOV_FAILED=0
-            CHECKOV_PASSED=0
-            if [ -f "$CHECKOV_JSON" ] && [ -s "$CHECKOV_JSON" ]; then
-              CHECKOV_FAILED=$(jq -r '.summary.failed // 0' "$CHECKOV_JSON" 2>/dev/null || echo "0")
-              CHECKOV_PASSED=$(jq -r '.summary.passed // 0' "$CHECKOV_JSON" 2>/dev/null || echo "0")
-              TOTAL_ISSUES=$((TOTAL_ISSUES + CHECKOV_FAILED))
-              # Checkov doesn't have severity levels, count all as high
-              HIGH_COUNT=$((HIGH_COUNT + CHECKOV_FAILED))
-            fi
-
-            # Overall Summary Table
-            echo "### 📊 Combined Findings Summary" >> "$output"
-            echo "" >> "$output"
-            echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📦 Total |" >> "$output"
-            echo "|-------------|---------|-----------|--------|----------|" >> "$output"
-            echo "| **$CRITICAL_COUNT** | **$HIGH_COUNT** | **$MEDIUM_COUNT** | **$LOW_COUNT** | **$TOTAL_ISSUES** |" >> "$output"
-            echo "" >> "$output"
-
-            # Scanner breakdown
-            echo "**Scanner Breakdown:** Trivy: $TRIVY_ISSUES issues | Checkov: $CHECKOV_FAILED failed / $CHECKOV_PASSED passed" >> "$output"
-            echo "" >> "$output"
-
-            # Trivy Detailed Findings
-            if [ -f "$TRIVY_SARIF" ] && [ "$TRIVY_ISSUES" -gt 0 ]; then
-              echo "<details>" >> "$output"
-              echo "<summary>🔍 Trivy IaC Findings ($TRIVY_ISSUES)</summary>" >> "$output"
-              echo "" >> "$output"
-
-              echo "| Rule ID | Location | Severity | Message |" >> "$output"
-              echo "|---------|----------|----------|---------|" >> "$output"
-
-              jq -r --arg repo_url "$REPO_URL" --arg iac_path "$IAC_PATH" '
-                .runs[]? | {rules: (.tool.driver.rules // []), results: .results} |
-                .rules as $rules |
-                .results[]? |
-                . as $result |
-                ($rules[] | select(.id == $result.ruleId)) as $rule |
-                ($rule.properties["security-severity"] // "0" | tonumber) as $severity |
-                ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A" | ltrimstr("./") | ltrimstr("/")) as $relfile |
-                (if $relfile == "N/A" then "N/A" else "\($iac_path)/\($relfile)" end) as $file |
-                ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
-                (if $severity >= 9.0 then "🚨 Critical"
-                 elif $severity >= 7.0 then "⚠️ High"
-                 elif $severity >= 4.0 then "🟡 Medium"
-                 else "🔵 Low" end) as $sev_label |
-                "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($sev_label) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:50]) |"
-              ' "$TRIVY_SARIF" 2>/dev/null | head -50 >> "$output" || echo "| Error parsing | - | - | - |" >> "$output"
-              if [ "$TRIVY_ISSUES" -gt 50 ]; then
-                echo "" >> "$output"
-                echo "_...and $((TRIVY_ISSUES - 50)) more findings_" >> "$output"
-              fi
-              echo "" >> "$output"
-
-              echo "</details>" >> "$output"
-              echo "" >> "$output"
-            fi
-
-            # Checkov Detailed Findings
-            if [ -f "$CHECKOV_JSON" ] && [ "$CHECKOV_FAILED" -gt 0 ]; then
-              echo "<details open>" >> "$output"
-              echo "<summary>🔍 Checkov Failed Checks ($CHECKOV_FAILED)</summary>" >> "$output"
-              echo "" >> "$output"
-
-              echo "| Check ID | Check Name | Resource | Location |" >> "$output"
-              echo "|----------|------------|----------|----------|" >> "$output"
-
-              jq -r --arg repo_url "$REPO_URL" --arg iac_path "$IAC_PATH" '.results.failed_checks[]? |
-                (.file_path // "N/A" | ltrimstr("/") | ltrimstr("./")) as $relpath |
-                (if $relpath == "N/A" then "N/A" else "\($iac_path)/\($relpath)" end) as $filepath |
-                (.file_line_range[0] // 1) as $start |
-                (.file_line_range[1] // 1) as $end |
-                "| \(.check_id // "N/A") | \(.check_name // "N/A" | .[0:40]) | \(.resource // "N/A" | .[0:30]) | [\($filepath)#L\($start)-L\($end)](\($repo_url)/\($filepath)#L\($start)-L\($end)) |"' "$CHECKOV_JSON" 2>/dev/null | head -50 >> "$output" || echo "| Error parsing | - | - | - |" >> "$output"
-              if [ "$CHECKOV_FAILED" -gt 50 ]; then
-                echo "" >> "$output"
-                echo "_...and $((CHECKOV_FAILED - 50)) more failed checks_" >> "$output"
-              fi
-              echo "" >> "$output"
-
-              echo "</details>" >> "$output"
-              echo "" >> "$output"
-            fi
-
-            if [ $TOTAL_ISSUES -eq 0 ]; then
-              echo "✅ **No infrastructure security issues detected!**" >> "$output"
-              echo "" >> "$output"
-            fi
-
-            echo "**📁 Artifacts:** [Infrastructure Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> "$output"
-          else
-            if [ "$is_pr_comment" = "true" ]; then
-              echo "**Status:** ⏭️ Skipped" >> "$output"
-            else
-              echo "**Status:** ⏭️ No Infrastructure results available" >> "$output"
-            fi
-          fi
-
-          if [ "$is_pr_comment" = "true" ]; then
-            echo "" >> "$output"
-            echo "</details>" >> "$output"
-          fi
-          echo "" >> "$output"
-        }
-
-        # Generate PR comment artifact
-        generate_infrastructure_summary "scanner-summaries/infrastructure.md" "true"
-
-        # Generate job summary
-        generate_infrastructure_summary "$GITHUB_STEP_SUMMARY" "false"
-      continue-on-error: true
-
-    - name: Upload Infrastructure summary section
-      if: always()
-      uses: actions/upload-artifact@v6
-      with:
-        name: scanner-summary-infrastructure
-        path: scanner-summaries/infrastructure.md
-        retention-days: 7
-      continue-on-error: true
+      - name: Run Checkov Scanner
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-checkov@refactor/depricate-reusable-workflows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          iac_path: ${{ inputs.iac_path }}
+          post_pr_comment: ${{ inputs.post_pr_comment }}
+          enable_code_security: ${{ inputs.enable_code_security }}
+          fail_on_severity: ${{ inputs.fail_on_severity }}

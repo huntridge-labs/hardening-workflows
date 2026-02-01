@@ -1,18 +1,19 @@
+# Container Security Scanning - Reusable Workflow
+#
+# THIN WRAPPER: This workflow orchestrates container discovery, building, and scanning.
+# Scanning is delegated to: .github/actions/scanner-container/action.yml
+#
+# Supports two modes:
+# - discover: Find and build local Dockerfiles, then scan
+# - remote: Scan pre-existing images from a registry
+#
+# For GHES users: Use the composite action directly instead of this workflow.
+# See: examples/github-enterprise/container-scanning.yml
+
 name: Container Security Scanning
 
 on:
-  # Remove direct PR triggers since this workflow is called by reusable-security-hardening.yml
-  # push:
-  #   branches: [ main, develop ]
-  #   paths:
-  #     - '**/Dockerfile*'
-  #     - '.github/workflows/container-scan.yml'
-  # pull_request:
-  #   branches: [ main, develop ]
-  #   paths:
-  #     - '**/Dockerfile*'
-  #     - '.github/workflows/container-scan.yml'
-  workflow_dispatch:  # Keep for manual testing
+  workflow_dispatch:
     inputs:
       scan_mode:
         description: 'Scan mode: "discover" to find and build local Dockerfiles, "remote" to scan pre-existing images'
@@ -32,10 +33,11 @@ on:
         required: false
         type: string
         default: ''
-  workflow_call:      # Keep for reusable workflow calls from reusable-security-hardening.yml
+
+  workflow_call:
     inputs:
       post_pr_comment:
-        description: 'Whether to post PR comments (disabled when called from other workflows)'
+        description: 'Whether to post PR comments'
         required: false
         type: boolean
         default: true
@@ -45,13 +47,12 @@ on:
         type: boolean
         default: false
       fail_on_severity:
-        description: 'Fail the job if vulnerabilities at or above this severity are found. Options: none, low, medium, high, critical. Set to "none" to never fail.'
+        description: 'Fail the job if vulnerabilities at or above this severity are found'
         required: false
         type: string
         default: 'none'
-      # Remote image scanning inputs (for container-scan-from-config.yml integration)
       scan_mode:
-        description: 'Scan mode: "discover" to find and build local Dockerfiles, "remote" to scan pre-existing images'
+        description: 'Scan mode: "discover" or "remote"'
         required: false
         type: string
         default: 'discover'
@@ -71,12 +72,12 @@ on:
         type: string
         default: ''
       scanners:
-        description: 'Comma-separated list of scanners to run: trivy,grype,syft (default: trivy,grype,syft)'
+        description: 'Comma-separated list of scanners to run: trivy,grype,syft'
         required: false
         type: string
         default: 'trivy,grype,syft'
       allow_failure:
-        description: 'Allow the workflow to continue even if scanning or validation fails'
+        description: 'Allow the workflow to continue even if scanning fails'
         required: false
         type: boolean
         default: false
@@ -84,307 +85,176 @@ on:
       registry_password:
         description: 'Password or token for authenticating to private container registry'
         required: false
-      HARDENING_WORKFLOWS_CHECKOUT_TOKEN:
-        description: 'Token for checking out hardening-workflows repo (required for private GHE servers)'
-        required: false
 
 permissions:
   contents: read
   security-events: write
   actions: read
+  packages: read
   pull-requests: write
-
-env:
-  # Use current branch/PR when testing in hardening-workflows repo, otherwise use release tag
-  HRL_REF: ${{ github.repository == 'huntridge-labs/hardening-workflows' && (github.head_ref || github.ref_name) || '2.12.0' }}
 
 jobs:
   # Discover containers in this repository (skipped in remote mode)
   discover-containers:
     name: Discover Container Images
     runs-on: ubuntu-latest
-    # Skip discovery when using remote mode - we already have the image
     if: inputs.scan_mode != 'remote'
     outputs:
       containers: ${{ steps.discover.outputs.containers }}
       has_containers: ${{ steps.discover.outputs.has_containers }}
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Discover Dockerfiles in repository
-      id: discover
-      run: |
-        echo "🔍 Discovering Dockerfiles in repository..."
+      - name: Discover Dockerfiles in repository
+        id: discover
+        run: |
+          echo "Discovering Dockerfiles in repository..."
 
-        # Find all Dockerfiles in the repository
-        DOCKERFILES=$(find . -name "Dockerfile*" -not -path "./.git/*" -type f)
+          DOCKERFILES=$(find . -name "Dockerfile*" -not -path "./.git/*" -type f)
 
-        if [ -z "$DOCKERFILES" ]; then
-          echo "ℹ️  No Dockerfiles found in repository"
-          echo "has_containers=false" >> $GITHUB_OUTPUT
-          echo "containers=[]" >> $GITHUB_OUTPUT
-          exit 0
-        fi
-
-        echo "Found Dockerfiles:"
-        echo "$DOCKERFILES"
-
-        # Create JSON array of containers to scan
-        containers="["
-        first=true
-
-        for dockerfile in $DOCKERFILES; do
-          # Extract directory and create container info
-          dir=$(dirname "$dockerfile")
-          name=$(basename "$dir")
-
-          # Handle root directory case - use repo/project name
-          if [ "$name" = "." ]; then
-            name=$(basename "$(pwd)")
+          if [ -z "$DOCKERFILES" ]; then
+            echo "No Dockerfiles found in repository"
+            echo "has_containers=false" >> $GITHUB_OUTPUT
+            echo "containers=[]" >> $GITHUB_OUTPUT
+            exit 0
           fi
 
-          # Handle special cases for naming
-          if [[ "$dockerfile" == *"vulnerable"* ]]; then
-            name="${name}-vulnerable"
-          elif [[ "$dockerfile" == *"secure"* ]]; then
-            name="${name}-secure"
-          fi
+          echo "Found Dockerfiles:"
+          echo "$DOCKERFILES"
 
-          if [ "$first" = true ]; then
-            first=false
-          else
-            containers="$containers,"
-          fi
+          containers="["
+          first=true
 
-          containers="$containers{\"dockerfile\":\"$dockerfile\",\"name\":\"$name\",\"context\":\"$dir\"}"
-        done
+          for dockerfile in $DOCKERFILES; do
+            dir=$(dirname "$dockerfile")
+            name=$(basename "$dir")
 
-        containers="$containers]"
+            if [ "$name" = "." ]; then
+              name=$(basename "$(pwd)")
+            fi
 
-        echo "has_containers=true" >> $GITHUB_OUTPUT
-        echo "containers=$containers" >> $GITHUB_OUTPUT
+            if [[ "$dockerfile" == *"vulnerable"* ]]; then
+              name="${name}-vulnerable"
+            elif [[ "$dockerfile" == *"secure"* ]]; then
+              name="${name}-secure"
+            fi
 
-        echo "Container scan matrix:"
-        echo "$containers" | jq '.'
+            if [ "$first" = true ]; then
+              first=false
+            else
+              containers="$containers,"
+            fi
+
+            containers="$containers{\"dockerfile\":\"$dockerfile\",\"name\":\"$name\",\"context\":\"$dir\"}"
+          done
+
+          containers="$containers]"
+
+          echo "has_containers=true" >> $GITHUB_OUTPUT
+          echo "containers=$containers" >> $GITHUB_OUTPUT
+
+          echo "Container scan matrix:"
+          echo "$containers" | jq '.'
 
   build-and-scan:
-    name: Build and Scan Container Images
+    name: Build & Scan - ${{ matrix.container.name }}
     runs-on: ubuntu-latest
     needs: discover-containers
     if: needs.discover-containers.outputs.has_containers == 'true'
     timeout-minutes: 30
-    continue-on-error: true  # Allow pipeline to continue even if vulnerabilities found
+    continue-on-error: true
 
     strategy:
       fail-fast: false
       matrix:
         container: ${{ fromJson(needs.discover-containers.outputs.containers) }}
-        allow_failure: ${{ fromJson(format('[{0}]', inputs.allow_failure)) }}
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Checkout hardening-workflows for composite action
-      # Only needed when called from external repos
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: actions/checkout@v6
-      with:
-        repository: huntridge-labs/hardening-workflows
-        ref: ${{ env.HRL_REF }}
-        path: .hardening-workflows
-        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
-        sparse-checkout: |
-          .github/actions/scanner-container
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Build container image
+        id: build
+        continue-on-error: true
+        run: |
+          IMAGE_NAME="hardening-test-$(echo '${{ matrix.container.name }}' | tr '/' '-' | tr '[:upper:]' '[:lower:]')"
+          IMAGE_TAG="scan-$(echo $GITHUB_SHA | cut -c1-8)"
+          FULL_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
 
-    - name: Build container image
-      id: build
-      continue-on-error: true  # Don't fail if build has issues
-      run: |
-        # Generate image name and tag
-        IMAGE_NAME="hardening-test-$(echo '${{ matrix.container.name }}' | tr '/' '-' | tr '[:upper:]' '[:lower:]')"
-        IMAGE_TAG="scan-$(echo $GITHUB_SHA | cut -c1-8)"
-        FULL_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
+          echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "full_image=$FULL_IMAGE" >> $GITHUB_OUTPUT
 
-        echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
-        echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
-        echo "full_image=$FULL_IMAGE" >> $GITHUB_OUTPUT
+          echo "Building image: $FULL_IMAGE"
 
-        echo "🔨 Building image: $FULL_IMAGE"
-        echo "📄 Dockerfile: ${{ matrix.container.dockerfile }}"
-        echo "📁 Context: ${{ matrix.container.context }}"
+          if docker build \
+            --tag "$FULL_IMAGE" \
+            --file "${{ matrix.container.dockerfile }}" \
+            "${{ matrix.container.context }}"; then
+            echo "Successfully built image: $FULL_IMAGE"
+            echo "build_success=true" >> $GITHUB_OUTPUT
+          else
+            echo "Failed to build image: $FULL_IMAGE"
+            echo "build_success=false" >> $GITHUB_OUTPUT
+          fi
 
-        # Build the image
-        if docker build \
-          --tag "$FULL_IMAGE" \
-          --file "${{ matrix.container.dockerfile }}" \
-          "${{ matrix.container.context }}"; then
-          echo "✅ Successfully built image: $FULL_IMAGE"
-          echo "build_success=true" >> $GITHUB_OUTPUT
-        else
-          echo "❌ Failed to build image: $FULL_IMAGE"
-          echo "build_success=false" >> $GITHUB_OUTPUT
-          echo "::warning title=Build Failed::Failed to build ${{ matrix.container.name }} - this may be expected for vulnerable test containers"
-        fi
+      - name: Run security scanners
+        if: steps.build.outputs.build_success == 'true'
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@refactor/depricate-reusable-workflows
+        with:
+          image_ref: ${{ steps.build.outputs.full_image }}
+          container_name: ${{ matrix.container.name }}
+          scanners: ${{ inputs.scanners || 'trivy,grype,syft' }}
+          fail_on_severity: ${{ inputs.fail_on_severity }}
+          enable_code_security: ${{ inputs.enable_code_security }}
+          scan_mode: 'discover'
+          allow_failure: ${{ inputs.allow_failure }}
 
-    - name: Run security scanners (local)
-      if: steps.build.outputs.build_success == 'true' && github.repository == 'huntridge-labs/hardening-workflows'
-      uses: ./.github/actions/scanner-container
-      with:
-        image_ref: ${{ steps.build.outputs.full_image }}
-        container_name: ${{ matrix.container.name }}
-        scanners: 'trivy,grype,syft'
-        fail_on_severity: ${{ inputs.fail_on_severity }}
-        enable_code_security: ${{ inputs.enable_code_security }}
-        scan_mode: 'discover'
-        allow_failure: ${{ matrix.allow_failure || false }} # actionlint-ignore=expression
-        skip_summary: 'true'
-
-    - name: Run security scanners (external)
-      if: steps.build.outputs.build_success == 'true' && github.repository != 'huntridge-labs/hardening-workflows'
-      uses: ./.hardening-workflows/.github/actions/scanner-container
-      with:
-        image_ref: ${{ steps.build.outputs.full_image }}
-        container_name: ${{ matrix.container.name }}
-        scanners: 'trivy,grype,syft'
-        fail_on_severity: ${{ inputs.fail_on_severity }}
-        enable_code_security: ${{ inputs.enable_code_security }}
-        allow_failure: ${{ matrix.allow_failure || false }} # actionlint-ignore=expression
-        scan_mode: 'discover'
-        skip_summary: 'true'
-
-    - name: Handle build failure
-      if: steps.build.outputs.build_success != 'true'
-      shell: bash
-      run: |
-        echo "⚠️  Container build failed - skipping security analysis"
-        echo "This may be expected for intentionally vulnerable test containers"
-
-        # Create a placeholder summary for failed builds
-        CONTAINER_NAME="${{ matrix.container.name }}"
-        echo "# Container Scan Summary - ${CONTAINER_NAME}" > "container-summary-${CONTAINER_NAME}.md"
-        echo "" >> "container-summary-${CONTAINER_NAME}.md"
-        echo "**Dockerfile:** ${{ matrix.container.dockerfile }}" >> "container-summary-${CONTAINER_NAME}.md"
-        echo "**Context:** ${{ matrix.container.context }}" >> "container-summary-${CONTAINER_NAME}.md"
-        echo "**Build Status:** Failed" >> "container-summary-${CONTAINER_NAME}.md"
-        echo "" >> "container-summary-${CONTAINER_NAME}.md"
-        echo "## Build Failed" >> "container-summary-${CONTAINER_NAME}.md"
-        echo "Container build failed. This may be expected for intentionally vulnerable test containers." >> "container-summary-${CONTAINER_NAME}.md"
-        echo "" >> "container-summary-${CONTAINER_NAME}.md"
-        echo "**Scan completed:** $(date)" >> "container-summary-${CONTAINER_NAME}.md"
-
-    - name: Upload failed build summary
-      if: steps.build.outputs.build_success != 'true'
-      uses: actions/upload-artifact@v6
-      with:
-        name: container-scan-results-${{ matrix.container.name }}
-        path: container-summary-${{ matrix.container.name }}.md
-        retention-days: 30
-
-  # Scan remote/pre-existing container images (used when scan_mode is 'remote')
   scan-remote-image:
     name: Scan Remote Image
     runs-on: ubuntu-latest
-    # Only run in remote mode when an image is specified
     if: inputs.scan_mode == 'remote' && inputs.image_ref != ''
     timeout-minutes: 30
     continue-on-error: true
 
-    env:
-      CONTAINER_NAME: ${{ inputs.container_name || 'remote-image' }}
-      IMAGE_REF: ${{ inputs.image_ref }}
-      SCANNERS: ${{ inputs.scanners || 'trivy,grype,syft' }}
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Checkout hardening-workflows for composite action
-      # Only needed when called from external repos
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: actions/checkout@v6
-      with:
-        repository: huntridge-labs/hardening-workflows
-        ref: ${{ env.HRL_REF }}
-        path: .hardening-workflows
-        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
-        sparse-checkout: |
-          .github/actions/scanner-container
+      - name: Authenticate to container registry
+        if: inputs.registry_username != ''
+        run: |
+          if [ -z "$REGISTRY_PASSWORD" ]; then
+            echo "::error title=Missing Registry Password::registry_username was provided but registry_password secret is missing"
+            exit 1
+          fi
 
-    - name: Authenticate to container registry
-      # Only attempt auth when username is provided (password checked in script)
-      if: inputs.registry_username != ''
-      run: |
-        # Check if password is provided
-        if [ -z "$REGISTRY_PASSWORD" ]; then
-          echo "❌ Registry username provided but no password - this is a configuration error"
-          echo "::error title=Missing Registry Password::registry_username was provided but registry_password secret is missing"
-          exit 1
-        fi
+          REGISTRY=$(echo "${{ inputs.image_ref }}" | cut -d'/' -f1)
+          if [[ "$REGISTRY" != *"."* ]] && [[ "$REGISTRY" != *":"* ]]; then
+            REGISTRY="docker.io"
+          fi
 
-        echo "🔐 Authenticating to container registry..."
-        # Extract registry from image reference
-        REGISTRY=$(echo "${{ inputs.image_ref }}" | cut -d'/' -f1)
+          echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "${{ inputs.registry_username }}" --password-stdin
+        env:
+          REGISTRY_PASSWORD: ${{ secrets.registry_password }}
 
-        # Handle special case for Docker Hub (no registry prefix)
-        if [[ "$REGISTRY" != *"."* ]] && [[ "$REGISTRY" != *":"* ]]; then
-          REGISTRY="docker.io"
-        fi
-
-        echo "Registry: $REGISTRY"
-        echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "${{ inputs.registry_username }}" --password-stdin
-        echo "✅ Successfully authenticated to $REGISTRY"
-      env:
-        REGISTRY_PASSWORD: ${{ secrets.registry_password }}
-
-    - name: Pull remote image
-      id: pull
-      run: |
-        echo "🐳 Pulling image: ${{ env.IMAGE_REF }}"
-        if docker pull "${{ env.IMAGE_REF }}"; then
-          echo "✅ Successfully pulled image"
-          echo "pull_success=true" >> $GITHUB_OUTPUT
-          echo "full_image=${{ env.IMAGE_REF }}" >> $GITHUB_OUTPUT
-        else
-          echo "❌ Failed to pull image: ${{ env.IMAGE_REF }}"
-          echo "pull_success=false" >> $GITHUB_OUTPUT
-          echo "::error title=Pull Failed::Failed to pull ${{ env.IMAGE_REF }}"
-          exit 1
-        fi
-
-    - name: Run security scanners (local)
-      if: steps.pull.outputs.pull_success == 'true' && github.repository == 'huntridge-labs/hardening-workflows'
-      uses: ./.github/actions/scanner-container
-      with:
-        image_ref: ${{ env.IMAGE_REF }}
-        container_name: ${{ env.CONTAINER_NAME }}
-        scanners: ${{ env.SCANNERS }}
-        fail_on_severity: ${{ inputs.fail_on_severity }}
-        enable_code_security: ${{ inputs.enable_code_security }}
-        registry_username: ${{ inputs.registry_username }}
-        registry_password: ${{ secrets.registry_password }}
-        scan_mode: 'remote'
-        allow_failure: ${{ inputs.allow_failure }}
-        skip_summary: 'true'
-
-    - name: Run security scanners (external)
-      if: steps.pull.outputs.pull_success == 'true' && github.repository != 'huntridge-labs/hardening-workflows'
-      uses: ./.hardening-workflows/.github/actions/scanner-container
-      with:
-        image_ref: ${{ env.IMAGE_REF }}
-        container_name: ${{ env.CONTAINER_NAME }}
-        scanners: ${{ env.SCANNERS }}
-        fail_on_severity: ${{ inputs.fail_on_severity }}
-        enable_code_security: ${{ inputs.enable_code_security }}
-        registry_username: ${{ inputs.registry_username }}
-        registry_password: ${{ secrets.registry_password }}
-        scan_mode: 'remote'
-        skip_summary: 'true'
+      - name: Run security scanners
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@refactor/depricate-reusable-workflows
+        with:
+          image_ref: ${{ inputs.image_ref }}
+          container_name: ${{ inputs.container_name || 'remote-image' }}
+          scanners: ${{ inputs.scanners || 'trivy,grype,syft' }}
+          fail_on_severity: ${{ inputs.fail_on_severity }}
+          enable_code_security: ${{ inputs.enable_code_security }}
+          registry_username: ${{ inputs.registry_username }}
+          registry_password: ${{ secrets.registry_password }}
+          scan_mode: 'remote'
+          allow_failure: ${{ inputs.allow_failure }}
 
   container-scan-summary:
     name: Container Scan Summary
@@ -393,130 +263,19 @@ jobs:
     if: always()
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Checkout hardening-workflows for actions
-      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: actions/checkout@v6
-      with:
-        repository: huntridge-labs/hardening-workflows
-        ref: ${{ env.HRL_REF }}
-        path: .hardening-workflows
-        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
-        sparse-checkout: |
-          .github/actions/get-job-id/action.yml
-          .github/scripts/
+      - name: Download all scan artifacts
+        if: needs.discover-containers.outputs.has_containers == 'true' || inputs.scan_mode == 'remote'
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: ${{ inputs.scan_mode == 'remote' && inputs.container_name != '' && format('container-scan-results-{0}*', inputs.container_name) || 'container-scan-results-*' }}
 
-    - name: Get job ID (external)
-      id: job_id_ext
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: ./.hardening-workflows/.github/actions/get-job-id
-      with:
-        job-name-pattern: 'Container Scan Summary'
-        fallback-suffix: 'container-summary'
-
-    - name: Get job ID (local)
-      id: job_id_local
-      if: github.repository == 'huntridge-labs/hardening-workflows'
-      uses: ./.github/actions/get-job-id
-      with:
-        job-name-pattern: 'Container Scan Summary'
-        fallback-suffix: 'container-summary'
-
-    - name: Set job ID output
-      id: job_id
-      run: |
-        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
-          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
-        else
-          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Download all scan artifacts
-      # Download artifacts in both modes - remote mode produces artifacts too
-      # In remote mode (when called with specific container_name), only download that container's artifacts
-      # In discover mode, download all container artifacts
-      if: needs.discover-containers.outputs.has_containers == 'true' || inputs.scan_mode == 'remote'
-      uses: actions/download-artifact@v7
-      continue-on-error: true
-      with:
-        pattern: ${{ inputs.scan_mode == 'remote' && inputs.container_name != '' && format('container-scan-results-{0}*', inputs.container_name) || 'container-scan-results-*' }}
-
-    - name: Generate container summary and add to job summary
-      if: always()
-      env:
-        SCRIPTS_PATH: ${{ github.repository == 'huntridge-labs/hardening-workflows' && github.workspace || format('{0}/.hardening-workflows', github.workspace) }}/.github/scripts
-      run: |
-        chmod +x "$SCRIPTS_PATH/parse-trivy-results.sh" "$SCRIPTS_PATH/parse-grype-results.sh" "$SCRIPTS_PATH/generate-container-summary.sh"
-        TRIVY_PARSER="$SCRIPTS_PATH/parse-trivy-results.sh" \
-        GRYPE_PARSER="$SCRIPTS_PATH/parse-grype-results.sh" \
-        "$SCRIPTS_PATH/generate-container-summary.sh"
-      continue-on-error: true
-
-    - name: Upload Container summary section
-      if: always()
-      uses: actions/upload-artifact@v6
-      with:
-        name: scanner-summary-container-${{ steps.job_id.outputs.job-id }}
-        path: scanner-summaries/container.md
-        retention-days: 7
-      continue-on-error: true
-
-    - name: Comment PR with container scan results
-      if: github.event_name == 'pull_request' && inputs.post_pr_comment == true && always()
-      uses: actions/github-script@v8
-      continue-on-error: true
-      with:
-        script: |
-          const fs = require('fs');
-
-          try {
-            // Use the cleaner, collapsible format from generate-container-summary.sh
-            const reportPath = 'scanner-summaries/container.md';
-            if (!fs.existsSync(reportPath)) {
-              console.log('⚠️ Container summary not found, skipping PR comment');
-              return;
-            }
-
-            const report = fs.readFileSync(reportPath, 'utf8');
-            const MAX_COMMENT_LENGTH = 262000;
-            const summary = report.length > MAX_COMMENT_LENGTH ?
-              report.substring(0, MAX_COMMENT_LENGTH) + '\n\n... (report truncated, download full report from artifacts)' :
-              report;
-
-            const commentBody = `## 🐳 Container Security Scan Results\n\n<!-- container-scan-comment-marker -->\n\n${summary}`;
-
-            // Check for existing container scan comments
-            const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number
-            });
-
-            const existingComment = comments.data.find(comment =>
-              comment.body.includes('container-scan-comment-marker') &&
-              (comment.user.login === 'github-actions[bot]' || comment.user.type === 'Bot')
-            );
-
-            if (existingComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existingComment.id,
-                body: commentBody + `\n\n---\n*Updated: ${new Date().toLocaleString()} | [View Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`
-              });
-              console.log('✅ Updated existing container scan comment');
-            } else {
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: commentBody
-              });
-              console.log('✅ Created new container scan comment');
-            }
-          } catch (error) {
-            console.log('❌ Failed to post container scan comment:', error.message);
-          }
+      - name: Generate container summary
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container-summary@refactor/depricate-reusable-workflows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          post_pr_comment: ${{ inputs.post_pr_comment }}

@@ -17,6 +17,7 @@ Run SAST, container, infrastructure, and secret detection scanners with a single
 - [Quick Start](#quick-start)
 - [Supported Scanners](#supported-scanners)
 - [Features](#features)
+- [GitHub Enterprise Server (GHES)](#github-enterprise-server-ghes)
 - [Documentation](#documentation)
 - [Usage Examples](#usage-examples)
 - [Configuration](#configuration)
@@ -70,6 +71,54 @@ For detailed scanner configuration, see [Scanner Reference](docs/scanners.md).
 - **Matrix execution** - Parallel scanning for multiple targets
 - **Private registry support** - Authenticate to container registries
 - **Environment variable expansion** - Dynamic configuration values
+
+## GitHub Enterprise Server (GHES)
+
+GHES users can use our composite actions directly from github.com - no mirroring required.
+
+**Architecture**: This project uses an actions-first architecture where all scanner logic lives in composite actions. The reusable workflows are thin wrappers for backwards compatibility on github.com.
+
+<details>
+<summary><strong>GHES Quick Start</strong></summary>
+
+```yaml
+name: Security Scan (GHES)
+
+on: [pull_request, push]
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+
+jobs:
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Use composite actions directly from github.com
+      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@v2.12.0
+        with:
+          enable_code_security: true
+          fail_on_severity: high
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@v2.12.0
+        with:
+          enable_code_security: true
+          fail_on_severity: high
+```
+
+</details>
+
+See [examples/github-enterprise/](examples/github-enterprise/) for complete GHES workflow templates:
+- [SAST Scanning](examples/github-enterprise/sast-only.yml)
+- [Container Scanning](examples/github-enterprise/container-scanning.yml)
+- [Infrastructure Scanning](examples/github-enterprise/infrastructure-scanning.yml)
+- [DAST Scanning](examples/github-enterprise/dast-scanning.yml)
 
 ## Documentation
 

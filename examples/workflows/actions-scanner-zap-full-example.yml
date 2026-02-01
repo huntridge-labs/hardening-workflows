@@ -144,7 +144,7 @@ jobs:
           sleep 2
 
       - name: Run ZAP scanner (all inputs)
-        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@refactor/depricate-reusable-workflows
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:

@@ -117,8 +117,10 @@ runs:
 
     # ========================================
     # Pull Image (ensures local availability for scanners)
+    # Skip for discover mode - image was built locally
     # ========================================
     - name: Pull container image
+      if: inputs.scan_mode != 'discover'
       shell: bash
       run: |
         echo "📥 Pulling container image..."

@@ -1,3 +1,13 @@
+# Gitleaks Secrets Scanner - Reusable Workflow
+#
+# THIN WRAPPER: This workflow delegates to the scanner-gitleaks composite action.
+# All scanning logic is in: .github/actions/scanner-gitleaks/action.yml
+#
+# Note: The action handles checkout with fetch-depth: 0 for full git history.
+#
+# For GHES users: Use the composite action directly instead of this workflow.
+# See: examples/github-enterprise/sast-only.yml
+
 name: Gitleaks Secrets Scanner
 
 on:
@@ -63,124 +73,17 @@ jobs:
     continue-on-error: true
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 0
-
-    - name: Run Gitleaks Secrets Detection
-      id: gitleaks-scan
-      uses: gitleaks/gitleaks-action@v2
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
-        GITLEAKS_ENABLE_COMMENTS: ${{ inputs.gitleaks_enable_comments }}
-        GITLEAKS_NOTIFY_USER_LIST: ${{ inputs.gitleaks_notify_user_list }}
-        GITLEAKS_ENABLE_SUMMARY: ${{ inputs.gitleaks_enable_summary }}
-        GITLEAKS_ENABLE_UPLOAD_ARTIFACT: ${{ inputs.gitleaks_enable_upload_artifact }}
-        GITLEAKS_CONFIG: ${{ inputs.gitleaks_config }}
-      continue-on-error: true
-
-    - name: Organize Gitleaks results
-      run: |
-        echo "📦 Organizing Gitleaks results into directory..."
-        mkdir -p gitleaks-reports
-        if [ -f results.json ]; then
-          mv results.json gitleaks-reports/
-        fi
-        if [ -f results.sarif ]; then
-          mv results.sarif gitleaks-reports/
-        fi
-        echo "Generated Gitleaks files:"
-        ls -la gitleaks-reports/ || echo "No files generated"
-
-    - name: Upload Gitleaks artifacts
-      uses: actions/upload-artifact@v6
-      with:
-        name: gitleaks-reports
-        path: gitleaks-reports/
-        retention-days: 30
-      if: always()
-
-    - name: Upload SARIF to GitHub Code Scanning
-      uses: github/codeql-action/upload-sarif@v4
-      if: inputs.enable_code_security == true && always() && github.actor != 'nektos/act' && hashFiles('results.sarif') != ''
-      with:
-        sarif_file: results.sarif
-        category: secrets-gitleaks
-      continue-on-error: true
-
-    - name: Generate GitLeaks summary section
-      if: always()
-      run: |
-        mkdir -p scanner-summaries
-
-        echo "<details>" > scanner-summaries/gitleaks.md
-        echo "<summary>🔍 GitLeaks</summary>" >> scanner-summaries/gitleaks.md
-        echo "" >> scanner-summaries/gitleaks.md
-
-        if [ -d "gitleaks-reports" ] && [ "$(ls -A gitleaks-reports)" ]; then
-          echo "**Status:** ✅ Completed" >> scanner-summaries/gitleaks.md
-          echo "" >> scanner-summaries/gitleaks.md
-
-          # Count secrets from SARIF files
-          SECRET_COUNT=0
-
-          for sarif_file in $(find ./gitleaks-reports -name "*.sarif" -type f 2>/dev/null); do
-            if [ -f "$sarif_file" ] && [ -s "$sarif_file" ] && command -v jq >/dev/null 2>&1; then
-              secrets=$(jq -r '.runs[]?.results[]? | .ruleId' "$sarif_file" 2>/dev/null | wc -l | tr -d ' ')
-              SECRET_COUNT=$((SECRET_COUNT + secrets))
-            fi
-          done
-
-          echo "**Secrets Found:** $SECRET_COUNT" >> scanner-summaries/gitleaks.md
-          echo "" >> scanner-summaries/gitleaks.md
-
-          if [ $SECRET_COUNT -gt 0 ]; then
-            echo "⚠️ **WARNING:** Potential secrets detected in your repository!" >> scanner-summaries/gitleaks.md
-            echo "" >> scanner-summaries/gitleaks.md
-          fi
-
-          echo "**📁 Artifacts:** [GitLeaks Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/gitleaks.md
-        else
-          echo "**Status:** ⏭️ Skipped" >> scanner-summaries/gitleaks.md
-        fi
-
-        echo "" >> scanner-summaries/gitleaks.md
-        echo "</details>" >> scanner-summaries/gitleaks.md
-        echo "" >> scanner-summaries/gitleaks.md
-      continue-on-error: true
-
-    - name: Upload GitLeaks summary section
-      if: always()
-      uses: actions/upload-artifact@v6
-      with:
-        name: scanner-summary-gitleaks
-        path: scanner-summaries/gitleaks.md
-        retention-days: 7
-      continue-on-error: true
-
-    - name: Analyze Gitleaks findings
-      if: always()
-      run: |
-        echo "📊 Analyzing Gitleaks scan results..."
-
-        SECRET_COUNT=0
-
-        # Count secrets from results files
-        if [ -f "gitleaks-reports/results.json" ]; then
-          SECRET_COUNT=$(jq 'length' gitleaks-reports/results.json 2>/dev/null || echo "0")
-        elif [ -f "gitleaks-reports/results.sarif" ]; then
-          SECRET_COUNT=$(jq '[.runs[]?.results[]?] | length' gitleaks-reports/results.sarif 2>/dev/null || echo "0")
-        fi
-
-        echo "Secrets detected: $SECRET_COUNT"
-
-        if [ "$SECRET_COUNT" -gt 0 ]; then
-          echo "⚠️ WARNING: $SECRET_COUNT potential secret(s) detected!"
-          echo "::warning title=Secrets Detected::Gitleaks found $SECRET_COUNT potential secret(s) in the repository"
-          exit 1
-        else
-          echo "✅ No secrets detected"
-        fi
-      continue-on-error: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
+      - name: Run Gitleaks Scanner
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@refactor/depricate-reusable-workflows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+        with:
+          post_pr_comment: ${{ inputs.post_pr_comment }}
+          enable_code_security: ${{ inputs.enable_code_security }}
+          fail_on_severity: ${{ inputs.fail_on_severity }}
+          gitleaks_enable_comments: ${{ inputs.gitleaks_enable_comments }}
+          gitleaks_notify_user_list: ${{ inputs.gitleaks_notify_user_list }}
+          gitleaks_enable_summary: ${{ inputs.gitleaks_enable_summary }}
+          gitleaks_enable_upload_artifact: ${{ inputs.gitleaks_enable_upload_artifact }}
+          gitleaks_config: ${{ inputs.gitleaks_config }}

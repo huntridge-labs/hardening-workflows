@@ -1,11 +1,34 @@
+# Code Quality and Linting Pipeline - Reusable Workflow
+#
+# THIN WRAPPER: This workflow delegates to individual linter composite actions.
+# All linting logic is in:
+#   - .github/actions/linter-yaml/action.yml
+#   - .github/actions/linter-json/action.yml
+#   - .github/actions/linter-python/action.yml
+#   - .github/actions/linter-javascript/action.yml
+#   - .github/actions/linter-dockerfile/action.yml
+#   - .github/actions/linter-terraform/action.yml
+#   - .github/actions/linting-summary/action.yml
+#
+# For GHES users: Use the composite actions directly instead of this workflow.
+# See: examples/github-enterprise/
+
 name: Code Quality and Linting Pipeline
 
 on:
+  workflow_dispatch:
   workflow_call:
-    secrets:
-      HARDENING_WORKFLOWS_CHECKOUT_TOKEN:
-        description: 'Token for checking out hardening-workflows repo (required for private GHE servers)'
+    inputs:
+      fail_on_issues:
+        description: 'Fail the workflow if linting issues are found'
         required: false
+        type: boolean
+        default: false
+      post_pr_comment:
+        description: 'Post linting summary as PR comment'
+        required: false
+        type: boolean
+        default: true
     outputs:
       linting_status:
         description: "Overall linting status"
@@ -13,696 +36,102 @@ on:
       issues_found:
         description: "Number of issues found"
         value: ${{ jobs.linting-summary.outputs.issues_found }}
-  # Remove direct PR/push triggers since this workflow is called by reusable-security-hardening.yml
-  # push:
-  #   branches: [ main, develop ]
-  # pull_request:
-  #   branches: [ main, develop ]
-  workflow_dispatch:  # Keep for manual testing
 
 permissions:
   contents: read
   actions: read
-
-env:
-  PYTHON_VERSION: '3.12'
-  NODE_VERSION: '20'
-  # Use current branch/PR when testing in hardening-workflows repo, otherwise use release tag
-  HRL_REF: ${{ github.repository == 'huntridge-labs/hardening-workflows' && (github.head_ref || github.ref_name) || '2.12.0' }}
+  pull-requests: write
 
 jobs:
   yaml-lint:
     name: YAML Linting
     runs-on: ubuntu-latest
-    continue-on-error: true  # Never hard fail the pipeline
+    continue-on-error: true
     outputs:
-      yaml_issues: ${{ steps.yaml-check.outputs.issues }}
+      yaml_issues: ${{ steps.lint.outputs.issues_count }}
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Checkout hardening-workflows for actions
-      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: actions/checkout@v6
-      with:
-        repository: huntridge-labs/hardening-workflows
-        ref: ${{ env.HRL_REF }}
-        path: .hardening-workflows
-        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
-        sparse-checkout: |
-          .github/actions/get-job-id/action.yml
-
-    - name: Get job ID (external)
-      id: job_id_ext
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: ./.hardening-workflows/.github/actions/get-job-id
-      with:
-        job-name-pattern: 'YAML Linting'
-        fallback-suffix: 'yaml'
-
-    - name: Get job ID (local)
-      id: job_id_local
-      if: github.repository == 'huntridge-labs/hardening-workflows'
-      uses: ./.github/actions/get-job-id
-      with:
-        job-name-pattern: 'YAML Linting'
-        fallback-suffix: 'yaml'
-
-    - name: Set job ID output
-      id: job_id
-      run: |
-        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
-          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
-        else
-          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Set up Python
-      uses: actions/setup-python@v6
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-
-    - name: Install yamllint
-      run: |
-        pip install yamllint
-
-    - name: Run YAML linting
-      id: yaml-check
-      continue-on-error: true  # Never fail the pipeline on linting issues
-      run: |
-        echo "🔍 Running YAML linting..."
-
-        # Create output file for issues
-        ISSUES_FILE="/tmp/yaml_issues.txt"
-
-        # Run yamllint and capture issues
-        yamllint . --format parsable > "$ISSUES_FILE" 2>&1 || true
-
-        # Count issues
-        ISSUE_COUNT=$(wc -l < "$ISSUES_FILE" 2>/dev/null || echo "0")
-
-        echo "issues=$ISSUE_COUNT" >> $GITHUB_OUTPUT
-
-        # Display results
-        if [ "$ISSUE_COUNT" -gt 0 ]; then
-          echo "⚠️  Found $ISSUE_COUNT YAML linting issues:"
-          cat "$ISSUES_FILE" || echo "Could not display issues file"
-
-          # Create annotation for PR
-          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            echo "::warning title=YAML Linting Issues::Found $ISSUE_COUNT YAML formatting/syntax issues. See job logs for details."
-          fi
-        else
-          echo "✅ No YAML linting issues found"
-        fi
-
-    - name: Upload YAML lint results
-      if: always()
-      uses: actions/upload-artifact@v6
-      with:
-        name: yaml-lint-results-${{ steps.job_id.outputs.job-id }}
-        path: /tmp/yaml_issues.txt
-        retention-days: 7
+      - name: Run YAML Linter
+        id: lint
+        uses: huntridge-labs/hardening-workflows/.github/actions/linter-yaml@refactor/depricate-reusable-workflows
 
   json-lint:
     name: JSON Validation
     runs-on: ubuntu-latest
-    continue-on-error: true  # Never hard fail the pipeline
+    continue-on-error: true
     outputs:
-      json_issues: ${{ steps.json-check.outputs.issues }}
+      json_issues: ${{ steps.lint.outputs.issues_count }}
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Checkout hardening-workflows for actions
-      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: actions/checkout@v6
-      with:
-        repository: huntridge-labs/hardening-workflows
-        ref: ${{ env.HRL_REF }}
-        path: .hardening-workflows
-        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
-        sparse-checkout: |
-          .github/actions/get-job-id/action.yml
-
-    - name: Get job ID (external)
-      id: job_id_ext
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: ./.hardening-workflows/.github/actions/get-job-id
-      with:
-        job-name-pattern: 'JSON Validation'
-        fallback-suffix: 'json'
-
-    - name: Get job ID (local)
-      id: job_id_local
-      if: github.repository == 'huntridge-labs/hardening-workflows'
-      uses: ./.github/actions/get-job-id
-      with:
-        job-name-pattern: 'JSON Validation'
-        fallback-suffix: 'json'
-
-    - name: Set job ID output
-      id: job_id
-      run: |
-        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
-          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
-        else
-          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v6
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-
-    - name: Install JSON linting tools
-      run: |
-        npm install -g jsonlint
-
-    - name: Run JSON validation
-      id: json-check
-      continue-on-error: true  # Never fail the pipeline on validation errors
-      run: |
-        echo "🔍 Running JSON validation..."
-
-        ISSUES_FILE="/tmp/json_issues.txt"
-        ISSUE_COUNT=0
-
-        # Find all JSON files
-        find . -name "*.json" -not -path "./node_modules/*" -not -path "./.git/*" | while read -r file; do
-          echo "Checking: $file"
-          if ! jsonlint "$file" >/dev/null 2>&1; then
-            echo "❌ JSON syntax error in: $file" | tee -a "$ISSUES_FILE"
-            jsonlint "$file" 2>&1 | sed "s/^/  /" | tee -a "$ISSUES_FILE"
-          fi
-        done
-
-        # Count actual issues
-        if [ -f "$ISSUES_FILE" ]; then
-          ACTUAL_COUNT=$(grep -c "❌" "$ISSUES_FILE" || echo "0")
-        else
-          ACTUAL_COUNT=0
-        fi
-
-        echo "issues=$ACTUAL_COUNT" >> $GITHUB_OUTPUT
-
-        if [ "$ACTUAL_COUNT" -gt 0 ]; then
-          echo "⚠️  Found $ACTUAL_COUNT JSON validation issues"
-          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            echo "::warning title=JSON Validation Issues::Found $ACTUAL_COUNT JSON syntax/formatting issues. See job logs for details."
-          fi
-        else
-          echo "✅ No JSON validation issues found"
-        fi
-
-    - name: Upload JSON lint results
-      if: always()
-      uses: actions/upload-artifact@v6
-      with:
-        name: json-lint-results-${{ steps.job_id.outputs.job-id }}
-        path: /tmp/json_issues.txt
-        retention-days: 7
+      - name: Run JSON Linter
+        id: lint
+        uses: huntridge-labs/hardening-workflows/.github/actions/linter-json@refactor/depricate-reusable-workflows
 
   python-lint:
     name: Python Code Quality
     runs-on: ubuntu-latest
-    continue-on-error: true  # Never hard fail the pipeline
+    continue-on-error: true
     outputs:
-      python_issues: ${{ steps.python-check.outputs.issues }}
+      python_issues: ${{ steps.lint.outputs.issues_count }}
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Checkout hardening-workflows for actions
-      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: actions/checkout@v6
-      with:
-        repository: huntridge-labs/hardening-workflows
-        ref: ${{ env.HRL_REF }}
-        path: .hardening-workflows
-        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
-        sparse-checkout: |
-          .github/actions/get-job-id/action.yml
-
-    - name: Get job ID (external)
-      id: job_id_ext
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: ./.hardening-workflows/.github/actions/get-job-id
-      with:
-        job-name-pattern: 'Python Code Quality'
-        fallback-suffix: 'python'
-
-    - name: Get job ID (local)
-      id: job_id_local
-      if: github.repository == 'huntridge-labs/hardening-workflows'
-      uses: ./.github/actions/get-job-id
-      with:
-        job-name-pattern: 'Python Code Quality'
-        fallback-suffix: 'python'
-
-    - name: Set job ID output
-      id: job_id
-      run: |
-        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
-          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
-        else
-          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Set up Python
-      uses: actions/setup-python@v6
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-
-    - name: Install Python linting tools
-      run: |
-        pip install --upgrade pip
-        pip install flake8 pylint bandit black isort safety
-
-    - name: Run Python syntax check
-      id: python-check
-      continue-on-error: true  # Never fail the pipeline on linting issues
-      run: |
-        echo "🔍 Running Python code quality checks..."
-
-        ISSUES_FILE="/tmp/python_issues.txt"
-        TOTAL_ISSUES=0
-
-        # Find Python files
-        PYTHON_FILES=$(find . -name "*.py" -not -path "./node_modules/*" -not -path "./.git/*" -not -path "./.venv/*" -not -path "./venv/*")
-
-        if [ -z "$PYTHON_FILES" ]; then
-          echo "ℹ️  No Python files found to lint"
-          echo "issues=0" >> $GITHUB_OUTPUT
-          exit 0
-        fi
-
-        echo "Found Python files to check:"
-        echo "$PYTHON_FILES"
-
-        # Flake8 for style and syntax
-        echo -e "\n📋 Running Flake8 (style/syntax)..." | tee -a "$ISSUES_FILE"
-        if ! flake8 $PYTHON_FILES --max-line-length=120 --extend-ignore=E203,W503 --statistics > /tmp/flake8.out 2>&1; then
-          FLAKE8_ISSUES=$(grep -c ": " /tmp/flake8.out || echo "0")
-          echo "⚠️  Flake8 found $FLAKE8_ISSUES style/syntax issues:" | tee -a "$ISSUES_FILE"
-          cat /tmp/flake8.out | tee -a "$ISSUES_FILE"
-          TOTAL_ISSUES=$((TOTAL_ISSUES + FLAKE8_ISSUES))
-        else
-          echo "✅ No Flake8 issues found" | tee -a "$ISSUES_FILE"
-        fi
-
-        # Bandit for security issues
-        echo -e "\n🔒 Running Bandit (security)..." | tee -a "$ISSUES_FILE"
-        if ! bandit -r . -f txt -o /tmp/bandit.out -x "./node_modules/*,./venv/*,./.venv/*" 2>/dev/null; then
-          BANDIT_ISSUES=$(grep -c "Issue:" /tmp/bandit.out || echo "0")
-          if [ "$BANDIT_ISSUES" -gt 0 ]; then
-            echo "⚠️  Bandit found $BANDIT_ISSUES potential security issues:" | tee -a "$ISSUES_FILE"
-            cat /tmp/bandit.out | tee -a "$ISSUES_FILE"
-            TOTAL_ISSUES=$((TOTAL_ISSUES + BANDIT_ISSUES))
-          fi
-        else
-          echo "✅ No Bandit security issues found" | tee -a "$ISSUES_FILE"
-        fi
-
-        echo "issues=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
-
-        if [ "$TOTAL_ISSUES" -gt 0 ]; then
-          echo "⚠️  Total Python issues found: $TOTAL_ISSUES"
-          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            echo "::warning title=Python Code Quality Issues::Found $TOTAL_ISSUES Python linting/security issues. See job logs for details."
-          fi
-        else
-          echo "✅ No Python code quality issues found"
-        fi
-
-    - name: Upload Python lint results
-      if: always()
-      uses: actions/upload-artifact@v6
-      with:
-        name: python-lint-results-${{ steps.job_id.outputs.job-id }}
-        path: |
-          /tmp/flake8_issues.txt
-          /tmp/pylint_issues.txt
-          /tmp/black_issues.txt
-        retention-days: 7
+      - name: Run Python Linter
+        id: lint
+        uses: huntridge-labs/hardening-workflows/.github/actions/linter-python@refactor/depricate-reusable-workflows
 
   javascript-lint:
     name: JavaScript Code Quality
     runs-on: ubuntu-latest
-    continue-on-error: true  # Never hard fail the pipeline
+    continue-on-error: true
     outputs:
-      js_issues: ${{ steps.js-check.outputs.issues }}
+      js_issues: ${{ steps.lint.outputs.issues_count }}
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Checkout hardening-workflows for actions
-      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: actions/checkout@v6
-      with:
-        repository: huntridge-labs/hardening-workflows
-        ref: ${{ env.HRL_REF }}
-        path: .hardening-workflows
-        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
-        sparse-checkout: |
-          .github/actions/get-job-id/action.yml
-
-    - name: Get job ID (external)
-      id: job_id_ext
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: ./.hardening-workflows/.github/actions/get-job-id
-      with:
-        job-name-pattern: 'JavaScript Code Quality'
-        fallback-suffix: 'js'
-
-    - name: Get job ID (local)
-      id: job_id_local
-      if: github.repository == 'huntridge-labs/hardening-workflows'
-      uses: ./.github/actions/get-job-id
-      with:
-        job-name-pattern: 'JavaScript Code Quality'
-        fallback-suffix: 'js'
-
-    - name: Set job ID output
-      id: job_id
-      run: |
-        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
-          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
-        else
-          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v6
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-
-    - name: Install JavaScript linting tools
-      run: |
-        npm install -g eslint jshint
-
-    - name: Run JavaScript linting
-      id: js-check
-      continue-on-error: true  # Never fail the pipeline on linting issues
-      run: |
-        echo "🔍 Running JavaScript code quality checks..."
-
-        ISSUES_FILE="/tmp/js_issues.txt"
-        TOTAL_ISSUES=0
-
-        # Find JavaScript files
-        JS_FILES=$(find . -name "*.js" -not -path "./node_modules/*" -not -path "./.git/*")
-
-        if [ -z "$JS_FILES" ]; then
-          echo "ℹ️  No JavaScript files found to lint"
-          echo "issues=0" >> $GITHUB_OUTPUT
-          exit 0
-        fi
-
-        echo "Found JavaScript files to check:"
-        echo "$JS_FILES"
-
-        # Basic syntax check with Node.js
-        echo -e "\n📋 Running JavaScript syntax check..." | tee -a "$ISSUES_FILE"
-        for file in $JS_FILES; do
-          if ! node -c "$file" 2>/dev/null; then
-            echo "❌ Syntax error in: $file" | tee -a "$ISSUES_FILE"
-            node -c "$file" 2>&1 | sed "s/^/  /" | tee -a "$ISSUES_FILE" || true
-            TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
-          fi
-        done
-
-        # JSHint for code quality
-        echo -e "\n📊 Running JSHint (code quality)..." | tee -a "$ISSUES_FILE"
-        if ! jshint $JS_FILES > /tmp/jshint.out 2>&1; then
-          JSHINT_ISSUES=$(wc -l < /tmp/jshint.out || echo "0")
-          if [ "$JSHINT_ISSUES" -gt 0 ]; then
-            echo "⚠️  JSHint found $JSHINT_ISSUES code quality issues:" | tee -a "$ISSUES_FILE"
-            cat /tmp/jshint.out | tee -a "$ISSUES_FILE"
-            TOTAL_ISSUES=$((TOTAL_ISSUES + JSHINT_ISSUES))
-          fi
-        else
-          echo "✅ No JSHint issues found" | tee -a "$ISSUES_FILE"
-        fi
-
-        echo "issues=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
-
-        if [ "$TOTAL_ISSUES" -gt 0 ]; then
-          echo "⚠️  Total JavaScript issues found: $TOTAL_ISSUES"
-          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            echo "::warning title=JavaScript Code Quality Issues::Found $TOTAL_ISSUES JavaScript linting issues. See job logs for details."
-          fi
-        else
-          echo "✅ No JavaScript code quality issues found"
-        fi
-
-    - name: Upload JavaScript lint results
-      if: always()
-      uses: actions/upload-artifact@v6
-      with:
-        name: js-lint-results-${{ steps.job_id.outputs.job-id }}
-        path: /tmp/eslint_issues.txt
-        retention-days: 7
+      - name: Run JavaScript Linter
+        id: lint
+        uses: huntridge-labs/hardening-workflows/.github/actions/linter-javascript@refactor/depricate-reusable-workflows
 
   dockerfile-lint:
     name: Dockerfile Linting
     runs-on: ubuntu-latest
-    continue-on-error: true  # Never hard fail the pipeline
+    continue-on-error: true
     outputs:
-      docker_issues: ${{ steps.docker-check.outputs.issues }}
+      docker_issues: ${{ steps.lint.outputs.issues_count }}
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Checkout hardening-workflows for actions
-      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: actions/checkout@v6
-      with:
-        repository: huntridge-labs/hardening-workflows
-        ref: ${{ env.HRL_REF }}
-        path: .hardening-workflows
-        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
-        sparse-checkout: |
-          .github/actions/get-job-id/action.yml
-
-    - name: Get job ID (external)
-      id: job_id_ext
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: ./.hardening-workflows/.github/actions/get-job-id
-      with:
-        job-name-pattern: 'Dockerfile Linting'
-        fallback-suffix: 'dockerfile'
-
-    - name: Get job ID (local)
-      id: job_id_local
-      if: github.repository == 'huntridge-labs/hardening-workflows'
-      uses: ./.github/actions/get-job-id
-      with:
-        job-name-pattern: 'Dockerfile Linting'
-        fallback-suffix: 'dockerfile'
-
-    - name: Set job ID output
-      id: job_id
-      run: |
-        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
-          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
-        else
-          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Install Hadolint
-      run: |
-        wget -O /usr/local/bin/hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
-        chmod +x /usr/local/bin/hadolint
-
-    - name: Run Dockerfile linting
-      id: docker-check
-      continue-on-error: true  # Never fail the pipeline on linting issues
-      run: |
-        echo "🔍 Running Dockerfile linting..."
-
-        ISSUES_FILE="/tmp/docker_issues.txt"
-        TOTAL_ISSUES=0
-
-        # Find Dockerfiles
-        DOCKERFILES=$(find . -name "Dockerfile*" -not -path "./.git/*")
-
-        if [ -z "$DOCKERFILES" ]; then
-          echo "ℹ️  No Dockerfiles found to lint"
-          echo "issues=0" >> $GITHUB_OUTPUT
-          exit 0
-        fi
-
-        echo "Found Dockerfiles to check:"
-        echo "$DOCKERFILES"
-
-        # Run Hadolint on each Dockerfile
-        for dockerfile in $DOCKERFILES; do
-          echo -e "\n📋 Checking: $dockerfile" | tee -a "$ISSUES_FILE"
-          if ! hadolint "$dockerfile" > /tmp/hadolint_single.out 2>&1; then
-            SINGLE_ISSUES=$(wc -l < /tmp/hadolint_single.out || echo "0")
-            echo "⚠️  Found $SINGLE_ISSUES issues in $dockerfile:" | tee -a "$ISSUES_FILE"
-            cat /tmp/hadolint_single.out | tee -a "$ISSUES_FILE"
-            TOTAL_ISSUES=$((TOTAL_ISSUES + SINGLE_ISSUES))
-          else
-            echo "✅ No issues found in $dockerfile" | tee -a "$ISSUES_FILE"
-          fi
-        done
-
-        echo "issues=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
-
-        if [ "$TOTAL_ISSUES" -gt 0 ]; then
-          echo "⚠️  Total Dockerfile issues found: $TOTAL_ISSUES"
-          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            echo "::warning title=Dockerfile Linting Issues::Found $TOTAL_ISSUES Dockerfile best practice violations. See job logs for details."
-          fi
-        else
-          echo "✅ No Dockerfile linting issues found"
-        fi
-
-    - name: Upload Dockerfile lint results
-      if: always()
-      uses: actions/upload-artifact@v6
-      with:
-        name: dockerfile-lint-results-${{ steps.job_id.outputs.job-id }}
-        path: /tmp/hadolint_issues.txt
-        retention-days: 7
+      - name: Run Dockerfile Linter
+        id: lint
+        uses: huntridge-labs/hardening-workflows/.github/actions/linter-dockerfile@refactor/depricate-reusable-workflows
 
   terraform-lint:
     name: Terraform Linting
     runs-on: ubuntu-latest
-    continue-on-error: true  # Never hard fail the pipeline
+    continue-on-error: true
     outputs:
-      terraform_issues: ${{ steps.terraform-check.outputs.issues }}
+      terraform_issues: ${{ steps.lint.outputs.issues_count }}
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Checkout hardening-workflows for actions
-      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: actions/checkout@v6
-      with:
-        repository: huntridge-labs/hardening-workflows
-        ref: ${{ env.HRL_REF }}
-        path: .hardening-workflows
-        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
-        sparse-checkout: |
-          .github/actions/get-job-id/action.yml
-
-    - name: Get job ID (external)
-      id: job_id_ext
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: ./.hardening-workflows/.github/actions/get-job-id
-      with:
-        job-name-pattern: 'Terraform Linting'
-        fallback-suffix: 'terraform'
-
-    - name: Get job ID (local)
-      id: job_id_local
-      if: github.repository == 'huntridge-labs/hardening-workflows'
-      uses: ./.github/actions/get-job-id
-      with:
-        job-name-pattern: 'Terraform Linting'
-        fallback-suffix: 'terraform'
-
-    - name: Set job ID output
-      id: job_id
-      run: |
-        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
-          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
-        else
-          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: latest
-
-    - name: Install TFLint
-      run: |
-        curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
-
-    - name: Run Terraform linting
-      id: terraform-check
-      continue-on-error: true  # Never fail the pipeline on linting issues
-      run: |
-        echo "🔍 Running Terraform linting..."
-
-        ISSUES_FILE="/tmp/terraform_issues.txt"
-        TOTAL_ISSUES=0
-
-        # Find Terraform files
-        TF_FILES=$(find . -name "*.tf" -not -path "./.git/*")
-
-        if [ -z "$TF_FILES" ]; then
-          echo "ℹ️  No Terraform files found to lint"
-          echo "issues=0" >> $GITHUB_OUTPUT
-          exit 0
-        fi
-
-        echo "Found Terraform files to check:"
-        echo "$TF_FILES"
-
-        # Run terraform fmt check
-        echo -e "\n📋 Running terraform fmt check..." | tee -a "$ISSUES_FILE"
-        if ! terraform fmt -check -recursive . > /tmp/tf_fmt.out 2>&1; then
-          FMT_ISSUES=$(wc -l < /tmp/tf_fmt.out || echo "0")
-          echo "⚠️  Found $FMT_ISSUES formatting issues:" | tee -a "$ISSUES_FILE"
-          cat /tmp/tf_fmt.out | tee -a "$ISSUES_FILE"
-          TOTAL_ISSUES=$((TOTAL_ISSUES + FMT_ISSUES))
-        else
-          echo "✅ No Terraform formatting issues found" | tee -a "$ISSUES_FILE"
-        fi
-
-        # Run terraform validate on directories with .tf files
-        echo -e "\n🔍 Running terraform validate..." | tee -a "$ISSUES_FILE"
-        find . -name "*.tf" -not -path "./.git/*" -exec dirname {} \; | sort -u | while read -r dir; do
-          echo "Validating directory: $dir"
-          cd "$dir" || continue
-          if ! terraform init -backend=false >/dev/null 2>&1; then
-            echo "⚠️  Could not initialize $dir for validation" | tee -a "$ISSUES_FILE"
-            continue
-          fi
-          if ! terraform validate > /tmp/tf_validate.out 2>&1; then
-            VALIDATE_ISSUES=$(grep -c "Error:" /tmp/tf_validate.out || echo "0")
-            echo "⚠️  Found $VALIDATE_ISSUES validation issues in $dir:" | tee -a "$ISSUES_FILE"
-            cat /tmp/tf_validate.out | tee -a "$ISSUES_FILE"
-            TOTAL_ISSUES=$((TOTAL_ISSUES + VALIDATE_ISSUES))
-          fi
-          cd - >/dev/null || exit
-        done
-
-        echo "issues=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
-
-        if [ "$TOTAL_ISSUES" -gt 0 ]; then
-          echo "⚠️  Total Terraform issues found: $TOTAL_ISSUES"
-          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            echo "::warning title=Terraform Linting Issues::Found $TOTAL_ISSUES Terraform formatting/validation issues. See job logs for details."
-          fi
-        else
-          echo "✅ No Terraform linting issues found"
-        fi
-
-    - name: Upload Terraform lint results
-      if: always()
-      uses: actions/upload-artifact@v6
-      with:
-        name: terraform-lint-results-${{ steps.job_id.outputs.job-id }}
-        path: /tmp/terraform_issues.txt
-        retention-days: 7
+      - name: Run Terraform Linter
+        id: lint
+        uses: huntridge-labs/hardening-workflows/.github/actions/linter-terraform@refactor/depricate-reusable-workflows
 
   linting-summary:
     name: Linting Summary
@@ -714,120 +143,19 @@ jobs:
       issues_found: ${{ steps.summary.outputs.total_issues }}
 
     steps:
-    - name: Checkout repository
-      if: github.repository == 'huntridge-labs/hardening-workflows'
-      uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Checkout hardening-workflows for actions
-      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: actions/checkout@v6
-      with:
-        repository: huntridge-labs/hardening-workflows
-        ref: ${{ env.HRL_REF }}
-        path: .hardening-workflows
-        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
-        sparse-checkout: |
-          .github/actions/get-job-id/action.yml
+      - name: Generate Linting Summary
+        id: summary
+        uses: huntridge-labs/hardening-workflows/.github/actions/linting-summary@refactor/depricate-reusable-workflows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          post_pr_comment: ${{ inputs.post_pr_comment }}
 
-    - name: Get job ID (external)
-      id: job_id_ext
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: ./.hardening-workflows/.github/actions/get-job-id
-      with:
-        job-name-pattern: 'Linting Summary'
-        fallback-suffix: 'linting-summary'
-
-    - name: Get job ID (local)
-      id: job_id_local
-      if: github.repository == 'huntridge-labs/hardening-workflows'
-      uses: ./.github/actions/get-job-id
-      with:
-        job-name-pattern: 'Linting Summary'
-        fallback-suffix: 'linting-summary'
-
-    - name: Set job ID output
-      id: job_id
-      run: |
-        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
-          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
-        else
-          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Generate linting summary
-      id: summary
-      run: |
-        YAML_ISSUES="${{ needs.yaml-lint.outputs.yaml_issues || '0' }}"
-        JSON_ISSUES="${{ needs.json-lint.outputs.json_issues || '0' }}"
-        PYTHON_ISSUES="${{ needs.python-lint.outputs.python_issues || '0' }}"
-        JS_ISSUES="${{ needs.javascript-lint.outputs.js_issues || '0' }}"
-        DOCKER_ISSUES="${{ needs.dockerfile-lint.outputs.docker_issues || '0' }}"
-        TERRAFORM_ISSUES="${{ needs.terraform-lint.outputs.terraform_issues || '0' }}"
-
-        TOTAL_ISSUES=$((YAML_ISSUES + JSON_ISSUES + PYTHON_ISSUES + JS_ISSUES + DOCKER_ISSUES + TERRAFORM_ISSUES))
-
-        echo "total_issues=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
-
-        echo "📊 Linting Summary:"
-        echo "==================="
-        echo "YAML Issues: $YAML_ISSUES"
-        echo "JSON Issues: $JSON_ISSUES"
-        echo "Python Issues: $PYTHON_ISSUES"
-        echo "JavaScript Issues: $JS_ISSUES"
-        echo "Dockerfile Issues: $DOCKER_ISSUES"
-        echo "Terraform Issues: $TERRAFORM_ISSUES"
-        echo "==================="
-        echo "Total Issues: $TOTAL_ISSUES"
-
-        if [ "$TOTAL_ISSUES" -eq 0 ]; then
-          echo "status=success" >> $GITHUB_OUTPUT
-          echo "✅ All linting checks passed!"
-        else
-          echo "status=warning" >> $GITHUB_OUTPUT
-          echo "⚠️  Linting found $TOTAL_ISSUES issues across all file types"
-          echo "::warning title=Linting Summary::Found $TOTAL_ISSUES total linting issues. Pipeline will continue but issues should be addressed."
-        fi
-
-    - name: Download all lint results
-      if: always()
-      uses: actions/download-artifact@v7
-      continue-on-error: true
-
-    - name: Create combined lint report
-      if: always()
-      run: |
-        echo "# Code Quality and Linting Report" > lint_report.md
-        echo "" >> lint_report.md
-        echo "Generated on: $(date)" >> lint_report.md
-        echo "" >> lint_report.md
-
-        TOTAL_ISSUES="${{ steps.summary.outputs.total_issues }}"
-
-        if [ "$TOTAL_ISSUES" -eq 0 ]; then
-          echo "## ✅ All linting checks passed!" >> lint_report.md
-        else
-          echo "## ⚠️ Issues Found: $TOTAL_ISSUES" >> lint_report.md
-          echo "" >> lint_report.md
-          echo "The following linting issues were detected:" >> lint_report.md
-          echo "" >> lint_report.md
-
-          # Add details from each linter if files exist
-          for lint_type in yaml json python js dockerfile terraform; do
-            if [ -f "${lint_type}-lint-results/${lint_type}_issues.txt" ]; then
-              echo "### ${lint_type^} Issues" >> lint_report.md
-              echo '```' >> lint_report.md
-              cat "${lint_type}-lint-results/${lint_type}_issues.txt" >> lint_report.md
-              echo '```' >> lint_report.md
-              echo "" >> lint_report.md
-            fi
-          done
-        fi
-
-    - name: Upload combined lint report
-      if: always()
-      uses: actions/upload-artifact@v6
-      with:
-        name: combined-lint-report-${{ steps.job_id.outputs.job-id }}
-        path: lint_report.md
-        retention-days: 30
+      - name: Fail if issues found
+        if: inputs.fail_on_issues == true && steps.summary.outputs.total_issues != '0'
+        run: |
+          echo "::error::Found ${{ steps.summary.outputs.total_issues }} linting issues"
+          exit 1

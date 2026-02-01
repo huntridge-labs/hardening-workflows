@@ -433,6 +433,45 @@ jobs:
           echo "**Image:** \`${{ matrix.image }}\`" >> $GITHUB_STEP_SUMMARY
 
   # ============================================================================
+  # SBOM Generation
+  # Tests: scanner-syft
+  # ============================================================================
+  test-syft:
+    name: SBOM / syft
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.test_group == 'all' || inputs.test_group == 'container') ||
+      github.event_name != 'workflow_dispatch'
+    timeout-minutes: 15
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Syft SBOM generator
+        id: scan
+        uses: ./.github/actions/scanner-syft
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          scan_image: 'alpine:latest'
+          output_format: 'cyclonedx-json'
+          post_pr_comment: ${{ github.event_name == 'pull_request' }}
+          enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
+
+      - name: Verify SBOM generated
+        shell: bash
+        run: |
+          echo "## Syft SBOM Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ SBOM generated successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`alpine:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Components found:** ${{ steps.scan.outputs.component_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "**SBOM file:** ${{ steps.scan.outputs.sbom_file }}" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
   # Linters
   # Tests: All linter actions
   # ============================================================================
@@ -862,6 +901,7 @@ jobs:
       - test-trivy-iac
       - test-checkov
       - test-container
+      - test-syft
       - test-linter-dockerfile
       - test-linter-python
       - test-linter-yaml
@@ -892,6 +932,7 @@ jobs:
           echo "| Trivy IaC | ${{ needs.test-trivy-iac.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-trivy-iac.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Checkov IaC | ${{ needs.test-checkov.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-checkov.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Container Scanners | ${{ needs.test-container.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-container.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Syft SBOM | ${{ needs.test-syft.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-syft.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Dockerfile Linter | ${{ needs.test-linter-dockerfile.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-linter-dockerfile.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Python Linter | ${{ needs.test-linter-python.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-linter-python.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| YAML Linter | ${{ needs.test-linter-yaml.result == 'success' && '✅' || '⚠️' }} ${{ needs.test-linter-yaml.result }} |" >> $GITHUB_STEP_SUMMARY
