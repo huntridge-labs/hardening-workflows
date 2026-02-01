@@ -168,52 +168,9 @@ runs:
 
     - name: Post PR comment
       if: github.event_name == 'pull_request' && inputs.post_pr_comment == 'true'
-      uses: actions/github-script@v7
-      continue-on-error: true
+      uses: huntridge-labs/hardening-workflows/.github/actions/comment-pr@feat/actions-pr-comments
       with:
-        script: |
-          const fs = require('fs');
-          const reportPath = 'scanner-summaries/zap.md';
-
-          if (!fs.existsSync(reportPath)) {
-            console.log('⚠️ ZAP summary not found, skipping PR comment');
-            return;
-          }
-
-          const report = fs.readFileSync(reportPath, 'utf8');
-          const MAX_LENGTH = 262000;
-          const summary = report.length > MAX_LENGTH
-            ? report.substring(0, MAX_LENGTH) + '\n\n... (truncated)'
-            : report;
-
-          const body = `## 🕷️ ZAP DAST Scan Results\n\n<!-- zap-scan-summary-comment -->\n\n${summary}\n\n---\n*Updated: ${new Date().toISOString()} | [View Run](${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
-
-          // Find existing comment
-          const { data: comments } = await github.rest.issues.listComments({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            issue_number: context.issue.number
-          });
-
-          const existing = comments.find(c =>
-            c.body.includes('zap-scan-summary-comment') &&
-            (c.user.login === 'github-actions[bot]' || c.user.type === 'Bot')
-          );
-
-          if (existing) {
-            await github.rest.issues.updateComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: existing.id,
-              body
-            });
-            console.log('✅ Updated existing ZAP comment');
-          } else {
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body
-            });
-            console.log('✅ Created new ZAP comment');
-          }
+        summary_file: scanner-summaries/zap.md
+        comment_marker: zap-scan-summary-comment
+        title: '🕷️ ZAP DAST Scan Results'
+        fallback_message: 'No ZAP scan results available'

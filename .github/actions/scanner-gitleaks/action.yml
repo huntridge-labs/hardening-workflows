@@ -158,6 +158,15 @@ runs:
         retention-days: 7
       continue-on-error: true
 
+    - name: Comment PR with Gitleaks results
+      if: github.event_name == 'pull_request' && inputs.post_pr_comment == 'true'
+      uses: huntridge-labs/hardening-workflows/.github/actions/comment-pr@feat/actions-pr-comments
+      with:
+        summary_file: scanner-summaries/gitleaks.md
+        comment_marker: gitleaks-scanner-comment-marker
+        title: '🔑 Gitleaks Secrets Detection Results'
+        fallback_message: 'No Gitleaks results available'
+
     - name: Analyze Gitleaks findings
       id: analyze-findings
       shell: bash

@@ -315,3 +315,12 @@ runs:
         path: scanner-summaries/syft.md
         retention-days: 7
       continue-on-error: true
+
+    - name: Comment PR with Syft SBOM results
+      if: github.event_name == 'pull_request' && inputs.post_pr_comment == 'true'
+      uses: huntridge-labs/hardening-workflows/.github/actions/comment-pr@feat/actions-pr-comments
+      with:
+        summary_file: scanner-summaries/syft.md
+        comment_marker: syft-scanner-comment-marker
+        title: '📦 Syft SBOM Results'
+        fallback_message: 'No Syft SBOM results available'

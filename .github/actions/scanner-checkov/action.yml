@@ -256,6 +256,15 @@ runs:
         retention-days: 7
       continue-on-error: true
 
+    - name: Comment PR with Checkov results
+      if: github.event_name == 'pull_request' && inputs.post_pr_comment == 'true'
+      uses: huntridge-labs/hardening-workflows/.github/actions/comment-pr@feat/actions-pr-comments
+      with:
+        summary_file: scanner-summaries/checkov.md
+        comment_marker: checkov-scanner-comment-marker
+        title: '✅ Checkov IaC Security Results'
+        fallback_message: 'No Checkov results available'
+
     - name: Check severity threshold
       if: steps.validate.outputs.has_iac == 'true' && inputs.fail_on_severity != 'none' && inputs.fail_on_severity != ''
       shell: bash
