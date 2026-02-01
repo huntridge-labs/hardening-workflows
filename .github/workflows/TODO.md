@@ -41,33 +41,90 @@ For each scanner, document differences between reusable workflow and action:
 
 | Scanner | Workflow | Action | Parity | Notes |
 |---------|----------|--------|--------|-------|
-| `scanner-bandit` | `scanner-bandit.yml` | `scanner-bandit/action.yml` | [ ] | |
-| `scanner-codeql` | `scanner-codeql.yml` | `scanner-codeql/action.yml` | [ ] | |
-| `scanner-opengrep` | `scanner-opengrep.yml` | `scanner-opengrep/action.yml` | [ ] | |
-| `scanner-gitleaks` | `scanner-gitleaks.yml` | `scanner-gitleaks/action.yml` | [ ] | |
-| `scanner-trivy-iac` | `scanner-trivy-iac.yml` | `scanner-trivy-iac/action.yml` | [ ] | |
-| `scanner-checkov` | `scanner-checkov.yml` | `scanner-checkov/action.yml` | [ ] | |
-| `scanner-clamav` | `scanner-clamav.yml` | `scanner-clamav/action.yml` | [ ] | |
-| `scanner-zap` | `scanner-zap.yml` | `scanner-zap/action.yml` | [ ] | |
-| `scanner-container` | `container-scan.yml` | `scanner-container/action.yml` | [ ] | |
-| `scanner-trivy-container` | `scanner-trivy-container.yml` | `scanner-container/action.yml` | [ ] | Uses shared action |
-| `scanner-grype` | `scanner-grype.yml` | `scanner-container/action.yml` | [ ] | Uses shared action |
-| `scanner-syft` | `scanner-syft.yml` | (needs action) | [ ] | SBOM generation |
-| `infrastructure-scan` | `infrastructure-scan.yml` | (orchestrator) | [ ] | Coordinates trivy-iac + checkov |
-| `linting` | `linting.yml` | `linter-*/action.yml` | [ ] | Multiple linter actions |
+| `scanner-bandit` | 289 lines | 323 lines | [x] | Good parity. Action has `python_version` input |
+| `scanner-codeql` | 797 lines | 324 lines | [ ] | **Major gap** - see details below |
+| `scanner-opengrep` | 260 lines | 215 lines | [~] | Action missing `post_pr_comment`, has extra `config`/`paths` |
+| `scanner-gitleaks` | 187 lines | 195 lines | [x] | Good parity. Action does own checkout |
+| `scanner-trivy-iac` | 255 lines | 328 lines | [x] | Action better - has GHES install logic |
+| `scanner-checkov` | 265 lines | 291 lines | [x] | Good parity. Action has `api_key` input, uses external scripts |
+| `scanner-clamav` | 283 lines | 334 lines | [x] | Action self-contained (inline Python), GHES-compatible |
+| `scanner-zap` | ~300 lines | ~350 lines | [x] | Action has more inputs (build, registry auth) |
+| `scanner-container` | 523 lines | 474 lines | [x] | Orchestrator action - handles Trivy/Grype/Syft, GHES-aware |
+| `scanner-trivy-container` | thin | `scanner-container/` | [x] | Uses shared action with `scanners: trivy` |
+| `scanner-grype` | thin | `scanner-container/` | [x] | Uses shared action with `scanners: grype` |
+| `scanner-syft` | 145 lines | 220 lines | [x] | SBOM generation - **CREATED** |
+| `container-scan` | orchestrator | N/A | N/A | Multi-job workflow: discover → build → scan → summary |
+| `infrastructure-scan` | orchestrator | N/A | N/A | Calls trivy-iac + checkov |
+| `linting` | orchestrator | `linter-*/` | [ ] | TODO: Audit linter actions |
+
+#### CodeQL Gap Analysis (Critical)
+
+**Workflow features NOT in action:**
+- Multi-language matrix strategy (auto-generates jobs per language)
+- Language auto-detection from codebase
+- `codeql_languages` input (comma-separated)
+- `query_suite`, `scan_paths`, `ignore_paths` inputs
+- Auto-generated CodeQL config file
+- BQRS extraction to JSON
+
+**Action features:**
+- Single `language` input (caller must do matrix)
+- `setup_python_version`, `setup_node_version` inputs
+- Relies on external script for summary
+
+**Decision needed:** Should action support multi-language matrix, or should caller handle?
+
+#### Gitleaks Note
+
+Action does its own `actions/checkout` with `fetch-depth: 0`. This is unusual - most actions expect caller to checkout. Document clearly or change.
+
+#### ClamAV Note
+
+Action is self-contained with inline Python for report parsing. Uses `cvdupdate` for virus database updates which is more reliable than `freshclam` on CI runners. GHES-compatible using `github.server_url`.
+
+#### Container Scanning Note
+
+The `scanner-container/action.yml` is a comprehensive action that:
+- Handles Trivy, Grype, and Syft via the `scanners` input
+- Has GHES compatibility (installs Trivy directly on GHES, uses published action on github.com)
+- Deduplicates CVEs across scanners for accurate counts
+- Includes bundled scripts for summary generation
+
+The `container-scan.yml` workflow is an orchestrator that:
+- Discovers Dockerfiles in repo (discover mode)
+- Or scans pre-existing remote images (remote mode)
+- Calls `scanner-container` action for actual scanning
+
+#### Syft/SBOM - RESOLVED
+
+**Created:** `scanner-syft/action.yml` (220 lines)
+
+Features:
+- Supports both source code paths (`scan_path`) and container images (`scan_image`)
+- Multiple output formats: cyclonedx-json, spdx-json, syft-json, table
+- Registry authentication for private images
+- GHES compatibility (installs Syft if not available)
+- Generates human-readable table output alongside JSON
+- GitHub Dependency Graph integration (optional)
+- Outputs: `sbom_file`, `component_count`, `scan_target`
 
 ### 1.2 Identify Missing Actions
 
-- [ ] `scanner-syft/action.yml` - SBOM generation
-- [ ] `infrastructure-scanner/action.yml` - Unified IaC action (or keep separate)
-- [ ] Review if `security-summary/action.yml` handles all scanner outputs
+- [x] `scanner-syft/action.yml` - SBOM generation (**CREATED**)
+- [ ] Verify `security-summary/action.yml` handles all scanner outputs
+- [ ] Verify linter actions have parity with linting workflow
 
 ### 1.3 Document Input/Output Differences
 
-For each scanner, ensure action exposes same inputs as workflow:
-- [ ] All workflow inputs available as action inputs
-- [ ] All workflow outputs available as action outputs
-- [ ] Secret handling documented (actions can't receive secrets directly)
+| Scanner | Workflow-only Inputs | Action-only Inputs | Secret Handling |
+|---------|---------------------|--------------------|-----------------|
+| bandit | - | `python_version` | N/A |
+| codeql | `codeql_languages`, `query_suite`, `scan_paths`, `ignore_paths` | `language`, `setup_*_version` | N/A |
+| opengrep | `post_pr_comment` | `config`, `paths` | N/A |
+| gitleaks | - | - | `GITLEAKS_LICENSE` via env var |
+| trivy-iac | - | - | N/A |
+
+**Secret handling pattern:** Actions use environment variables (`env.SECRET_NAME`) instead of `secrets` context. Callers must set `env:` block.
 
 ---
 
@@ -310,7 +367,7 @@ jobs:
 
 ### 4.3 Workflows to Convert
 
-- [ ] `scanner-bandit.yml` → thin wrapper
+- [x] `scanner-bandit.yml` → thin wrapper (289 → 89 lines)
 - [ ] `scanner-codeql.yml` → thin wrapper
 - [ ] `scanner-opengrep.yml` → thin wrapper
 - [ ] `scanner-gitleaks.yml` → thin wrapper
@@ -462,25 +519,22 @@ The `.release-it.json` must be updated to maintain version refs across all files
 
 ## Open Questions
 
-1. **Artifact sharing for GHES**: Best pattern for sharing actions across jobs?
-   - Upload/download artifact (current proposal)
-   - Git submodule
-   - Copy action files into consumer repo
+1. ~~**Artifact sharing for GHES**: Best pattern for sharing actions across jobs?~~ **RESOLVED**
+   - GHES can pull actions directly from github.com public repos
+   - No mirroring or local copies needed
 
 2. **Secret handling**: Actions can't receive secrets directly. Best pattern?
-   - Pass as environment variables from caller
-   - Use GitHub App tokens
-   - Document clearly
+   - Pass as environment variables from caller (**current approach**)
+   - Document clearly in examples
 
 3. **Coordinator workflow**: Should `reusable-security-hardening.yml` become:
    - A thin wrapper that calls individual workflows?
    - A single job that calls actions sequentially?
    - A matrix that parallelizes action calls?
 
-4. **Version pinning**: How to handle version pinning for GHES examples?
-   - Hardcoded in examples (update manually)
-   - Input variable with default
-   - Document recommended approach
+4. ~~**Version pinning**: How to handle version pinning for GHES examples?~~ **RESOLVED**
+   - Hardcoded in examples with pinned versions (e.g., `@v2.12.0`)
+   - release-it regex-bumper will update on release
 
 ---
 
@@ -488,9 +542,9 @@ The `.release-it.json` must be updated to maintain version refs across all files
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| 1 | Audit & Gap Analysis | [ ] Not Started |
-| 2 | Action Enhancement | [ ] Not Started |
-| 3 | Create Example Workflows | [ ] Not Started |
+| 1 | Audit & Gap Analysis | [x] Complete - All scanners audited, syft action created |
+| 2 | Action Enhancement | [~] Partial - Most actions already have good parity |
+| 3 | Create Example Workflows | [x] Complete - GHES examples created in `examples/github-enterprise/` |
 | 4 | Migrate Reusable Workflows | [ ] Not Started |
 | 5 | Documentation | [ ] Not Started |
 | 6 | Testing | [ ] Not Started |
