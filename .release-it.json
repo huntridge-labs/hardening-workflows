@@ -167,6 +167,30 @@
             "flags": "g"
           },
           "replace": "${1}@{{version}}"
+        },
+        {
+          "files": [
+            ".github/workflows/scanner-*.yml",
+            ".github/workflows/linting.yml",
+            ".github/workflows/infrastructure-scan.yml",
+            ".github/workflows/container-scan.yml"
+          ],
+          "search": {
+            "pattern": "(huntridge-labs/hardening-workflows/.github/actions/[^@]+)@[^\\s]+",
+            "flags": "g"
+          },
+          "replace": "${1}@{{version}}"
+        },
+        {
+          "files": [
+            "examples/github-enterprise/**/*.yml",
+            "examples/github-enterprise/**/*.yaml"
+          ],
+          "search": {
+            "pattern": "(huntridge-labs/hardening-workflows/.github/actions/[^@]+)@[^\\s]+",
+            "flags": "g"
+          },
+          "replace": "${1}@{{version}}"
         }
       ]
     }

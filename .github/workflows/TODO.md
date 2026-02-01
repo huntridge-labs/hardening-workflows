@@ -218,12 +218,12 @@ examples/
 
 ### 3.2 Example Templates to Create
 
-- [ ] **Basic GHES Example** - All scanners using actions directly
-- [ ] **SAST-Only GHES** - CodeQL, Bandit, OpenGrep, Gitleaks
-- [ ] **Container Scanning GHES** - Trivy + Grype + SBOM
-- [ ] **IaC Scanning GHES** - Trivy IaC + Checkov
-- [ ] **DAST Scanning GHES** - ZAP with various modes
-- [ ] **Combined Summary** - How to aggregate results from multiple actions
+- [x] **Basic GHES Example** - All scanners using actions directly (`all-scanners.yml`)
+- [x] **SAST-Only GHES** - CodeQL, Bandit, OpenGrep, Gitleaks (`sast-only.yml`)
+- [x] **Container Scanning GHES** - Trivy + Grype + SBOM (`container-scanning.yml`)
+- [x] **IaC Scanning GHES** - Trivy IaC + Checkov (`infrastructure-scanning.yml`)
+- [x] **DAST Scanning GHES** - ZAP with various modes (`dast-scanning.yml`)
+- [x] **Combined Summary** - Documented in README.md
 
 ### 3.3 GHES Example Template Pattern
 
@@ -411,9 +411,11 @@ jobs:
 ### 4.4 Orchestrator Workflow
 
 Update `reusable-security-hardening.yml` to:
-- [ ] Use action outputs for coordination
-- [ ] Simplify job dependencies
-- [ ] Maintain identical interface for consumers
+- [x] Use action outputs for coordination (scan-coordinator already handles this)
+- [x] Simplify job dependencies (removed HRL_REF and checkout complexity)
+- [x] Maintain identical interface for consumers (inputs unchanged, CodeQL query_suite/scan_paths/ignore_paths inputs now no-ops)
+
+**Note:** CodeQL inputs `query_suite`, `scan_paths`, and `ignore_paths` are accepted for backwards compatibility but are no longer passed to the thin wrapper. Use `config_file` to specify a custom CodeQL configuration instead.
 
 ---
 
@@ -531,7 +533,7 @@ The `.release-it.json` must be updated to maintain version refs across all files
 **Checklist:**
 - [x] Add GHES example workflow patterns to release-it config
 - [x] Add thin wrapper workflow patterns to release-it config
-- [ ] Add docs/migration guide patterns if action refs are used
+- [x] Add docs/migration guide patterns if action refs are used (no action refs in docs currently)
 - [ ] Test release-it dry-run to verify all refs are updated
 - [ ] Verify no refs are missed with: `grep -r "@v[0-9]" --include="*.yml" --include="*.md"`
 
