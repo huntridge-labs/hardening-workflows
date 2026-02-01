@@ -494,64 +494,9 @@ runs:
 
     - name: Comment PR with ZAP summary
       if: github.event_name == 'pull_request' && inputs.post_pr_comment == 'true'
-      uses: actions/github-script@v8
-      continue-on-error: true
+      uses: huntridge-labs/hardening-workflows/.github/actions/comment-pr@feat/actions-pr-comments
       with:
-        script: |
-          const fs = require('fs');
-
-          try {
-            const reportPath = 'scanner-summaries/zap.md';
-            if (!fs.existsSync(reportPath)) {
-              console.log('No summary file found');
-              return;
-            }
-
-            let report = fs.readFileSync(reportPath, 'utf8');
-            const MAX_LENGTH = 262000;
-            if (report.length > MAX_LENGTH) {
-              report = report.slice(0, MAX_LENGTH - 200) + '\n\n*Truncated due to size.*';
-            }
-
-            report = report
-              .replace(/<details><summary>.*?<\/summary>\n*/, '')
-              .replace(/<\/details>\s*$/, '')
-              .trim();
-
-            const scanType = '${{ inputs.scan_type }}';
-            const scanTypeDisplay = scanType === 'baseline' ? 'Baseline' :
-                                     scanType === 'full' ? 'Full Scan' :
-                                     scanType === 'api' ? 'API Scan' : scanType;
-
-            const MARKER = 'zap-dast-comment-${{ steps.validate.outputs.artifact_prefix }}';
-            const body = `## ZAP DAST - ${scanTypeDisplay}\n\n<!-- ${MARKER} -->\n\n${report}`;
-
-            const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number
-            });
-
-            const existing = comments.data.find(c =>
-              c.body && c.body.includes(MARKER) &&
-              (c.user.login === 'github-actions[bot]' || c.user.type === 'Bot')
-            );
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body: body + `\n\n---\n*Updated: ${new Date().toLocaleString()} | [View Run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`
-              });
-            } else {
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: body
-              });
-            }
-          } catch (error) {
-            console.log('Failed to post comment:', error.message);
-          }
+        summary_file: scanner-summaries/zap.md
+        comment_marker: zap-dast-comment-${{ steps.validate.outputs.artifact_prefix }}
+        title: '🕷️ ZAP DAST Scan Results'
+        fallback_message: 'No ZAP scan results available'

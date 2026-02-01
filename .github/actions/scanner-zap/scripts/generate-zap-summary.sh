@@ -118,9 +118,9 @@ while IFS= read -r report; do
     remainder="${artifact_name#zap-reports-}"
     echo "  🔍 After removing prefix: $remainder"
 
-    # Format: {scan_type}-{name_hash}
-    # Look for pattern: {scan_type}-{hex8}
-    if [[ "$remainder" =~ ^(baseline|full|api)-[0-9a-f]{8}$ ]]; then
+    # Format: {hash}-{scan_type}-{hash} or {scan_type}-{hash}
+    # Look for scan type in the artifact name
+    if [[ "$remainder" =~ -(baseline|full|api)- ]] || [[ "$remainder" =~ ^(baseline|full|api)- ]]; then
       scan_type="${BASH_REMATCH[1]}"
       echo "  ✅ Extracted scan_type: $scan_type"
     else
@@ -156,9 +156,13 @@ fi
 
 TOTAL=$((TOTAL_CRIT + TOTAL_HIGH + TOTAL_MED + TOTAL_LOW))
 
-# For combined summaries (multiple scans), don't show scan type/mode in title
-# since we're aggregating different types together
-SCAN_TYPE_DISPLAY=""
+# For single scan, show scan type/mode in title
+# For combined summaries (multiple scans), don't show since we're aggregating different types
+if [ "$SCANNED" -eq 1 ]; then
+  SCAN_TYPE_DISPLAY="$(format_scan_type)"
+else
+  SCAN_TYPE_DISPLAY=""
+fi
 
 # Build output targets
 OUTPUT_TARGETS=("scanner-summaries/zap.md")

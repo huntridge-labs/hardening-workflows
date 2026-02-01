@@ -320,3 +320,12 @@ runs:
         path: scanner-summaries/bandit.md
         retention-days: 7
       continue-on-error: true
+
+    - name: Comment PR with Bandit results
+      if: github.event_name == 'pull_request' && inputs.post_pr_comment == 'true'
+      uses: huntridge-labs/hardening-workflows/.github/actions/comment-pr@feat/actions-pr-comments
+      with:
+        summary_file: scanner-summaries/bandit.md
+        comment_marker: bandit-scanner-comment-marker
+        title: '🐍 Bandit Python Security Results'
+        fallback_message: 'No Bandit results available'

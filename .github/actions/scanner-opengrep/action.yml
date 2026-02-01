@@ -42,6 +42,10 @@ inputs:
     description: 'Fail if findings at or above this severity. Options: none, low, medium, high'
     required: false
     default: 'none'
+  post_pr_comment:
+    description: 'Whether to post PR comments'
+    required: false
+    default: 'false'
 
 outputs:
   error_count:
@@ -184,6 +188,15 @@ runs:
         path: scanner-summaries/opengrep.md
         retention-days: 7
       continue-on-error: true
+
+    - name: Comment PR with OpenGrep results
+      if: github.event_name == 'pull_request' && inputs.post_pr_comment == 'true'
+      uses: huntridge-labs/hardening-workflows/.github/actions/comment-pr@feat/actions-pr-comments
+      with:
+        summary_file: scanner-summaries/opengrep.md
+        comment_marker: opengrep-comment-marker
+        title: '🔍 OpenGrep SAST Results'
+        fallback_message: 'No OpenGrep results available'
 
     - name: Check severity threshold
       if: inputs.fail_on_severity != 'none' && inputs.fail_on_severity != ''

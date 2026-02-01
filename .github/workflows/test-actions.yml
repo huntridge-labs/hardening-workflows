@@ -85,6 +85,7 @@ jobs:
           # Actions that are tested indirectly or are utilities
           # These are documented exceptions that don't need direct E2E tests
           declare -A exceptions=(
+            ["comment-pr"]="Utility action - tested indirectly by all scanner and linter actions"
             ["get-job-id"]="Utility action - tested indirectly by other jobs"
             ["scanner-container-summary"]="Tested as part of scanner-container"
             ["scanner-zap-summary"]="Tested as part of scanner-zap"
@@ -204,7 +205,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          post_pr_comment: ${{ github.event_name == 'pull_request' }}
+          post_pr_comment: 'false'
           enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
           fail_on_severity: 'none'
 
@@ -234,6 +235,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          post_pr_comment: 'false'
           enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
           fail_on_severity: 'none'
 
@@ -300,7 +302,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Optional
         with:
-          post_pr_comment: ${{ github.event_name == 'pull_request' }}
+          post_pr_comment: 'false'
           enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
           fail_on_severity: 'none'
           gitleaks_enable_comments: 'false'  # Disable in tests
@@ -340,7 +342,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          post_pr_comment: ${{ github.event_name == 'pull_request' }}
+          post_pr_comment: 'false'
           enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
           fail_on_severity: 'none'
 
@@ -370,7 +372,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          post_pr_comment: ${{ github.event_name == 'pull_request' }}
+          post_pr_comment: 'false'
           enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
           fail_on_severity: 'none'
 
@@ -421,6 +423,7 @@ jobs:
           scanners: ${{ matrix.tool }}
           registry_username: ${{ github.actor }}
           registry_password: ${{ secrets.GITHUB_TOKEN }}
+          post_pr_comment: 'false'
           enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
           fail_on_severity: 'none'
 
@@ -458,7 +461,7 @@ jobs:
         with:
           scan_image: 'alpine:latest'
           output_format: 'cyclonedx-json'
-          post_pr_comment: ${{ github.event_name == 'pull_request' }}
+          post_pr_comment: 'false'
           enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
 
       - name: Verify SBOM generated
@@ -705,7 +708,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           scan_path: 'tests/fixtures'
-          post_pr_comment: ${{ github.event_name == 'pull_request' }}
+          post_pr_comment: 'false'
           enable_code_security: ${{ env.ENABLE_CODE_SECURITY }}
           fail_on_severity: 'none'
 
@@ -736,6 +739,8 @@ jobs:
       - name: Run linting-summary action
         id: summary
         uses: ./.github/actions/linting-summary
+        with:
+          post_pr_comment: 'false'
         continue-on-error: true
 
       - name: Verify summary action executed

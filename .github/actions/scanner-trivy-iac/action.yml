@@ -315,6 +315,15 @@ runs:
         retention-days: 7
       continue-on-error: true
 
+    - name: Comment PR with Trivy IaC results
+      if: github.event_name == 'pull_request' && inputs.post_pr_comment == 'true'
+      uses: huntridge-labs/hardening-workflows/.github/actions/comment-pr@feat/actions-pr-comments
+      with:
+        summary_file: scanner-summaries/trivy-iac.md
+        comment_marker: trivy-iac-scanner-comment-marker
+        title: '🔍 Trivy IaC Security Results'
+        fallback_message: 'No Trivy IaC results available'
+
     - name: Fail job if severity threshold exceeded
       if: steps.check-severity.outputs.fail == 'true'
       shell: bash
