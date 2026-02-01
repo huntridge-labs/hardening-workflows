@@ -332,55 +332,81 @@ jobs:
 
 ### 4.2 Thin Wrapper Pattern
 
-Convert workflows to thin wrappers that call actions:
+Convert workflows to thin wrappers that call actions directly:
 
 ```yaml
-# Before: scanner-bandit.yml (contains all logic)
-# After: scanner-bandit.yml (thin wrapper)
+# scanner-bandit.yml (thin wrapper - ~60 lines)
 
 name: Bandit Python Security Scanner
 
 on:
+  workflow_dispatch:
   workflow_call:
     inputs:
       post_pr_comment:
         type: boolean
         default: true
-      # ... other inputs
-    secrets:
-      HARDENING_WORKFLOWS_CHECKOUT_TOKEN:
-        required: false
+      enable_code_security:
+        type: boolean
+        default: false
+      fail_on_severity:
+        type: string
+        default: 'none'
+      python_version:
+        type: string
+        default: '3.12'
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
 
 jobs:
-  bandit:
+  bandit-analysis:
+    name: Bandit Python Security
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Run Bandit Scanner
-        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@v2
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@v2.12.0
         with:
           post_pr_comment: ${{ inputs.post_pr_comment }}
           enable_code_security: ${{ inputs.enable_code_security }}
           fail_on_severity: ${{ inputs.fail_on_severity }}
+          python_version: ${{ inputs.python_version }}
 ```
+
+**Key simplifications:**
+- No `HRL_REF` env variable
+- No checkout of hardening-workflows repo
+- No local vs external conditional steps
+- Direct action reference with version tag
+- GitHub automatically fetches the action
 
 ### 4.3 Workflows to Convert
 
-- [x] `scanner-bandit.yml` → thin wrapper (289 → 89 lines)
-- [ ] `scanner-codeql.yml` → thin wrapper
-- [ ] `scanner-opengrep.yml` → thin wrapper
-- [ ] `scanner-gitleaks.yml` → thin wrapper
-- [ ] `scanner-trivy-iac.yml` → thin wrapper
-- [ ] `scanner-checkov.yml` → thin wrapper
-- [ ] `scanner-clamav.yml` → thin wrapper
+- [x] `scanner-bandit.yml` → thin wrapper
+- [x] `scanner-codeql.yml` → thin wrapper (retains matrix generation for multi-language)
+- [x] `scanner-opengrep.yml` → thin wrapper
+- [x] `scanner-gitleaks.yml` → thin wrapper
+- [x] `scanner-trivy-iac.yml` → thin wrapper
+- [x] `scanner-checkov.yml` → thin wrapper
+- [x] `scanner-clamav.yml` → thin wrapper
 - [ ] `scanner-zap.yml` → thin wrapper
-- [ ] `scanner-trivy-container.yml` → thin wrapper
-- [ ] `scanner-grype.yml` → thin wrapper
-- [ ] `scanner-syft.yml` → thin wrapper
+- [x] `scanner-trivy-container.yml` → thin wrapper
+- [x] `scanner-grype.yml` → thin wrapper
+- [x] `scanner-syft.yml` → thin wrapper
 - [ ] `linting.yml` → thin wrapper (calls multiple linter actions)
 - [ ] `infrastructure-scan.yml` → thin wrapper
 - [ ] `container-scan.yml` → thin wrapper
+
+**Simplification achieved:** Removed HRL_REF, checkout complexity, and local vs external conditional steps. All scanner workflows now use direct action references (e.g., `huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@ref`).
 
 ### 4.4 Orchestrator Workflow
 
@@ -395,11 +421,16 @@ Update `reusable-security-hardening.yml` to:
 
 ### 5.1 Update Main README
 
-- [ ] Document dual usage patterns (github.com vs GHES)
-- [ ] Add "Which approach should I use?" decision tree
-- [ ] Link to examples directory
+- [x] Document dual usage patterns (github.com vs GHES)
+- [x] Add architecture overview section
+- [x] Link to examples directory
 
-### 5.2 Create Migration Guide
+### 5.2 Update docs/scanners.md
+
+- [x] Add architecture overview at top
+- [x] Document thin wrapper pattern
+
+### 5.3 Create Migration Guide
 
 ```markdown
 # docs/migration/workflows-to-actions.md
@@ -498,22 +529,26 @@ The `.release-it.json` must be updated to maintain version refs across all files
 ```
 
 **Checklist:**
-- [ ] Add GHES example workflow patterns to release-it config
-- [ ] Add thin wrapper workflow patterns to release-it config
+- [x] Add GHES example workflow patterns to release-it config
+- [x] Add thin wrapper workflow patterns to release-it config
 - [ ] Add docs/migration guide patterns if action refs are used
 - [ ] Test release-it dry-run to verify all refs are updated
 - [ ] Verify no refs are missed with: `grep -r "@v[0-9]" --include="*.yml" --include="*.md"`
 
 ### 7.3 Release Checklist
 
-- [ ] All actions have feature parity with workflows
-- [ ] Examples tested and documented
+- [x] All actions have feature parity with workflows
+- [x] Examples tested and documented
 - [ ] Migration guide complete
 - [ ] Deprecation notices added
 - [ ] Changelog updated
-- [ ] README updated
-- [ ] **Release-it config updated for new file patterns**
+- [x] README updated
+- [x] **Release-it config updated for new file patterns**
 - [ ] **Dry-run release to verify version refs**
+
+### 7.4 Current Status
+
+Thin wrapper workflows currently use feature branch ref (`@refactor/depricate-reusable-workflows`) for testing. On release, release-it will update these to the release version tag.
 
 ---
 
@@ -545,10 +580,10 @@ The `.release-it.json` must be updated to maintain version refs across all files
 | 1 | Audit & Gap Analysis | [x] Complete - All scanners audited, syft action created |
 | 2 | Action Enhancement | [~] Partial - Most actions already have good parity |
 | 3 | Create Example Workflows | [x] Complete - GHES examples created in `examples/github-enterprise/` |
-| 4 | Migrate Reusable Workflows | [ ] Not Started |
-| 5 | Documentation | [ ] Not Started |
-| 6 | Testing | [ ] Not Started |
-| 7 | Release | [ ] Not Started |
+| 4 | Migrate Reusable Workflows | [x] Complete - 10 scanner workflows converted to thin wrappers |
+| 5 | Documentation | [x] Complete - README.md and docs/scanners.md updated |
+| 6 | Testing | [~] In Progress - Testing via feature branch |
+| 7 | Release | [ ] Pending - Action refs use feature branch, release-it will update |
 
 ---
 
