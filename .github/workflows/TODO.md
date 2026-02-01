@@ -170,6 +170,10 @@ examples/
 
 ### 3.3 GHES Example Template Pattern
 
+**Primary Pattern: Direct Action Reference**
+
+For GHES instances that can reach github.com or have the repo mirrored internally:
+
 ```yaml
 # examples/github-enterprise/all-scanners.yml
 name: Security Scanning (GHES Compatible)
@@ -185,60 +189,77 @@ permissions:
   security-events: write
   pull-requests: write
 
-env:
-  # Pin to a release tag - update as needed
-  HARDENING_WORKFLOWS_REF: 'v2.12.0'
-
 jobs:
-  checkout-actions:
-    name: Checkout Hardening Workflows
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout hardening-workflows
-        uses: actions/checkout@v4
-        with:
-          repository: huntridge-labs/hardening-workflows
-          ref: ${{ env.HARDENING_WORKFLOWS_REF }}
-          path: .hardening-workflows
-          # For GHES: use a PAT or GitHub App token
-          # token: ${{ secrets.HARDENING_WORKFLOWS_TOKEN }}
-
-      - name: Upload actions
-        uses: actions/upload-artifact@v4
-        with:
-          name: hardening-actions
-          path: .hardening-workflows/.github/actions/
-          retention-days: 1
-
   sast-scanning:
     name: SAST Scanners
-    needs: checkout-actions
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download actions
-        uses: actions/download-artifact@v4
-        with:
-          name: hardening-actions
-          path: .actions/
-
+      # Use full path with ref for each action
       - name: Run Bandit
-        uses: ./.actions/scanner-bandit
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@v2.12.0
         with:
           fail_on_severity: 'high'
 
       - name: Run OpenGrep
-        uses: ./.actions/scanner-opengrep
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-opengrep@v2.12.0
         with:
           fail_on_severity: 'high'
 
       - name: Run Gitleaks
-        uses: ./.actions/scanner-gitleaks
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@v2.12.0
         with:
           fail_on_severity: 'high'
 
-  # ... more jobs for other scanner categories
+  container-scanning:
+    name: Container Scanners
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy Container
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@v2.12.0
+        with:
+          image_ref: 'myorg/myapp:latest'
+          scanner: 'trivy'
+          fail_on_severity: 'high'
+
+  infrastructure-scanning:
+    name: Infrastructure Scanners
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy IaC
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-trivy-iac@v2.12.0
+        with:
+          iac_path: 'terraform/'
+          fail_on_severity: 'high'
+
+      - name: Run Checkov
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-checkov@v2.12.0
+        with:
+          iac_path: 'terraform/'
+          fail_on_severity: 'high'
+```
+
+**Alternative Pattern: Air-Gapped / Mirrored Repo**
+
+For GHES instances without github.com access, mirror the repo internally and reference your GHES instance:
+
+```yaml
+jobs:
+  sast-scanning:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Reference from internal GHES mirror
+      - name: Run Bandit
+        uses: my-ghes-org/hardening-workflows/.github/actions/scanner-bandit@v2.12.0
+        with:
+          fail_on_severity: 'high'
 ```
 
 ---
@@ -377,7 +398,56 @@ Update `reusable-security-hardening.yml` to:
 - **v3.0** - Actions-first, workflows are thin wrappers
 - **v4.0** - (Future) Remove deprecated workflow-specific code
 
-### 7.2 Release Checklist
+### 7.2 Release-it Configuration
+
+The `.release-it.json` must be updated to maintain version refs across all files.
+
+**Current coverage (via `@j-ulrich/release-it-regex-bumper`):**
+- `HRL_REF` env variable in workflows
+- `hardening-workflows/.github/workflows/*.yml@X.X.X` refs
+- `hardening-workflows/.github/actions/*@X.X.X` refs in `.github/actions/**`
+- Schema `$id` URLs
+
+**New patterns to add:**
+
+```json
+{
+  "files": [
+    "examples/github-enterprise/**/*.yml",
+    "examples/github-enterprise/**/*.yaml"
+  ],
+  "search": {
+    "pattern": "(huntridge-labs/hardening-workflows/.github/actions/[^@]+)@[^\\s]+",
+    "flags": "g"
+  },
+  "replace": "${1}@{{version}}"
+}
+```
+
+```json
+{
+  "files": [
+    ".github/workflows/scanner-*.yml",
+    ".github/workflows/linting.yml",
+    ".github/workflows/infrastructure-scan.yml",
+    ".github/workflows/container-scan.yml"
+  ],
+  "search": {
+    "pattern": "(huntridge-labs/hardening-workflows/.github/actions/[^@]+)@[^\\s]+",
+    "flags": "g"
+  },
+  "replace": "${1}@{{version}}"
+}
+```
+
+**Checklist:**
+- [ ] Add GHES example workflow patterns to release-it config
+- [ ] Add thin wrapper workflow patterns to release-it config
+- [ ] Add docs/migration guide patterns if action refs are used
+- [ ] Test release-it dry-run to verify all refs are updated
+- [ ] Verify no refs are missed with: `grep -r "@v[0-9]" --include="*.yml" --include="*.md"`
+
+### 7.3 Release Checklist
 
 - [ ] All actions have feature parity with workflows
 - [ ] Examples tested and documented
@@ -385,6 +455,8 @@ Update `reusable-security-hardening.yml` to:
 - [ ] Deprecation notices added
 - [ ] Changelog updated
 - [ ] README updated
+- [ ] **Release-it config updated for new file patterns**
+- [ ] **Dry-run release to verify version refs**
 
 ---
 
