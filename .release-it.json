@@ -97,8 +97,8 @@
           "files": [
             "CONTRIBUTING.md",
             "QUICK-START.md",
-            "examples/scanner-list-examples.yml",
-            "examples/use-reusable-workflow.yml"
+            "examples/workflows/scanner-list-examples.yml",
+            "examples/workflows/use-reusable-workflow.yml"
           ],
           "search": {
             "pattern": "reusable-security-hardening.yml@\\d+\\.\\d+\\.\\d+",
@@ -124,7 +124,7 @@
           "files": [
             ".github/workflows/reusable-security-hardening.yml",
             ".github/workflows/container-scan-from-config.yml",
-            "examples/scanner-zap-podinfo.yml"
+            "examples/workflows/scanner-zap-podinfo.yml"
           ],
           "search": {
             "pattern": "\\.yml@[^\\s]+",
