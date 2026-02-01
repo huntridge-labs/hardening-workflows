@@ -50,12 +50,13 @@ See `.ai/MAINTENANCE.md` for guidance.
 - [ ] Reviewed by at least one maintainer
 - [ ] **Reviewed CONTRIBUTING.md guidelines**
 
-### For New Scanners (if applicable)
-- [ ] Scanner workflow created and tested
-- [ ] Both reusable workflows updated with scanner integration
-- [ ] Scanner added to summary aggregation loop in both workflows
-- [ ] Workflow sync validation passes
-- [ ] Examples provided
+### For New Scanners/Actions (if applicable)
+- [ ] Composite action created (`.github/actions/scanner-*`)
+- [ ] Parser and summary scripts included
+- [ ] Unit tests added (`.github/actions/*/tests/`)
+- [ ] Action documented (README.md in action directory)
+- [ ] Added to actions catalog (`.github/actions/README.md`)
+- [ ] Examples updated
 - [ ] No breaking changes to existing scanners
 
 ## Related Issues

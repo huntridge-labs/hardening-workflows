@@ -130,11 +130,8 @@ See [examples/github-enterprise/](examples/github-enterprise/) for complete GHES
 
 ### Developer Docs
 
-- [Development Guide](docs/developer/DEVELOPMENT.md) - Architecture and development workflows
-- [Testing Guide](tests/CONTRIBUTING.md) - How to add and run tests (281+ tests)
-- [CI/CD Pipeline](docs/developer/ci-cd.md) - Continuous integration setup
-
-- [PR Workflow Sync](docs/developer/pr-workflow-sync.md) - Keep PR workflow in sync with main
+- [Contributing Guide](CONTRIBUTING.md) - How to add scanners and actions
+- [Testing Guide](tests/CONTRIBUTING.md) - How to add and run tests
 - [Release Management](docs/developer/release-management.md) - Release process and versioning
 - [Enhanced PR Comments](docs/developer/enhanced-pr-comments.md) - PR comment implementation
 

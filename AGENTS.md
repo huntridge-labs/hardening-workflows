@@ -348,4 +348,3 @@ See `.ai/MAINTENANCE.md` for detailed update instructions.
 - [Full Documentation](README.md)
 - [Scanner Reference](docs/scanners.md)
 - [Contributing Guide](CONTRIBUTING.md)
-- [v3.0 Migration Guide](CONTRIBUTING-v3.md)

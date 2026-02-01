@@ -183,7 +183,7 @@ contributor_workflows:
         pattern: "Add scanner reference"
 
     reference_implementation: ".github/actions/scanner-bandit/"
-    contributing_guide: "CONTRIBUTING-v3.md"
+    contributing_guide: "CONTRIBUTING.md"
 
   create_release:
     description: "Release a new version"

@@ -139,7 +139,6 @@
             ".github/workflows/container-scan.yml",
             ".github/workflows/container-scan-from-config.yml",
             ".github/workflows/reusable-security-hardening.yml",
-            ".github/workflows/pr-reusable-security-hardening.yml",
             ".github/workflows/scanner-clamav.yml"
           ],
           "search": {

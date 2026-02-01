@@ -154,7 +154,7 @@ examples/
 
 ## Adding a New Scanner Action
 
-See `CONTRIBUTING-v3.md` for the complete composite actions development guide. Key steps:
+See `CONTRIBUTING.md` for the complete composite actions development guide. Key steps:
 
 1. **Create action structure**:
    ```bash
@@ -292,7 +292,7 @@ See `examples/composite-actions-example.yml` for a full example with:
 
 ## Contributing
 
-See `CONTRIBUTING-v3.md` for:
+See `CONTRIBUTING.md` for:
 - Composite action development guide (step-by-step)
 - Parser and summary script templates
 - Testing requirements (unit + integration)
@@ -360,7 +360,7 @@ Examples are automatically validated by `.github/workflows/test-examples-functio
 ## Important Files
 
 - `CLAUDE.md` - Human-readable reference guide (identical to this file)
-- `CONTRIBUTING-v3.md` - **Composite actions contributor guide (v3.0)**
+- `CONTRIBUTING.md` - **Composite actions contributor guide (v3.0)**
 - `CONTRIBUTING.md` - Legacy reusable workflows guide (v2.x)
 - `tests/TODO.md` - Testing strategy and roadmap
 - `tests/CONTRIBUTING.md` - How to add tests for actions
