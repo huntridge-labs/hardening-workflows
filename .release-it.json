@@ -191,6 +191,17 @@
             "flags": "g"
           },
           "replace": "${1}@{{version}}"
+        },
+        {
+          "files": [
+            "examples/workflows/**/*.yml",
+            "examples/workflows/**/*.yaml"
+          ],
+          "search": {
+            "pattern": "(huntridge-labs/hardening-workflows/.github/actions/[^@]+)@[^\\s]+",
+            "flags": "g"
+          },
+          "replace": "${1}@{{version}}"
         }
       ]
     }
