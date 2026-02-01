@@ -85,6 +85,7 @@ jobs:
           # Actions that are tested indirectly or are utilities
           # These are documented exceptions that don't need direct E2E tests
           declare -A exceptions=(
+            ["comment-pr"]="Utility action - tested indirectly by all scanner and linter actions"
             ["get-job-id"]="Utility action - tested indirectly by other jobs"
             ["scanner-container-summary"]="Tested as part of scanner-container"
             ["scanner-zap-summary"]="Tested as part of scanner-zap"
