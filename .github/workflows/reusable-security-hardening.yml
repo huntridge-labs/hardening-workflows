@@ -555,6 +555,7 @@ jobs:
       contents: read
       security-events: write
       actions: read
+      packages: read
       pull-requests: write
     secrets: inherit
 
@@ -606,6 +607,7 @@ jobs:
       contents: read
       security-events: write
       actions: read
+      packages: read
       pull-requests: write
     secrets: inherit
 
@@ -623,6 +625,7 @@ jobs:
       contents: read
       security-events: write
       actions: read
+      packages: read
       pull-requests: write
     secrets: inherit
 
@@ -646,6 +649,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      packages: read
       pull-requests: write
     secrets: inherit
 
