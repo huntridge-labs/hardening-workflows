@@ -2,6 +2,40 @@
 
 Composite actions for comprehensive security scanning, designed for GitHub Enterprise Server (GHES) with github.com access.
 
+## AI Context Ecosystem
+
+This project uses **AI Context as Code (AICaC)** - structured, machine-readable context in `.ai/`:
+
+| File | Purpose |
+|------|---------|
+| `.ai/context.yaml` | Project metadata and entry points |
+| `.ai/architecture.yaml` | Component relationships and dependencies |
+| `.ai/workflows.yaml` | Common tasks with exact commands |
+| `.ai/decisions.yaml` | Architectural Decision Records (ADRs) |
+| `.ai/errors.yaml` | Error patterns and solutions |
+| `.ai/prompting.md` | Guide for humans asking questions |
+
+**Reading order**: `.ai/context.yaml` → relevant module files → source code
+
+### CRITICAL: Maintain .ai/ Files
+
+**After making changes to this project, you MUST update the relevant `.ai/` files.**
+
+| When you change... | Update... |
+|--------------------|-----------|
+| Components/structure | `.ai/architecture.yaml` |
+| Commands/tasks | `.ai/workflows.yaml` |
+| Make design decisions | `.ai/decisions.yaml` |
+| Fix common errors | `.ai/errors.yaml` |
+| Project metadata | `.ai/context.yaml` |
+
+**Before completing any task**, include in your summary:
+- [ ] Relevant `.ai/` files updated (or confirmed not needed)
+
+See `.ai/MAINTENANCE.md` for detailed instructions.
+
+---
+
 ## AI Assistant Configuration
 
 ### Global Standards (Claude Code)
