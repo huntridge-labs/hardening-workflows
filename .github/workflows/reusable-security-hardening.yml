@@ -534,8 +534,6 @@ jobs:
     uses: huntridge-labs/hardening-workflows/.github/workflows/infrastructure-scan.yml@refactor/depricate-reusable-workflows
     with:
       iac_path: ${{ inputs.iac_path }}
-      python_version: ${{ inputs.python_version }}
-      aws_region: ${{ inputs.aws_region }}
       enable_code_security: ${{ inputs.enable_code_security }}
       fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
