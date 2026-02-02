@@ -18,11 +18,21 @@ That's it! The actions will be pulled directly from our public github.com reposi
 
 | File | Description | Scanners |
 |------|-------------|----------|
+| `containerized-web-app.yml` | **Recommended** - Full pipeline for containerized web apps | Gitleaks, Bandit, CodeQL, OpenGrep, ClamAV, Container (Trivy/Grype/Syft), ZAP DAST |
 | `all-scanners.yml` | Complete security scanning | Bandit, OpenGrep, Gitleaks, Trivy IaC, Checkov, ClamAV |
 | `sast-only.yml` | Static analysis only | Bandit, OpenGrep, Gitleaks |
 | `container-scanning.yml` | Container vulnerability scanning | Trivy, Grype, Syft (SBOM) |
 | `infrastructure-scanning.yml` | Infrastructure as Code scanning | Trivy IaC, Checkov |
 | `dast-scanning.yml` | Dynamic application security testing | ZAP |
+
+### Containerized Web App Pattern
+
+The `containerized-web-app.yml` demonstrates best practices:
+
+- **Consolidated PR comments** - Individual scanners set `post_pr_comment: false`, security-summary posts one combined comment
+- **Build and scan your own image** - Demonstrates real app workflow with `scan_mode: 'discover'`
+- **DAST with health checking** - Robust container startup with health endpoint polling
+- **Complete coverage** - Secrets, SAST, malware, container vulnerabilities, and web app security
 
 ## Required Permissions
 
