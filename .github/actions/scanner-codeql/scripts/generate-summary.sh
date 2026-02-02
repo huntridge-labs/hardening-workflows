@@ -36,9 +36,9 @@ LANG_DISPLAY="$(echo "$LANGUAGE" | sed 's/\b\(.\)/\u\1/g')"
 # Start output
 if [ "$IS_PR_COMMENT" = "true" ]; then
   echo "<details>" >> "$OUTPUT"
-  echo "<summary>CodeQL SAST ($LANG_DISPLAY)</summary>" >> "$OUTPUT"
+  echo "<summary>🔬 CodeQL SAST ($LANG_DISPLAY)</summary>" >> "$OUTPUT"
 else
-  echo "## CodeQL SAST Scan ($LANG_DISPLAY)" >> "$OUTPUT"
+  echo "## 🔬 CodeQL SAST Scan ($LANG_DISPLAY)" >> "$OUTPUT"
 fi
 echo "" >> "$OUTPUT"
 
