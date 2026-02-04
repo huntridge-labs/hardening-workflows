@@ -30,8 +30,8 @@ SERVER_URL="${10}"
 REPOSITORY="${11}"
 RUN_ID="${12}"
 
-# Capitalize first letter of language for display
-LANG_DISPLAY="$(echo "$LANGUAGE" | sed 's/\b\(.\)/\u\1/g')"
+# Capitalize first letter of language for display (portable across BSD/GNU)
+LANG_DISPLAY="$(echo "$LANGUAGE" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')"
 
 # Start output
 if [ "$IS_PR_COMMENT" = "true" ]; then

@@ -270,8 +270,8 @@ class TestCodeQLGenerateSummary:
         assert result.returncode == 0
         content = self.output_file.read_text()
 
-        # Non-PR format should have ## heading with emoji and language
-        assert "## 🔬 CodeQL SAST Scan (python)" in content
+        # Non-PR format should have ## heading with emoji and language (capitalized)
+        assert "## 🔬 CodeQL SAST Scan (Python)" in content
 
     def test_language_in_output(self):
         """Test language name appears in output."""
