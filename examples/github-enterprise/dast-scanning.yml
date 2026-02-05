@@ -45,7 +45,7 @@ jobs:
     if: github.event.inputs.target_url != ''
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Run ZAP Scan
         uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@v2.12.0
@@ -75,7 +75,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Wait for app to be ready
         run: |
@@ -104,7 +104,7 @@ jobs:
     if: false # Enable this job by changing to 'true' or removing the condition
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Start your API (example using docker-compose)
       - name: Start API

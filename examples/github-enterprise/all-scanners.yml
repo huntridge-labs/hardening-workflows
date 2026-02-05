@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Run Bandit (Python)
         uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@v2.12.0
@@ -65,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Run Trivy IaC
         uses: huntridge-labs/hardening-workflows/.github/actions/scanner-trivy-iac@v2.12.0
@@ -91,7 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Run ClamAV
         uses: huntridge-labs/hardening-workflows/.github/actions/scanner-clamav@v2.12.0
@@ -107,7 +107,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Generate SBOM
         uses: huntridge-labs/hardening-workflows/.github/actions/scanner-syft@v2.12.0
@@ -130,7 +130,7 @@ jobs:
     if: always()
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download all scanner summaries
         uses: actions/download-artifact@v4

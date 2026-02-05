@@ -59,7 +59,7 @@ jobs:
       matrix: ${{ steps.parse.outputs.matrix }}
       has_scans: ${{ steps.parse.outputs.has_scans }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: huntridge-labs/hardening-workflows/.github/actions/parse-zap-config@v2
         id: parse
         with:
@@ -73,7 +73,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.parse-config.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@v2
         with:
           scan_name: ${{ matrix.name }}

@@ -15,7 +15,7 @@ description: |
           matrix: (( steps.parse.outputs.matrix ))
           has_containers: (( steps.parse.outputs.has_containers ))
         steps:
-          - uses: actions/checkout@v4
+          - uses: actions/checkout@v6
           - uses: huntridge-labs/hardening-workflows/.github/actions/parse-container-config@v3
             id: parse
             with:

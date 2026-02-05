@@ -45,7 +45,7 @@ jobs:
     name: Gitleaks Secret Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@v3
@@ -63,7 +63,7 @@ jobs:
     name: Bandit Python SAST
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@v3
         with:
           fail_on_severity: 'high'
@@ -75,7 +75,7 @@ jobs:
     name: CodeQL SAST
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-codeql@v3
         with:
           language: 'python'  # Adjust: python, javascript, java, go, etc.
@@ -89,7 +89,7 @@ jobs:
     name: OpenGrep SAST
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-opengrep@v3
         with:
           config: 'auto'
@@ -104,7 +104,7 @@ jobs:
     name: ClamAV Malware Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-clamav@v3
         with:
           scan_path: '.'
@@ -120,7 +120,7 @@ jobs:
     name: Container Security Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Build container image
         run: |
@@ -143,7 +143,7 @@ jobs:
     name: ZAP DAST Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Build and start container
         run: |

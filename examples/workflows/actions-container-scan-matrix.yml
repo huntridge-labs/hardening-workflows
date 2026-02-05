@@ -53,7 +53,7 @@ jobs:
       container_count: ${{ steps.parse.outputs.container_count }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Parse container config
         id: parse

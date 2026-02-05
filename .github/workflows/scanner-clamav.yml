@@ -48,7 +48,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Run ClamAV Scanner
         uses: huntridge-labs/hardening-workflows/.github/actions/scanner-clamav@feat/migrate-to-composite-actions

@@ -60,7 +60,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Check if IaC path exists
         id: check-path
@@ -110,7 +110,7 @@ jobs:
   #   runs-on: ubuntu-latest
   #   steps:
   #     - name: Checkout repository
-  #       uses: actions/checkout@v4
+  #       uses: actions/checkout@v6
   #
   #     - name: Run Trivy IaC (full repo)
   #       uses: huntridge-labs/hardening-workflows/.github/actions/scanner-trivy-iac@v2.12.0

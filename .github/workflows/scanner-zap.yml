@@ -187,7 +187,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Run ZAP Scanner
         uses: huntridge-labs/hardening-workflows/.github/actions/scanner-zap@feat/migrate-to-composite-actions

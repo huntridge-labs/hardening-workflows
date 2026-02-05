@@ -27,7 +27,7 @@ jobs:
   security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@v2.12.0
         with:

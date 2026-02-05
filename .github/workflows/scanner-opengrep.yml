@@ -53,7 +53,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Run OpenGrep Scanner
         uses: huntridge-labs/hardening-workflows/.github/actions/scanner-opengrep@feat/migrate-to-composite-actions

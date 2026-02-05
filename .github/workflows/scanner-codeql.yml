@@ -67,7 +67,7 @@ jobs:
     steps:
       - name: Checkout for language detection
         if: inputs.codeql_languages == ''
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -180,7 +180,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Run CodeQL Scanner
         uses: huntridge-labs/hardening-workflows/.github/actions/scanner-codeql@feat/migrate-to-composite-actions
