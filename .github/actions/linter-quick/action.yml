@@ -1,0 +1,66 @@
+name: "linter-quick"
+description: "Lightweight composite action to validate YAML and JSON files using Python (pyyaml + stdlib json)."
+author: "hardening-workflows"
+inputs:
+  fail_on_issues:
+    description: "Whether to fail the action when issues are found (true/false)."
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install YAML dependency
+      run: pip install pyyaml
+
+    - name: Validate YAML files
+      env:
+        FAIL: ${{ inputs.fail_on_issues }}
+      run: |
+        python - <<'PY'
+        import os, sys, glob, yaml
+        fail_on_issues = os.getenv('FAIL','false').lower() == 'true'
+        files = [f for p in ('**/*.yml','**/*.yaml') for f in glob.glob(p, recursive=True)]
+        files = [f for f in files if not f.startswith('.github/')]
+        ok = True
+        for fn in files:
+          try:
+            with open(fn,'r',encoding='utf-8') as fh:
+              yaml.safe_load(fh)
+          except Exception as e:
+            print(f"YAML ERROR in {fn}: {e}", file=sys.stderr)
+            ok = False
+        if not ok and fail_on_issues:
+          sys.exit(1)
+        print('YAML files validated')
+        PY
+
+    - name: Validate JSON files
+      env:
+        FAIL: ${{ inputs.fail_on_issues }}
+      run: |
+        python - <<'PY'
+        import os, sys, glob, json
+        fail_on_issues = os.getenv('FAIL','false').lower() == 'true'
+        files = glob.glob('**/*.json', recursive=True)
+        files = [f for f in files if not f.startswith('.github/')]
+        ok = True
+        for fn in files:
+          try:
+            with open(fn,'r',encoding='utf-8') as fh:
+              json.load(fh)
+          except Exception as e:
+            print(f"JSON ERROR in {fn}: {e}", file=sys.stderr)
+            ok = False
+        if not ok and fail_on_issues:
+          sys.exit(1)
+        print('JSON files validated')
+        PY
