@@ -19,11 +19,13 @@ runs:
         python-version: '3.12'
 
     - name: Install YAML dependency
+      shell: bash
       run: pip install pyyaml
 
     - name: Validate YAML files
       env:
         FAIL: ${{ inputs.fail_on_issues }}
+      shell: bash
       run: |
         python - <<'PY'
         import os, sys, glob, yaml
@@ -46,6 +48,7 @@ runs:
     - name: Validate JSON files
       env:
         FAIL: ${{ inputs.fail_on_issues }}
+      shell: bash
       run: |
         python - <<'PY'
         import os, sys, glob, json
