@@ -3,7 +3,9 @@
   "results": [],
   "errors": [],
   "paths": {
-    "scanned": ["src/"],
+    "scanned": [
+      "src/"
+    ],
     "skipped": []
   },
   "stats": {

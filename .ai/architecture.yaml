@@ -60,6 +60,12 @@ components:
       scripts/parse.sh: "Scanner output → JSON"
       scripts/summary.sh: "JSON → Markdown"
       tests/: "Co-located tests"
+    pr_commenting:
+      has_step: true
+      default: false
+      condition: "github.event_name == 'pull_request' && inputs.post_pr_comment == 'true'"
+      uses: ".github/actions/comment-pr/action.yml"
+      purpose: "Allows standalone scanner usage with individual PR comments"
 
   - name: config-parsers
     location: ".github/actions/parse-*/"
@@ -161,8 +167,45 @@ data_flow:
           → Parse output (→ JSON)
           → Generate summary (→ Markdown)
           → Upload SARIF (→ GitHub Security tab)
-        → Aggregate results
-      → PR comment + Job summary
+          → [Optional] Post individual PR comment (if post_pr_comment: true)
+        → Aggregate results in security-summary
+      → Single comprehensive PR comment (in reusable workflows)
+
+  pr_commenting_strategy:
+    description: "Flexible PR commenting architecture supporting both standalone and aggregated usage"
+
+    standalone_scanner:
+      when: "Individual scanner action/workflow used directly"
+      behavior: "Each scanner can post its own PR comment"
+      control: "Set post_pr_comment: true in action inputs"
+      use_case: "Single scanner workflows, focused scanning"
+      example: |
+        - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@v3
+          with:
+            post_pr_comment: true  # Posts individual Bandit PR comment
+
+    reusable_workflow:
+      when: "Using reusable-security-hardening.yml with multiple scanners"
+      behavior: "All individual scanners have post_pr_comment: false, only security-summary posts"
+      control: "post_pr_comment: false set in reusable-security-hardening.yml for all scanner jobs"
+      use_case: "Multiple scanners, unified reporting"
+      benefit: "Single comprehensive PR comment instead of spam from each scanner"
+      mechanism: |
+        1. All scanner actions generate markdown summaries
+        2. security-summary job downloads all summaries
+        3. Combines into security-hardening-report.md
+        4. Posts single PR comment with all results
+      example: |
+        uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@v2
+        with:
+          scanners: all
+          post_pr_comment: true  # Only security-summary posts, not individual scanners
+
+    implementation:
+      comment_action: ".github/actions/comment-pr/action.yml"
+      deduplication: "Uses HTML comment markers (e.g., opengrep-comment-marker)"
+      update_behavior: "Updates existing comment if marker found, creates new otherwise"
+      default: "post_pr_comment defaults to 'false' in all scanner actions"
 
   stages:
     - name: dispatch

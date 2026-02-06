@@ -60,5 +60,6 @@ jobs:
         with:
           config: ${{ inputs.opengrep_config }}
           paths: ${{ inputs.opengrep_paths }}
+          post_pr_comment: ${{ inputs.post_pr_comment }}
           enable_code_security: ${{ inputs.enable_code_security }}
           fail_on_severity: ${{ inputs.fail_on_severity }}

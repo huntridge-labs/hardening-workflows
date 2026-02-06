@@ -44,6 +44,10 @@ inputs:
     description: 'Path to CodeQL configuration file'
     required: false
     default: ''
+  post_pr_comment:
+    description: 'Whether to post PR comments'
+    required: false
+    default: 'false'
   enable_code_security:
     description: 'Whether GitHub Code Security is enabled for this repository (uploads SARIF to Security tab)'
     required: false
@@ -289,6 +293,15 @@ runs:
         path: scanner-summaries/codeql-${{ inputs.language }}.md
         retention-days: 7
       continue-on-error: true
+
+    - name: Comment PR with CodeQL results
+      if: github.event_name == 'pull_request' && inputs.post_pr_comment == 'true'
+      uses: huntridge-labs/hardening-workflows/.github/actions/comment-pr@feat/migrate-to-composite-actions
+      with:
+        summary_file: scanner-summaries/codeql-${{ inputs.language }}.md
+        comment_marker: codeql-${{ inputs.language }}-comment-marker
+        title: '🔒 CodeQL ${{ inputs.language }} Results'
+        fallback_message: 'No CodeQL ${{ inputs.language }} results available'
 
     - name: Check severity threshold
       if: inputs.fail_on_severity != 'none' && inputs.fail_on_severity != ''

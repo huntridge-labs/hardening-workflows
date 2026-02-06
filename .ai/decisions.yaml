@@ -234,3 +234,77 @@ decisions:
           default: 'high'
           type: choice
           options: [critical, high, medium, low, none]
+
+  - id: ADR-008
+    title: "Flexible PR commenting: standalone vs aggregated"
+    date: "2026-02-05"
+    status: accepted
+
+    context: |
+      Scanner actions can be used individually or via reusable workflows.
+      Individual usage benefits from scanner-specific PR comments.
+      Multiple scanners benefit from single aggregated PR comment.
+      Need to support both patterns without PR comment spam.
+
+    decision: |
+      All scanner composite actions include comment-pr step with post_pr_comment
+      input defaulting to false. Reusable workflows set post_pr_comment: false
+      for all scanners, only security-summary job posts comprehensive comment.
+
+    alternatives_considered:
+      - name: "Always post individual comments"
+        rejected_because: "Spams PRs with 10+ comments when using reusable workflow"
+
+      - name: "Never post individual comments"
+        rejected_because: "Poor UX when using scanners individually"
+
+      - name: "Remove comment logic from actions entirely"
+        rejected_because: "Forces users to implement their own PR commenting"
+
+    consequences:
+      positive:
+        - "Standalone scanners can post focused PR comments"
+        - "Reusable workflows produce single comprehensive comment"
+        - "Users control behavior via post_pr_comment input"
+        - "No PR comment spam from multiple scanners"
+      negative:
+        - "Requires post_pr_comment input on all scanner actions"
+        - "Must document when to use true vs false"
+
+    implementation: |
+      Scanner actions (.github/actions/scanner-*/action.yml):
+        inputs:
+          post_pr_comment:
+            default: 'false'
+        steps:
+          - name: Comment PR
+            if: github.event_name == 'pull_request' && inputs.post_pr_comment == 'true'
+            uses: ./.github/actions/comment-pr
+
+      Reusable workflow (.github/workflows/reusable-security-hardening.yml):
+        scanner-codeql:
+          with:
+            post_pr_comment: false  # All scanners set to false
+        scanner-opengrep:
+          with:
+            post_pr_comment: false
+        # ... all other scanners with post_pr_comment: false
+
+        security-summary:
+          steps:
+            - name: Comment PR with security summary
+              uses: actions/github-script@v8  # Only job that posts PR comment
+
+    usage_examples:
+      standalone: |
+        # Individual scanner posts its own PR comment
+        - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@v3
+          with:
+            post_pr_comment: true
+
+      reusable: |
+        # Only security-summary posts comprehensive comment
+        uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@v2
+        with:
+          scanners: all
+          post_pr_comment: true  # Controls security-summary, not individual scanners

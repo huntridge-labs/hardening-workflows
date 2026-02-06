@@ -187,6 +187,7 @@ jobs:
         with:
           language: ${{ matrix.language }}
           config_file: ${{ inputs.config_file }}
+          post_pr_comment: ${{ inputs.post_pr_comment }}
           enable_code_security: ${{ inputs.enable_code_security }}
           fail_on_severity: ${{ inputs.fail_on_severity }}
           setup_python_version: ${{ inputs.setup_python_version }}

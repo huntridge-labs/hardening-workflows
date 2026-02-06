@@ -16,8 +16,12 @@
         "severity": "ERROR",
         "message": "Detected subprocess with shell=True. This is dangerous if user input is passed to the command.",
         "metadata": {
-          "cwe": ["CWE-78"],
-          "owasp": ["A03:2021"],
+          "cwe": [
+            "CWE-78"
+          ],
+          "owasp": [
+            "A03:2021"
+          ],
           "category": "security"
         },
         "fingerprint": "abc123def456"
@@ -38,8 +42,12 @@
         "severity": "WARNING",
         "message": "Detected hardcoded password in source code.",
         "metadata": {
-          "cwe": ["CWE-798"],
-          "owasp": ["A07:2021"],
+          "cwe": [
+            "CWE-798"
+          ],
+          "owasp": [
+            "A07:2021"
+          ],
           "category": "security"
         },
         "fingerprint": "ghi789jkl012"
@@ -60,8 +68,12 @@
         "severity": "WARNING",
         "message": "Use of MD5 is insecure. Consider using SHA-256 or stronger.",
         "metadata": {
-          "cwe": ["CWE-327"],
-          "owasp": ["A02:2021"],
+          "cwe": [
+            "CWE-327"
+          ],
+          "owasp": [
+            "A02:2021"
+          ],
           "category": "security"
         },
         "fingerprint": "mno345pqr678"
@@ -90,7 +102,9 @@
   ],
   "errors": [],
   "paths": {
-    "scanned": ["src/"],
+    "scanned": [
+      "src/"
+    ],
     "skipped": []
   },
   "stats": {

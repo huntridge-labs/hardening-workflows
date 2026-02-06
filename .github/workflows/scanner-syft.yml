@@ -89,4 +89,5 @@ jobs:
           output_format: ${{ inputs.output_format }}
           registry_username: ${{ inputs.registry_username }}
           registry_password: ${{ secrets.registry_password }}
+          post_pr_comment: false
           enable_code_security: ${{ inputs.enable_code_security }}

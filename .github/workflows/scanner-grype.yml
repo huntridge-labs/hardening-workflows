@@ -90,6 +90,7 @@ jobs:
           image_ref: ${{ inputs.image_ref }}
           container_name: ${{ inputs.scan_name || 'grype-scan' }}
           scanners: 'grype'
+          post_pr_comment: ${{ inputs.post_pr_comment }}
           fail_on_severity: ${{ inputs.fail_on_severity }}
           enable_code_security: ${{ inputs.enable_code_security }}
           registry_username: ${{ inputs.registry_username }}

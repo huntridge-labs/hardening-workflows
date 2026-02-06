@@ -40,6 +40,10 @@ inputs:
     description: 'Scan mode for summary display: discover or remote'
     required: false
     default: 'remote'
+  post_pr_comment:
+    description: 'Whether to post PR comments'
+    required: false
+    default: 'false'
   allow_failure:
     description: 'Allow the action to continue even if scanning fails'
     required: false
@@ -463,6 +467,18 @@ runs:
           scanner-summaries/
         retention-days: 30
         if-no-files-found: ignore
+
+    # ========================================
+    # PR Comment (Optional)
+    # ========================================
+    - name: Comment PR with container scan results
+      if: github.event_name == 'pull_request' && inputs.post_pr_comment == 'true'
+      uses: huntridge-labs/hardening-workflows/.github/actions/comment-pr@feat/migrate-to-composite-actions
+      with:
+        summary_file: scanner-summaries/container-${{ inputs.container_name }}.md
+        comment_marker: container-${{ inputs.container_name }}-comment-marker
+        title: '📦 Container Security Scan: ${{ inputs.container_name }}'
+        fallback_message: 'No container scan results available'
 
     # ========================================
     # Fail Job if Needed
