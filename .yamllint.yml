@@ -18,6 +18,7 @@ ignore:
   - "coverage/**"
   - "logs/**"
   - "*.log"
+  - "examples/**"
 
 rules:
   anchors: enable

@@ -1,0 +1,30 @@
+name: Quick Code Quality Linting (Local)
+
+# A lightweight example workflow that runs the local composite action
+# `.github/actions/linter-quick` to validate YAML and JSON files in the
+# repository. Intended for quick testing on your fork/branch.
+
+on:
+  push: {}
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  quick-lint:
+    name: Quick Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run local quick linter composite action
+        uses: ./.github/actions/linter-quick
+        with:
+          fail_on_issues: 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
