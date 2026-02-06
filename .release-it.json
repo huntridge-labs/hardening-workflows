@@ -97,8 +97,8 @@
           "files": [
             "CONTRIBUTING.md",
             "QUICK-START.md",
-            "examples/scanner-list-examples.yml",
-            "examples/use-reusable-workflow.yml"
+            "examples/workflows/scanner-list-examples.yml",
+            "examples/workflows/use-reusable-workflow.yml"
           ],
           "search": {
             "pattern": "reusable-security-hardening.yml@\\d+\\.\\d+\\.\\d+",
@@ -112,7 +112,7 @@
             "README.md",
             "docs/container-scanning.md",
             "docs/failure-control.md",
-            "docs/developer/pr-workflow-sync.md"
+            "examples/README.md"
           ],
           "search": {
             "pattern": "hardening-workflows/\\.github/workflows/([\\w-]+)\\.yml@[^\\s]+",
@@ -124,7 +124,7 @@
           "files": [
             ".github/workflows/reusable-security-hardening.yml",
             ".github/workflows/container-scan-from-config.yml",
-            "examples/scanner-zap-podinfo.yml"
+            "examples/workflows/scanner-zap-podinfo.yml"
           ],
           "search": {
             "pattern": "\\.yml@[^\\s]+",
@@ -139,7 +139,6 @@
             ".github/workflows/container-scan.yml",
             ".github/workflows/container-scan-from-config.yml",
             ".github/workflows/reusable-security-hardening.yml",
-            ".github/workflows/pr-reusable-security-hardening.yml",
             ".github/workflows/scanner-clamav.yml"
           ],
           "search": {
@@ -157,6 +156,63 @@
             "pattern": "(\"\\$id\": \"https://raw\\.githubusercontent\\.com/huntridge-labs/hardening-workflows/)([^/]+)(/.github/schemas/[\\w-]+\\.schema\\.json\")"
           },
           "replace": "${1}{{version}}${3}"
+        },
+        {
+          "files": [
+            ".github/actions/**/*.{yml,yaml,md}"
+          ],
+          "search": {
+            "pattern": "(huntridge-labs/hardening-workflows/.github/actions/[^@]+)@[^\\s]+",
+            "flags": "g"
+          },
+          "replace": "${1}@{{version}}"
+        },
+        {
+          "files": [
+            "CONTRIBUTING.md",
+            "examples/README.md"
+          ],
+          "search": {
+            "pattern": "(huntridge-labs/hardening-workflows/.github/actions/[^@]+)@[^\\s]+",
+            "flags": "g"
+          },
+          "replace": "${1}@{{version}}"
+        },
+        {
+          "files": [
+            ".github/workflows/scanner-*.yml",
+            ".github/workflows/linting.yml",
+            ".github/workflows/infrastructure-scan.yml",
+            ".github/workflows/container-scan.yml",
+            ".github/workflows/reusable-security-hardening.yml"
+          ],
+          "search": {
+            "pattern": "(huntridge-labs/hardening-workflows/.github/actions/[^@]+)@[^\\s]+",
+            "flags": "g"
+          },
+          "replace": "${1}@{{version}}"
+        },
+        {
+          "files": [
+            "examples/github-enterprise/**/*.yml",
+            "examples/github-enterprise/**/*.yaml"
+          ],
+          "search": {
+            "pattern": "(huntridge-labs/hardening-workflows/.github/actions/[^@]+)@[^\\s]+",
+            "flags": "g"
+          },
+          "replace": "${1}@{{version}}"
+        },
+        {
+          "files": [
+            "examples/workflows/**/*.yml",
+            "examples/workflows/**/*.yaml"
+          ],
+          "search": {
+            "pattern": "(huntridge-labs/hardening-workflows/.github/actions/[^@]+)@[^\\s]+",
+            "flags": "g"
+          },
+          "replace": "${1}@{{version}}"
         }
       ]
     }

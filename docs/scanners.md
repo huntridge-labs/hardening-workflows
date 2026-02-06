@@ -6,6 +6,43 @@ Complete configuration reference for all available security scanners.
 
 </div>
 
+## Architecture
+
+This project uses an **actions-first architecture**:
+
+- **Composite Actions** (`.github/actions/scanner-*/`) - Single source of truth for all scanner logic
+- **Reusable Workflows** (`.github/workflows/scanner-*.yml`) - Thin wrappers for backwards compatibility
+- **Example Workflows** (`examples/github-enterprise/`) - Templates for GHES users
+
+**For github.com users**: Use the reusable workflows via `workflow_call` (recommended for simplicity).
+
+**For GHES users**: Use composite actions directly - they work from public github.com repos without mirroring.
+
+<details>
+<summary><strong>GHES Usage Example</strong></summary>
+
+```yaml
+# Direct composite action usage (GHES compatible)
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@v2.12.0
+        with:
+          enable_code_security: true
+          fail_on_severity: high
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+See [examples/github-enterprise/](../examples/github-enterprise/) for complete templates.
+
+</details>
+
+---
+
 ## Table of Contents
 
 - [SAST Scanners](#sast-scanners)

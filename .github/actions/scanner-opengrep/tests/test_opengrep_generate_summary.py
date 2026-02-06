@@ -1,0 +1,283 @@
+#!/usr/bin/env python3
+"""
+Unit tests for scanner-opengrep/scripts/generate-summary.sh
+Tests markdown generation for OpenGrep SAST scan results
+"""
+
+import os
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+# Paths
+REPO_ROOT = Path(__file__).parent.parent.parent.parent.parent
+SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
+GENERATOR_SCRIPT = SCRIPTS_DIR / "generate-summary.sh"
+FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures" / "scanner-outputs" / "opengrep"
+
+
+class TestOpenGrepGenerateSummary:
+    """Test cases for scanner-opengrep generate-summary.sh"""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, tmp_path):
+        """Set up test workspace for each test."""
+        self.workspace = tmp_path
+        self.opengrep_reports = tmp_path / "opengrep-reports"
+        self.opengrep_reports.mkdir(parents=True)
+        self.output_file = tmp_path / "summary.md"
+        self.original_dir = os.getcwd()
+        os.chdir(tmp_path)
+        yield
+        os.chdir(self.original_dir)
+
+    def run_generator(
+        self,
+        output_file=None,
+        is_pr_comment="false",
+        error_count="0",
+        warning_count="0",
+        info_count="0",
+        total="0",
+        repo_url="https://github.com/test/repo/blob/main",
+        server_url="https://github.com",
+        repository="test/repo",
+        run_id="12345",
+    ):
+        """Helper to run the generator script with arguments."""
+        if output_file is None:
+            output_file = str(self.output_file)
+
+        cmd = [
+            "bash",
+            str(GENERATOR_SCRIPT),
+            str(output_file),
+            is_pr_comment,
+            error_count,
+            warning_count,
+            info_count,
+            total,
+            repo_url,
+            server_url,
+            repository,
+            run_id,
+        ]
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=self.workspace,
+        )
+        return result
+
+    def test_script_exists(self):
+        """Verify generator script exists."""
+        assert GENERATOR_SCRIPT.exists(), f"Script not found: {GENERATOR_SCRIPT}"
+
+    def test_fixtures_exist(self):
+        """Verify required fixtures exist."""
+        assert FIXTURES_DIR.exists(), f"Fixtures not found: {FIXTURES_DIR}"
+        assert (FIXTURES_DIR / "results-with-findings.json").exists()
+        assert (FIXTURES_DIR / "results-zero-findings.json").exists()
+
+    def test_generates_summary_with_findings(self):
+        """Test generating summary with findings."""
+        # Copy fixture
+        shutil.copy(
+            FIXTURES_DIR / "results-with-findings.json",
+            self.opengrep_reports / "opengrep.json",
+        )
+
+        # Run generator (based on fixture: 1 ERROR, 2 WARNING, 1 INFO)
+        result = self.run_generator(
+            error_count="1",
+            warning_count="2",
+            info_count="1",
+            total="4",
+        )
+
+        assert result.returncode == 0, f"Script failed: {result.stderr}"
+        assert self.output_file.exists(), "Output file not created"
+
+        content = self.output_file.read_text()
+
+        # Check for key elements
+        assert "OpenGrep SAST" in content
+        assert "Findings Summary" in content
+
+    def test_generates_summary_zero_findings(self):
+        """Test generating summary with zero findings."""
+        shutil.copy(
+            FIXTURES_DIR / "results-zero-findings.json",
+            self.opengrep_reports / "opengrep.json",
+        )
+
+        result = self.run_generator(
+            error_count="0",
+            warning_count="0",
+            info_count="0",
+            total="0",
+        )
+
+        assert result.returncode == 0
+        assert self.output_file.exists()
+
+        content = self.output_file.read_text()
+        assert "No security findings" in content
+
+    def test_pr_comment_format_collapsible(self):
+        """Test PR comment format uses collapsible sections."""
+        shutil.copy(
+            FIXTURES_DIR / "results-with-findings.json",
+            self.opengrep_reports / "opengrep.json",
+        )
+
+        result = self.run_generator(
+            is_pr_comment="true",
+            total="4",
+        )
+
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+
+        # PR comment should use collapsible format
+        assert "<details>" in content
+        assert "<summary>" in content
+        assert "</details>" in content
+
+    def test_error_severity_message(self):
+        """Test ERROR severity priority message appears."""
+        shutil.copy(
+            FIXTURES_DIR / "results-with-findings.json",
+            self.opengrep_reports / "opengrep.json",
+        )
+
+        result = self.run_generator(
+            error_count="2",
+            warning_count="0",
+            info_count="0",
+            total="2",
+        )
+
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+        assert "ERROR" in content
+        assert "2 error-severity findings" in content
+
+    def test_warning_severity_message(self):
+        """Test WARNING severity priority message appears."""
+        shutil.copy(
+            FIXTURES_DIR / "results-with-findings.json",
+            self.opengrep_reports / "opengrep.json",
+        )
+
+        result = self.run_generator(
+            error_count="0",
+            warning_count="3",
+            info_count="0",
+            total="3",
+        )
+
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+        assert "WARNING" in content
+        assert "3 warning-severity findings" in content
+
+    def test_finding_details_section(self):
+        """Test finding details section is present with findings."""
+        shutil.copy(
+            FIXTURES_DIR / "results-with-findings.json",
+            self.opengrep_reports / "opengrep.json",
+        )
+
+        result = self.run_generator(
+            error_count="1",
+            warning_count="2",
+            info_count="1",
+            total="4",
+        )
+
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+
+        # Should have finding details
+        assert "Finding Details" in content
+        assert "Severity" in content
+        assert "Rule" in content
+        assert "Location" in content
+
+    def test_artifact_link_present(self):
+        """Test artifact link is present in output."""
+        shutil.copy(
+            FIXTURES_DIR / "results-with-findings.json",
+            self.opengrep_reports / "opengrep.json",
+        )
+
+        result = self.run_generator(
+            repository="test/repo",
+            run_id="12345",
+            total="4",
+        )
+
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+        assert "https://github.com/test/repo/actions/runs/12345" in content
+
+    def test_handles_missing_json_file(self):
+        """Test handles missing JSON file gracefully."""
+        # Don't copy any files - directory exists but is empty
+        result = self.run_generator(total="0")
+
+        assert result.returncode == 0
+        assert self.output_file.exists()
+
+        content = self.output_file.read_text()
+        # Should still generate output
+        assert "OpenGrep" in content
+
+    def test_non_pr_format_has_heading(self):
+        """Test non-PR format uses heading instead of details tag."""
+        shutil.copy(
+            FIXTURES_DIR / "results-with-findings.json",
+            self.opengrep_reports / "opengrep.json",
+        )
+
+        result = self.run_generator(
+            is_pr_comment="false",
+            total="4",
+        )
+
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+
+        # Non-PR format should have ## heading
+        assert "## OpenGrep SAST Scan" in content
+
+    def test_summary_table_format(self):
+        """Test summary table has correct format."""
+        shutil.copy(
+            FIXTURES_DIR / "results-with-findings.json",
+            self.opengrep_reports / "opengrep.json",
+        )
+
+        result = self.run_generator(
+            error_count="1",
+            warning_count="2",
+            info_count="3",
+            total="6",
+        )
+
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+
+        # Check table headers
+        assert "| Error | Warning | Info | Total |" in content
+        # Check table row with counts
+        assert "| **1** | **2** | **3** | **6** |" in content
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

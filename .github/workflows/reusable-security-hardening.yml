@@ -177,8 +177,6 @@ env:
   AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
   AWS_REGION: ${{ inputs.aws_region }}
   PYTHON_VERSION: ${{ inputs.python_version }}
-  # Use current branch/PR when testing in hardening-workflows repo, otherwise use release tag
-  HRL_REF: ${{ github.repository == 'huntridge-labs/hardening-workflows' && (github.head_ref || github.ref_name) || '2.12.0' }}
 
 jobs:
   scan-coordinator:
@@ -415,7 +413,9 @@ jobs:
     name: Code Quality & Linting
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_lint == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@2.12.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/linting.yml@feat/migrate-to-composite-actions
+    with:
+      post_pr_comment: false
     permissions:
       contents: read
       actions: read
@@ -427,15 +427,13 @@ jobs:
     name: CodeQL Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_codeql == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@2.12.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-codeql.yml@feat/migrate-to-composite-actions
     with:
       codeql_languages: ${{ inputs.codeql_languages }}
       config_file: ${{ inputs.codeql_config_file }}
-      query_suite: ${{ inputs.codeql_query_suite }}
-      scan_paths: ${{ inputs.codeql_scan_paths }}
-      ignore_paths: ${{ inputs.codeql_ignore_paths }}
-      post_pr_comment: ${{ inputs.post_pr_comment }}
+      post_pr_comment: false
       enable_code_security: ${{ inputs.enable_code_security }}
+      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
@@ -447,9 +445,9 @@ jobs:
     name: OpenGrep Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_opengrep == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@2.12.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-opengrep.yml@feat/migrate-to-composite-actions
     with:
-      post_pr_comment: ${{ inputs.post_pr_comment }}
+      post_pr_comment: false
       enable_code_security: ${{ inputs.enable_code_security }}
       fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
@@ -463,9 +461,9 @@ jobs:
     name: Bandit Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_bandit == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@2.12.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-bandit.yml@feat/migrate-to-composite-actions
     with:
-      post_pr_comment: ${{ inputs.post_pr_comment }}
+      post_pr_comment: false
       enable_code_security: ${{ inputs.enable_code_security }}
       fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
@@ -479,9 +477,9 @@ jobs:
     name: Gitleaks Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_gitleaks == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@2.12.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@feat/migrate-to-composite-actions
     with:
-      post_pr_comment: ${{ inputs.post_pr_comment }}
+      post_pr_comment: false
       enable_code_security: ${{ inputs.enable_code_security }}
       fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
       gitleaks_enable_comments: ${{ inputs.gitleaks_enable_comments }}
@@ -501,9 +499,9 @@ jobs:
     name: ClamAV Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_clamav == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-clamav.yml@2.12.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-clamav.yml@feat/migrate-to-composite-actions
     with:
-      post_pr_comment: ${{ inputs.post_pr_comment }}
+      post_pr_comment: false
       enable_code_security: ${{ inputs.enable_code_security }}
       scan_path: ${{ inputs.clamav_scan_path }}
       fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
@@ -518,7 +516,7 @@ jobs:
     name: Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_container == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@2.12.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@feat/migrate-to-composite-actions
     with:
       # Disable individual container PR comments - security-summary job provides comprehensive reporting
       post_pr_comment: false
@@ -528,6 +526,7 @@ jobs:
       contents: read
       security-events: write
       actions: read
+      packages: read
       pull-requests: write
     secrets: inherit
 
@@ -535,11 +534,10 @@ jobs:
     name: Infrastructure Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_infrastructure == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/infrastructure-scan.yml@2.12.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/infrastructure-scan.yml@feat/migrate-to-composite-actions
     with:
       iac_path: ${{ inputs.iac_path }}
-      python_version: ${{ inputs.python_version }}
-      aws_region: ${{ inputs.aws_region }}
+      post_pr_comment: false
       enable_code_security: ${{ inputs.enable_code_security }}
       fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
@@ -553,13 +551,14 @@ jobs:
     name: SBOM Generator
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_sbom == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@2.12.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-syft.yml@feat/migrate-to-composite-actions
     with:
       enable_code_security: ${{ inputs.enable_code_security }}
     permissions:
       contents: read
       security-events: write
       actions: read
+      packages: read
       pull-requests: write
     secrets: inherit
 
@@ -567,10 +566,10 @@ jobs:
     name: Trivy IaC Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_trivy_iac == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@2.12.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-iac.yml@feat/migrate-to-composite-actions
     with:
       iac_path: ${{ inputs.iac_path }}
-      post_pr_comment: ${{ inputs.post_pr_comment }}
+      post_pr_comment: false
       enable_code_security: ${{ inputs.enable_code_security }}
       fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
@@ -584,10 +583,10 @@ jobs:
     name: Checkov Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_checkov == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@2.12.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-checkov.yml@feat/migrate-to-composite-actions
     with:
       iac_path: ${{ inputs.iac_path }}
-      post_pr_comment: ${{ inputs.post_pr_comment }}
+      post_pr_comment: false
       enable_code_security: ${{ inputs.enable_code_security }}
       fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
@@ -601,16 +600,17 @@ jobs:
     name: Trivy Container Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_trivy_container == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@2.12.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-trivy-container.yml@feat/migrate-to-composite-actions
     with:
       image_ref: 'nginx:latest'
-      post_pr_comment: ${{ inputs.post_pr_comment }}
+      post_pr_comment: false
       enable_code_security: ${{ inputs.enable_code_security }}
       fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
       actions: read
+      packages: read
       pull-requests: write
     secrets: inherit
 
@@ -618,16 +618,17 @@ jobs:
     name: Grype Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_grype == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@2.12.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-grype.yml@feat/migrate-to-composite-actions
     with:
       image_ref: 'nginx:latest'
-      post_pr_comment: ${{ inputs.post_pr_comment }}
+      post_pr_comment: false
       enable_code_security: ${{ inputs.enable_code_security }}
       fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
     permissions:
       contents: read
       security-events: write
       actions: read
+      packages: read
       pull-requests: write
     secrets: inherit
 
@@ -635,7 +636,7 @@ jobs:
     name: ZAP (DAST) Scanner
     needs: scan-coordinator
     if: needs.scan-coordinator.outputs.run_zap == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-zap.yml@2.12.0
+    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-zap.yml@feat/migrate-to-composite-actions
     with:
       scan_mode: ${{ inputs.zap_scan_mode }}
       scan_type: ${{ inputs.zap_scan_type }}
@@ -651,6 +652,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      packages: read
       pull-requests: write
     secrets: inherit
 
@@ -781,6 +783,42 @@ jobs:
         merge-multiple: true
       continue-on-error: true
 
+    - name: Copy scanner summaries to expected locations
+      shell: bash
+      run: |
+        echo "📁 Copying scanner summaries to root level..."
+
+        # Check all possible locations where summaries might be
+        # Includes scanner-summary-* (most scanners) and container-scan-summary (container scanner)
+        for dir in scanner-summaries scanner-summary-* container-scan-summary; do
+          if [ -d "$dir" ]; then
+            echo "  Found directory: $dir"
+            # Handle nested scanner-summaries directory
+            if [ -d "$dir/scanner-summaries" ]; then
+              for md_file in "$dir/scanner-summaries"/*.md; do
+                if [ -f "$md_file" ]; then
+                  filename=$(basename "$md_file")
+                  cp "$md_file" "./$filename"
+                  echo "    ✅ Copied $md_file -> ./$filename"
+                fi
+              done
+            fi
+            # Handle direct md files
+            for md_file in "$dir"/*.md; do
+              if [ -f "$md_file" ]; then
+                filename=$(basename "$md_file")
+                cp "$md_file" "./$filename"
+                echo "    ✅ Copied $md_file -> ./$filename"
+              fi
+            done
+          fi
+        done
+
+        echo ""
+        echo "📄 Scanner summaries at root level:"
+        ls -la *.md 2>/dev/null || echo "  (none found)"
+      continue-on-error: true
+
     - name: Combine scanner summaries into security report
       run: |
         echo "**Repository:** ${{ github.repository }}" >> security-hardening-report.md
@@ -849,42 +887,12 @@ jobs:
         echo "3. Address any critical or high-severity findings" >> security-hardening-report.md
         echo "4. Consider enabling automated dependency updates" >> security-hardening-report.md
 
-    - name: Checkout hardening-workflows for actions
-      # Skip this checkout if we're already in the hardening-workflows repo (for PR testing)
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: actions/checkout@v6
-      with:
-        repository: huntridge-labs/hardening-workflows
-        ref: ${{ env.HRL_REF }}
-        path: .hardening-workflows
-        token: ${{ secrets.HARDENING_WORKFLOWS_CHECKOUT_TOKEN || github.token }}
-        sparse-checkout: |
-          .github/actions/get-job-id/action.yml
-
-    - name: Get job ID (external)
-      id: job_id_ext
-      if: github.repository != 'huntridge-labs/hardening-workflows'
-      uses: ./.hardening-workflows/.github/actions/get-job-id
-      with:
-        job-name-pattern: 'Security Hardening Summary'
-        fallback-suffix: 'security-hardening-report'
-
-    - name: Get job ID (local)
-      id: job_id_local
-      if: github.repository == 'huntridge-labs/hardening-workflows'
-      uses: ./.github/actions/get-job-id
-      with:
-        job-name-pattern: 'Security Hardening Summary'
-        fallback-suffix: 'security-hardening-report'
-
-    - name: Set job ID output
+    - name: Get job ID
       id: job_id
-      run: |
-        if [ "${{ github.repository }}" == "huntridge-labs/hardening-workflows" ]; then
-          echo "job-id=${{ steps.job_id_local.outputs.job-id }}" >> $GITHUB_OUTPUT
-        else
-          echo "job-id=${{ steps.job_id_ext.outputs.job-id }}" >> $GITHUB_OUTPUT
-        fi
+      uses: huntridge-labs/hardening-workflows/.github/actions/get-job-id@feat/migrate-to-composite-actions
+      with:
+        job-name-pattern: 'Security Hardening Summary'
+        fallback-suffix: 'security-hardening-report'
 
     - name: Upload comprehensive security report
       uses: actions/upload-artifact@v6
