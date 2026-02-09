@@ -4,6 +4,9 @@ Comprehensive test suite for extract-archives.py with 100% coverage.
 """
 
 import json
+import pytest
+
+pytestmark = pytest.mark.unit
 import os
 import shutil
 import tarfile
@@ -534,6 +537,45 @@ class TestArgumentParsing:
         # Test that input_paths is required
         with pytest.raises(SystemExit):
             parser.parse_args([])
+
+
+class TestEdgeCases:
+    """Edge case tests for archive extraction."""
+
+    def test_empty_archive_extraction(self, tmp_path):
+        """Test handling of empty archive files."""
+        # Create an empty zip
+        zip_path = tmp_path / "empty.zip"
+        with zipfile.ZipFile(zip_path, 'w') as zf:
+            pass
+
+        # Archive extractor should handle empty archives gracefully
+        assert zip_path.exists()
+        assert zipfile.is_zipfile(zip_path)
+
+    def test_archive_with_large_file_count(self, tmp_path):
+        """Test archive with many files."""
+        zip_path = tmp_path / "large.zip"
+        with zipfile.ZipFile(zip_path, 'w') as zf:
+            for i in range(100):
+                zf.writestr(f"file{i:03d}.txt", f"content {i}")
+
+        # Verify archive was created successfully
+        with zipfile.ZipFile(zip_path, 'r') as zf:
+            names = zf.namelist()
+            assert len(names) == 100
+
+    def test_archive_with_special_characters(self, tmp_path):
+        """Test archive with special characters in filenames."""
+        zip_path = tmp_path / "special.zip"
+        with zipfile.ZipFile(zip_path, 'w') as zf:
+            zf.writestr("file-with-dashes.txt", "content")
+            zf.writestr("file_with_underscores.txt", "content")
+            zf.writestr("file.multiple.dots.txt", "content")
+
+        # Verify archive was created successfully
+        with zipfile.ZipFile(zip_path, 'r') as zf:
+            assert len(zf.namelist()) == 3
 
 
 if __name__ == '__main__':

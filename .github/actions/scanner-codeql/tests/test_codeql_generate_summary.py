@@ -4,6 +4,7 @@ Unit tests for scanner-codeql/scripts/generate_summary.py
 Tests markdown generation for CodeQL SAST scan results
 """
 
+import json
 import os
 import shutil
 import subprocess
@@ -314,6 +315,258 @@ class TestCodeQLGenerateSummary:
         assert "| Critical | High | Medium | Low | Total |" in content
         # Check table row with counts
         assert "| **1** | **2** | **3** | **4** | **10** |" in content
+
+
+class TestEdgeCases:
+    """Edge case tests for CodeQL summary generation."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, tmp_path):
+        """Set up test workspace for each test."""
+        self.workspace = tmp_path
+        self.codeql_reports = tmp_path / "codeql-reports"
+        self.sarif_dir = self.codeql_reports / "sarif"
+        self.sarif_dir.mkdir(parents=True)
+        self.output_file = tmp_path / "summary.md"
+        self.original_dir = os.getcwd()
+        os.chdir(tmp_path)
+        yield
+        os.chdir(self.original_dir)
+
+    def run_generator(
+        self,
+        output_file=None,
+        is_pr_comment="false",
+        language="python",
+        critical="0",
+        high="0",
+        medium="0",
+        low="0",
+        total="0",
+        repo_url="https://github.com/test/repo/blob/main",
+        server_url="https://github.com",
+        repository="test/repo",
+        run_id="12345",
+    ):
+        """Helper to run the generator script with arguments."""
+        if output_file is None:
+            output_file = str(self.output_file)
+
+        cmd = [
+            sys.executable,
+            str(GENERATOR_SCRIPT),
+            str(output_file),
+            "--is-pr-comment", is_pr_comment,
+            "--language", language,
+            "--critical", critical,
+            "--high", high,
+            "--medium", medium,
+            "--low", low,
+            "--total", total,
+            "--repo-url", repo_url,
+            "--server-url", server_url,
+            "--repository", repository,
+            "--run-id", run_id,
+        ]
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=self.workspace,
+        )
+        return result
+
+    def test_empty_findings_all_zeros(self):
+        """Test with zero findings and all fields zero."""
+        result = self.run_generator(
+            language="go",
+            critical="0",
+            high="0",
+            medium="0",
+            low="0",
+            total="0",
+        )
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+        assert "| **0** | **0** | **0** | **0** | **0** |" in content
+
+    def test_malformed_sarif_file(self):
+        """Test with malformed SARIF JSON file."""
+        bad_sarif = self.sarif_dir / "broken.sarif"
+        bad_sarif.write_text("{invalid json content")
+
+        result = self.run_generator(language="python", total="0")
+        assert result.returncode == 0
+        assert self.output_file.exists()
+
+    def test_sarif_with_no_runs(self):
+        """Test SARIF file with empty runs array."""
+        sarif_file = self.sarif_dir / "python.sarif"
+        sarif_file.write_text(json.dumps({"runs": []}))
+
+        result = self.run_generator(language="python", total="0")
+        assert result.returncode == 0
+        assert self.output_file.exists()
+
+    def test_sarif_with_no_results(self):
+        """Test SARIF run with no results field."""
+        sarif_file = self.sarif_dir / "python.sarif"
+        sarif_file.write_text(json.dumps({
+            "runs": [{"tool": {"driver": {"name": "CodeQL"}}}]
+        }))
+
+        result = self.run_generator(language="python", total="0")
+        assert result.returncode == 0
+        assert self.output_file.exists()
+
+    def test_all_critical_findings(self):
+        """Test with all critical findings."""
+        result = self.run_generator(
+            language="python",
+            critical="5",
+            high="0",
+            medium="0",
+            low="0",
+            total="5"
+        )
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+        assert "CRITICAL" in content
+        assert "5 critical-severity findings" in content
+
+    def test_all_high_findings(self):
+        """Test with all high severity findings."""
+        result = self.run_generator(
+            language="python",
+            critical="0",
+            high="10",
+            medium="0",
+            low="0",
+            total="10"
+        )
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+        assert "HIGH" in content
+        assert "10 high-severity findings" in content
+
+    def test_very_long_language_name(self):
+        """Test with very long language name."""
+        long_lang = "a" * 100
+        result = self.run_generator(
+            language=long_lang,
+            total="0"
+        )
+        assert result.returncode == 0
+        assert self.output_file.exists()
+
+    def test_empty_language_name(self):
+        """Test with empty language name."""
+        result = self.run_generator(
+            language="",
+            total="0"
+        )
+        assert result.returncode == 0
+        assert self.output_file.exists()
+
+    def test_special_characters_in_language(self):
+        """Test with special characters in language name."""
+        result = self.run_generator(
+            language="python-cpp",
+            total="0"
+        )
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+        assert "CodeQL" in content
+
+    def test_very_large_counts(self):
+        """Test with very large vulnerability counts."""
+        result = self.run_generator(
+            language="python",
+            critical="9999",
+            high="9999",
+            medium="9999",
+            low="9999",
+            total="39996"
+        )
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+        assert "9999" in content
+
+    def test_output_in_nested_directory(self):
+        """Test creating output in nested non-existent directories."""
+        nested_output = self.workspace / "a" / "b" / "c" / "d" / "summary.md"
+        result = self.run_generator(
+            output_file=str(nested_output),
+            language="python"
+        )
+        assert result.returncode == 0
+        assert nested_output.exists()
+
+    def test_sarif_with_empty_locations(self):
+        """Test SARIF result with empty locations array."""
+        sarif_file = self.sarif_dir / "python.sarif"
+        sarif_file.write_text(json.dumps({
+            "runs": [{
+                "tool": {"driver": {"name": "CodeQL"}},
+                "results": [{
+                    "level": "error",
+                    "locations": []
+                }]
+            }]
+        }))
+
+        result = self.run_generator(language="python", critical="1", total="1")
+        assert result.returncode == 0
+        assert self.output_file.exists()
+
+    def test_sarif_missing_level_field(self):
+        """Test SARIF result missing level field."""
+        sarif_file = self.sarif_dir / "python.sarif"
+        sarif_file.write_text(json.dumps({
+            "runs": [{
+                "tool": {"driver": {"name": "CodeQL"}},
+                "results": [{
+                    "ruleId": "py/test",
+                    "message": {"text": "Test finding"},
+                    "locations": [{"physicalLocation": {"artifactLocation": {"uri": "test.py"}}}]
+                }]
+            }]
+        }))
+
+        result = self.run_generator(language="python", total="1")
+        assert result.returncode == 0
+        assert self.output_file.exists()
+
+    def test_sarif_with_unicode_in_message(self):
+        """Test SARIF with unicode characters in message."""
+        sarif_file = self.sarif_dir / "python.sarif"
+        sarif_file.write_text(json.dumps({
+            "runs": [{
+                "tool": {"driver": {"name": "CodeQL"}},
+                "results": [{
+                    "level": "error",
+                    "message": {"text": "Issue found at 位置 🔍"},
+                    "locations": [{"physicalLocation": {"artifactLocation": {"uri": "test.py"}}}]
+                }]
+            }]
+        }))
+
+        result = self.run_generator(language="python", critical="1", total="1")
+        assert result.returncode == 0
+        assert self.output_file.exists()
+
+    def test_pr_comment_with_zero_findings(self):
+        """Test PR comment format with zero findings."""
+        result = self.run_generator(
+            is_pr_comment="true",
+            language="python",
+            total="0"
+        )
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+        assert "<details>" in content
+        assert "<summary>" in content
 
 
 if __name__ == "__main__":

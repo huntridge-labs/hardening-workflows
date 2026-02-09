@@ -4,9 +4,11 @@ Unit tests for scanner-opengrep/scripts/generate_summary.py
 Tests markdown generation for OpenGrep SAST scan results
 """
 
+import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -286,6 +288,81 @@ class TestOpenGrepGenerateSummary:
         assert "| Error | Warning | Info | Total |" in content
         # Check table row with counts
         assert "| **1** | **2** | **3** | **6** |" in content
+
+
+class TestEdgeCases:
+    """Edge case tests for OpenGrep summary generation."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, tmp_path):
+        """Set up test workspace for each test."""
+        self.workspace = tmp_path
+        self.opengrep_reports = tmp_path / "opengrep-reports"
+        self.opengrep_reports.mkdir(parents=True)
+        self.output_file = tmp_path / "summary.md"
+        self.original_dir = os.getcwd()
+        os.chdir(tmp_path)
+        yield
+        os.chdir(self.original_dir)
+
+    def run_generator(self, output_file=None, is_pr_comment="false", error_count="0",
+                      warning_count="0", info_count="0", total="0",
+                      repo_url="https://github.com/test/repo/blob/main",
+                      server_url="https://github.com", repository="test/repo", run_id="12345"):
+        if output_file is None:
+            output_file = str(self.output_file)
+        cmd = [sys.executable, str(GENERATOR_SCRIPT), str(output_file),
+               "--is-pr-comment", is_pr_comment, "--error-count", error_count,
+               "--warning-count", warning_count, "--info-count", info_count, "--total", total,
+               "--repo-url", repo_url, "--github-server-url", server_url,
+               "--github-repo", repository, "--github-run-id", run_id]
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=self.workspace)
+        return result
+
+    def test_empty_findings_all_zero(self):
+        """Test with zero findings across all severity levels."""
+        result = self.run_generator(error_count="0", warning_count="0", info_count="0", total="0")
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+        assert "| **0** | **0** | **0** | **0** |" in content
+
+    def test_very_large_counts(self):
+        """Test with very large finding counts."""
+        result = self.run_generator(error_count="9999", warning_count="9999", info_count="9999", total="29997")
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+        assert "9999" in content
+
+    def test_only_errors_all_findings_are_errors(self):
+        """Test when all findings are ERROR severity."""
+        result = self.run_generator(error_count="10", warning_count="0", info_count="0", total="10")
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+        assert "ERROR" in content
+        assert "10 error-severity findings" in content
+
+    def test_output_nested_directory(self):
+        """Test creating output in nested directory."""
+        nested_output = self.workspace / "a" / "b" / "c" / "summary.md"
+        result = self.run_generator(output_file=str(nested_output))
+        assert result.returncode == 0
+        assert nested_output.exists()
+
+    def test_pr_comment_with_zero_findings(self):
+        """Test PR comment format with zero findings."""
+        result = self.run_generator(is_pr_comment="true", total="0")
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+        assert "<details>" in content
+
+    def test_malformed_json_results_file(self):
+        """Test with malformed JSON in results file."""
+        bad_json = self.opengrep_reports / "opengrep.json"
+        bad_json.write_text("{invalid json")
+        result = self.run_generator(total="0")
+        # Should handle gracefully
+        assert result.returncode == 0
+        assert self.output_file.exists()
 
 
 if __name__ == "__main__":

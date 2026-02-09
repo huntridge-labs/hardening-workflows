@@ -5,6 +5,9 @@ Tests markdown generation for ZAP DAST scan results
 """
 
 import json
+import pytest
+
+pytestmark = pytest.mark.unit
 import os
 import sys
 from pathlib import Path
@@ -409,6 +412,70 @@ class TestGenerateZAPSummary:
         assert summary_file.exists()
         content = summary_file.read_text()
         assert "0" in content  # Should show zero counts
+
+
+class TestEdgeCases:
+    """Edge case tests for ZAP summary generation."""
+
+    def test_missing_zap_downloads_directory(self, tmp_path, monkeypatch):
+        """Test when zap-downloads directory doesn't exist."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("ZAP_PARSER", str(PARSER_PATH))
+        monkeypatch.setenv("ZAP_SCAN_TYPE", "baseline")
+        # Don't create zap-downloads directory
+        generate_zap_summary.main()
+        summary_file = tmp_path / "scanner-summaries" / "zap.md"
+        # Should still create summary
+        assert summary_file.exists()
+
+    def test_malformed_json_report(self, tmp_path, monkeypatch):
+        """Test with malformed JSON report."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("ZAP_PARSER", str(PARSER_PATH))
+        monkeypatch.setenv("ZAP_SCAN_TYPE", "full")
+
+        zap_downloads = tmp_path / "zap-downloads"
+        zap_downloads.mkdir()
+        (zap_downloads / "report_json.json").write_text("{invalid json")
+
+        generate_zap_summary.main()
+        summary_file = tmp_path / "scanner-summaries" / "zap.md"
+        assert summary_file.exists()
+
+    def test_empty_json_report(self, tmp_path, monkeypatch):
+        """Test with empty JSON report."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("ZAP_PARSER", str(PARSER_PATH))
+        monkeypatch.setenv("ZAP_SCAN_TYPE", "baseline")
+
+        zap_downloads = tmp_path / "zap-downloads"
+        zap_downloads.mkdir()
+        (zap_downloads / "report_json.json").write_text("")
+
+        generate_zap_summary.main()
+        summary_file = tmp_path / "scanner-summaries" / "zap.md"
+        assert summary_file.exists()
+
+    def test_very_large_finding_counts(self, tmp_path, monkeypatch):
+        """Test with very large finding counts."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("ZAP_PARSER", str(PARSER_PATH))
+        monkeypatch.setenv("ZAP_SCAN_TYPE", "api")
+
+        zap_downloads = tmp_path / "zap-downloads"
+        zap_downloads.mkdir()
+        (zap_downloads / "report_json.json").write_text(json.dumps({
+            "site": [{
+                "alert": [
+                    {"riskcode": "3", "name": f"Alert {i}"}
+                    for i in range(100)
+                ]
+            }]
+        }))
+
+        generate_zap_summary.main()
+        summary_file = tmp_path / "scanner-summaries" / "zap.md"
+        assert summary_file.exists()
 
 
 if __name__ == "__main__":

@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 
 # Get the scripts directory
 SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"

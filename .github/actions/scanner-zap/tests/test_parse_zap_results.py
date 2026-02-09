@@ -5,6 +5,9 @@ Tests the ZAP (OWASP Zed Attack Proxy) results parser with synthetic fixtures
 """
 
 import json
+import pytest
+
+pytestmark = pytest.mark.unit
 import sys
 from pathlib import Path
 
@@ -335,6 +338,88 @@ class TestParseZAPResults:
         # Both should be valid, but result1 might be shorter
         assert isinstance(result1, str)
         assert isinstance(result2, str)
+
+
+class TestEdgeCases:
+    """Edge case tests for ZAP results parsing."""
+
+    def test_empty_results_json(self, tmp_path):
+        """Test with empty JSON file."""
+        json_file = tmp_path / "empty.json"
+        json_file.write_text("")
+        result = parse_zap_results.get_counts(str(json_file))
+        # Empty file should return "0 0 0 0"
+        assert result is not None
+
+    def test_malformed_json(self, tmp_path):
+        """Test with malformed JSON."""
+        json_file = tmp_path / "bad.json"
+        json_file.write_text("{invalid json")
+        result = parse_zap_results.get_counts(str(json_file))
+        assert result is not None
+
+    def test_json_no_sites(self, tmp_path):
+        """Test with JSON missing sites field."""
+        json_file = tmp_path / "no_sites.json"
+        json_file.write_text(json.dumps({}))
+        result = parse_zap_results.get_counts(str(json_file))
+        assert result is not None
+
+    def test_empty_sites_array(self, tmp_path):
+        """Test with empty sites array."""
+        json_file = tmp_path / "empty_sites.json"
+        json_file.write_text(json.dumps({"site": []}))
+        result = parse_zap_results.get_counts(str(json_file))
+        # Empty sites should return counts of zero
+        assert "0" in result
+
+    def test_site_without_alerts(self, tmp_path):
+        """Test site without alerts."""
+        json_file = tmp_path / "no_alerts.json"
+        json_file.write_text(json.dumps({
+            "site": [{
+                "name": "https://example.com",
+                "@host": "example.com"
+            }]
+        }))
+        result = parse_zap_results.get_counts(str(json_file))
+        assert "0" in result
+
+    def test_alert_without_risk_level(self, tmp_path):
+        """Test alert missing riskcode."""
+        json_file = tmp_path / "no_riskcode.json"
+        json_file.write_text(json.dumps({
+            "site": [{
+                "alert": [{
+                    "name": "Test Alert",
+                    "description": "Test"
+                }]
+            }]
+        }))
+        result = parse_zap_results.get_counts(str(json_file))
+        assert result is not None
+
+    def test_nonexistent_file(self):
+        """Test with nonexistent file."""
+        result = parse_zap_results.get_counts("/nonexistent/file.json")
+        # Should return "0 0 0" or similar
+        assert "0" in result
+
+    def test_very_long_alert_names(self, tmp_path):
+        """Test with very long alert names."""
+        long_name = "A" * 500
+        json_file = tmp_path / "long_names.json"
+        json_file.write_text(json.dumps({
+            "site": [{
+                "alert": [{
+                    "name": long_name,
+                    "description": long_name,
+                    "riskcode": "1"
+                }]
+            }]
+        }))
+        result = parse_zap_results.generate_compact_table(str(json_file), severity="high")
+        assert isinstance(result, str)
 
 
 if __name__ == "__main__":

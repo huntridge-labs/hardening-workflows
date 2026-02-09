@@ -5,6 +5,9 @@ Tests config loading, validation, matrix generation, and image reference buildin
 """
 
 import json
+import pytest
+
+pytestmark = pytest.mark.unit
 import os
 import sys
 from pathlib import Path

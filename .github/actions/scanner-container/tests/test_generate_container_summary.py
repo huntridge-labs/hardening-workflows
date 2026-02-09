@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 
 # Get the scripts directory
 SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
@@ -396,3 +398,38 @@ class TestGenerateContainerSummary:
         summary_file = tmp_path / "scanner-summaries" / "container.md"
         content = summary_file.read_text()
         assert "Container" in content
+
+
+class TestEdgeCases:
+    """Edge case tests for container summary generation."""
+
+    def test_no_container_directories(self, tmp_path):
+        """Test when no container scan results directories exist."""
+        returncode, stdout, stderr = run_summary_generator(cwd=tmp_path)
+        assert returncode == 0
+
+    def test_empty_container_directory(self, tmp_path):
+        """Test with empty container directory."""
+        container_dir = tmp_path / "container-scan-results-empty"
+        container_dir.mkdir(parents=True)
+        returncode, stdout, stderr = run_summary_generator(cwd=tmp_path)
+        assert returncode == 0
+
+    def test_malformed_json_in_results(self, tmp_path):
+        """Test with malformed JSON in results."""
+        container_dir = tmp_path / "container-scan-results-bad"
+        container_dir.mkdir(parents=True)
+        (container_dir / "trivy-results.json").write_text("{invalid json")
+        returncode, stdout, stderr = run_summary_generator(cwd=tmp_path)
+        assert returncode == 0
+
+    def test_very_large_container_count(self, tmp_path):
+        """Test with many containers."""
+        for i in range(10):
+            container_dir = tmp_path / f"container-scan-results-app{i:03d}"
+            container_dir.mkdir(parents=True)
+            trivy_fixture = FIXTURES_DIR / "trivy" / "results-zero-findings.json"
+            if trivy_fixture.exists():
+                (container_dir / f"trivy-app{i:03d}-results.json").write_text(trivy_fixture.read_text())
+        returncode, stdout, stderr = run_summary_generator(cwd=tmp_path)
+        assert returncode == 0

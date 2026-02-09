@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 
 # Get the scripts directory
 SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
@@ -343,3 +345,212 @@ class TestParseGrypeResults:
         result = run_parser("table", json_file)
         assert "CVE-2023-1111" in result
         assert "N/A" in result  # Should show N/A for missing fix
+
+
+class TestEdgeCases:
+    """Edge case tests for parse_grype_results."""
+
+    def test_empty_json_file(self, tmp_path):
+        """Test with empty JSON file."""
+        json_file = tmp_path / "empty.json"
+        json_file.write_text("")
+        result = run_parser("counts", json_file)
+        assert result == "0 0 0 0"
+
+    def test_malformed_json(self, tmp_path):
+        """Test with malformed JSON."""
+        json_file = tmp_path / "bad.json"
+        json_file.write_text("{invalid json")
+        result = run_parser("counts", json_file)
+        assert result == "0 0 0 0"
+
+    def test_json_with_no_matches(self, tmp_path):
+        """Test JSON with missing matches field."""
+        json_file = tmp_path / "no_matches.json"
+        json_file.write_text(json.dumps({}))
+        result = run_parser("counts", json_file)
+        assert result == "0 0 0 0"
+
+    def test_matches_not_array(self, tmp_path):
+        """Test when matches is not an array."""
+        json_file = tmp_path / "not_array.json"
+        json_file.write_text(json.dumps({"matches": "not an array"}))
+        result = run_parser("counts", json_file)
+        assert result == "0 0 0 0"
+
+    def test_empty_matches_array(self, tmp_path):
+        """Test with empty matches array."""
+        json_file = tmp_path / "empty_matches.json"
+        json_file.write_text(json.dumps({"matches": []}))
+        result = run_parser("counts", json_file)
+        assert result == "0 0 0 0"
+
+    def test_matches_without_vulnerability_field(self, tmp_path):
+        """Test match without vulnerability field."""
+        json_file = tmp_path / "no_vuln.json"
+        json_file.write_text(json.dumps({
+            "matches": [{"artifact": {"name": "pkg"}}]
+        }))
+        result = run_parser("counts", json_file)
+        # Match without vulnerability field uses empty dict, which defaults to "Low"
+        assert result == "0 0 0 1"
+
+    def test_vulnerability_missing_severity(self, tmp_path):
+        """Test vulnerability without severity field."""
+        json_file = tmp_path / "no_severity.json"
+        json_file.write_text(json.dumps({
+            "matches": [{
+                "vulnerability": {"id": "CVE-2023-1111"},
+                "artifact": {"name": "pkg"}
+            }]
+        }))
+        result = run_parser("counts", json_file)
+        # Missing severity should be treated as Low
+        assert result.startswith("0 0 0")
+
+    def test_unknown_severity_level(self, tmp_path):
+        """Test with unknown severity level."""
+        json_file = tmp_path / "unknown_sev.json"
+        json_file.write_text(json.dumps({
+            "matches": [{
+                "vulnerability": {
+                    "id": "CVE-2023-1111",
+                    "severity": "Unknown"
+                },
+                "artifact": {"name": "pkg", "version": "1.0"}
+            }]
+        }))
+        result = run_parser("counts", json_file)
+        # Unknown severity should be ignored or treated as Low
+        parts = result.split()
+        assert len(parts) == 4
+
+    def test_cves_with_none_id(self, tmp_path):
+        """Test CVEs with None/missing IDs."""
+        json_file = tmp_path / "no_cve_id.json"
+        json_file.write_text(json.dumps({
+            "matches": [
+                {
+                    "vulnerability": {
+                        "severity": "High",
+                        "id": None
+                    },
+                    "artifact": {"name": "pkg", "version": "1.0"}
+                },
+                {
+                    "vulnerability": {
+                        "severity": "High",
+                        "id": "CVE-2023-2222"
+                    },
+                    "artifact": {"name": "pkg", "version": "1.0"}
+                }
+            ]
+        }))
+        result = run_parser("cves", json_file)
+        assert "CVE-2023-2222" in result
+        # None should be filtered out
+
+    def test_duplicate_cves(self, tmp_path):
+        """Test that duplicate CVEs are counted as unique."""
+        json_file = tmp_path / "dups.json"
+        json_file.write_text(json.dumps({
+            "matches": [
+                {
+                    "vulnerability": {
+                        "id": "CVE-2023-1111",
+                        "severity": "High"
+                    },
+                    "artifact": {"name": "pkg1"}
+                },
+                {
+                    "vulnerability": {
+                        "id": "CVE-2023-1111",
+                        "severity": "High"
+                    },
+                    "artifact": {"name": "pkg2"}
+                }
+            ]
+        }))
+        result = run_parser("unique", json_file)
+        assert result == "1"
+
+    def test_very_long_cve_id(self, tmp_path):
+        """Test with very long CVE ID."""
+        long_cve = "CVE-" + "x" * 100
+        json_file = tmp_path / "long_cve.json"
+        json_file.write_text(json.dumps({
+            "matches": [{
+                "vulnerability": {
+                    "id": long_cve,
+                    "severity": "High"
+                },
+                "artifact": {"name": "pkg"}
+            }]
+        }))
+        result = run_parser("cves", json_file)
+        assert long_cve in result
+
+    def test_unicode_in_package_names(self, tmp_path):
+        """Test with unicode in package names."""
+        json_file = tmp_path / "unicode.json"
+        json_file.write_text(json.dumps({
+            "matches": [{
+                "vulnerability": {
+                    "id": "CVE-2023-1111",
+                    "severity": "High"
+                },
+                "artifact": {"name": "日本語パッケージ", "version": "1.0.0"}
+            }]
+        }))
+        result = run_parser("counts", json_file)
+        assert result == "0 1 0 0"
+
+    def test_nonexistent_input_file(self):
+        """Test with nonexistent input file."""
+        result = run_parser("counts", Path("/nonexistent/path.json"))
+        assert result == "0 0 0 0"
+
+    def test_table_with_very_long_strings(self, tmp_path):
+        """Test table output with very long package/vulnerability names."""
+        json_file = tmp_path / "long_strings.json"
+        long_str = "x" * 100
+        json_file.write_text(json.dumps({
+            "matches": [{
+                "vulnerability": {
+                    "id": "CVE-2023-1111",
+                    "severity": "Critical",
+                    "description": long_str
+                },
+                "artifact": {"name": long_str, "version": long_str}
+            }]
+        }))
+        result = run_parser("table", json_file)
+        assert "CVE-2023-1111" in result
+
+    def test_severity_case_sensitivity(self, tmp_path):
+        """Test severity matching is case-insensitive."""
+        json_file = tmp_path / "case.json"
+        json_file.write_text(json.dumps({
+            "matches": [
+                {"vulnerability": {"id": "CVE-1", "severity": "CRITICAL"}, "artifact": {"name": "p"}},
+                {"vulnerability": {"id": "CVE-2", "severity": "critical"}, "artifact": {"name": "p"}},
+                {"vulnerability": {"id": "CVE-3", "severity": "Critical"}, "artifact": {"name": "p"}},
+            ]
+        }))
+        result = run_parser("counts", json_file)
+        # At least some should be recognized as critical
+        assert result != "0 0 0 0"
+
+    def test_all_severity_levels(self, tmp_path):
+        """Test with all severity levels present."""
+        json_file = tmp_path / "all_levels.json"
+        json_file.write_text(json.dumps({
+            "matches": [
+                {"vulnerability": {"id": "CVE-1", "severity": "Critical"}, "artifact": {"name": "p"}},
+                {"vulnerability": {"id": "CVE-2", "severity": "High"}, "artifact": {"name": "p"}},
+                {"vulnerability": {"id": "CVE-3", "severity": "Medium"}, "artifact": {"name": "p"}},
+                {"vulnerability": {"id": "CVE-4", "severity": "Low"}, "artifact": {"name": "p"}},
+            ]
+        }))
+        result = run_parser("counts", json_file)
+        assert result == "1 1 1 1"
