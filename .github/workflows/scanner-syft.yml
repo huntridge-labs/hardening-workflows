@@ -84,7 +84,7 @@ jobs:
           echo "output_table=$output_table" >> $GITHUB_OUTPUT
 
       - name: Generate CycloneDX JSON Path SBOM
-        uses: anchore/sbom-action@v0.21.1
+        uses: anchore/sbom-action@v0.22.2
         if: steps.target.outputs.type == 'path'
         with:
           path: ${{ steps.target.outputs.target }}
@@ -92,7 +92,7 @@ jobs:
           output-file: ${{ steps.target.outputs.output_file }}
 
       - name: Generate CycloneDX JSON Image SBOM
-        uses: anchore/sbom-action@v0.21.1
+        uses: anchore/sbom-action@v0.22.2
         if: steps.target.outputs.type == 'image'
         with:
           image: ${{ steps.target.outputs.target }}
