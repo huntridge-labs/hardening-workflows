@@ -439,20 +439,13 @@ runs:
       if: always() && inputs.skip_summary != 'true'
       shell: bash
       env:
-        TRIVY_PARSER: ${{ github.action_path }}/scripts/parse-trivy-results.sh
-        GRYPE_PARSER: ${{ github.action_path }}/scripts/parse-grype-results.sh
+        TRIVY_PARSER: ${{ github.action_path }}/scripts/parse_trivy_results.py
+        GRYPE_PARSER: ${{ github.action_path }}/scripts/parse_grype_results.py
         GITHUB_REPOSITORY: ${{ github.repository }}
         GITHUB_RUN_ID: ${{ github.run_id }}
         GITHUB_SERVER_URL: ${{ github.server_url }}
       run: |
-        CONTAINER_NAME="${{ inputs.container_name }}"
-
-        # Make scripts executable
-        chmod +x "$TRIVY_PARSER" "$GRYPE_PARSER"
-        chmod +x "${{ github.action_path }}/scripts/generate-container-summary.sh"
-
-        # Generate rich summary
-        "${{ github.action_path }}/scripts/generate-container-summary.sh"
+        python3 "${{ github.action_path }}/scripts/generate_container_summary.py"
 
     # ========================================
     # Artifact Upload

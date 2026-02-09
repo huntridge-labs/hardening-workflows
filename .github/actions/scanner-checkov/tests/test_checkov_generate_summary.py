@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Unit tests for scanner-checkov/scripts/generate-summary.sh
+Unit tests for scanner-checkov/scripts/generate_summary.py
 Tests markdown generation for Checkov IaC security scan results
 """
 
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -14,7 +15,7 @@ import pytest
 # Paths
 REPO_ROOT = Path(__file__).parent.parent.parent.parent.parent
 SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
-GENERATOR_SCRIPT = SCRIPTS_DIR / "generate-summary.sh"
+GENERATOR_SCRIPT = SCRIPTS_DIR / "generate_summary.py"
 FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures" / "scanner-outputs" / "checkov"
 
 
@@ -56,22 +57,22 @@ class TestCheckovGenerateSummary:
             output_file = str(self.output_file)
 
         cmd = [
-            "bash",
+            sys.executable,
             str(GENERATOR_SCRIPT),
             str(output_file),
-            is_pr_comment,
-            has_iac,
-            iac_path,
-            critical,
-            high,
-            medium,
-            low,
-            passed,
-            total,
-            repo_url,
-            github_server_url,
-            github_repo,
-            github_run_id,
+            "--is-pr-comment", is_pr_comment,
+            "--has-iac", has_iac,
+            "--iac-path", iac_path,
+            "--critical", critical,
+            "--high", high,
+            "--medium", medium,
+            "--low", low,
+            "--passed", passed,
+            "--total", total,
+            "--repo-url", repo_url,
+            "--github-server-url", github_server_url,
+            "--github-repo", github_repo,
+            "--github-run-id", github_run_id,
         ]
 
         result = subprocess.run(
@@ -95,13 +96,13 @@ class TestCheckovGenerateSummary:
     def test_missing_output_file_argument(self):
         """Test error when output file argument is missing."""
         result = subprocess.run(
-            ["bash", str(GENERATOR_SCRIPT)],
+            [sys.executable, str(GENERATOR_SCRIPT)],
             capture_output=True,
             text=True,
             cwd=self.workspace,
         )
         assert result.returncode != 0
-        assert "output file is required" in result.stdout or "output file is required" in result.stderr
+        assert "required: output_file" in result.stderr or "the following arguments are required: output_file" in result.stderr
 
     def test_generates_summary_with_findings(self):
         """Test generating summary with findings."""
@@ -310,8 +311,8 @@ class TestCheckovGenerateSummary:
         content = self.output_file.read_text()
 
         # With severity data in fixture, should group by severity levels
-        assert "High Severity" in content
-        assert "Medium Severity" in content
+        assert "HIGH Severity" in content
+        assert "MEDIUM Severity" in content
 
     def test_framework_info_displayed(self):
         """Test framework info is displayed."""

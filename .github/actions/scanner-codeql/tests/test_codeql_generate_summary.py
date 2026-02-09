@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Unit tests for scanner-codeql/scripts/generate-summary.sh
+Unit tests for scanner-codeql/scripts/generate_summary.py
 Tests markdown generation for CodeQL SAST scan results
 """
 
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -14,12 +15,12 @@ import pytest
 # Paths
 REPO_ROOT = Path(__file__).parent.parent.parent.parent.parent
 SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
-GENERATOR_SCRIPT = SCRIPTS_DIR / "generate-summary.sh"
+GENERATOR_SCRIPT = SCRIPTS_DIR / "generate_summary.py"
 FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures" / "scanner-outputs" / "codeql"
 
 
 class TestCodeQLGenerateSummary:
-    """Test cases for scanner-codeql generate-summary.sh"""
+    """Test cases for scanner-codeql generate_summary.py"""
 
     @pytest.fixture(autouse=True)
     def setup(self, tmp_path):
@@ -54,20 +55,20 @@ class TestCodeQLGenerateSummary:
             output_file = str(self.output_file)
 
         cmd = [
-            "bash",
+            sys.executable,
             str(GENERATOR_SCRIPT),
             str(output_file),
-            is_pr_comment,
-            language,
-            critical,
-            high,
-            medium,
-            low,
-            total,
-            repo_url,
-            server_url,
-            repository,
-            run_id,
+            "--is-pr-comment", is_pr_comment,
+            "--language", language,
+            "--critical", critical,
+            "--high", high,
+            "--medium", medium,
+            "--low", low,
+            "--total", total,
+            "--repo-url", repo_url,
+            "--server-url", server_url,
+            "--repository", repository,
+            "--run-id", run_id,
         ]
 
         result = subprocess.run(

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unit tests for scanner-trivy-iac/scripts/generate-summary.sh
+Unit tests for scanner-trivy-iac/scripts/generate_summary.py
 Tests markdown generation for Trivy IaC security scan results
 """
 
@@ -14,7 +14,7 @@ import pytest
 # Paths
 REPO_ROOT = Path(__file__).parent.parent.parent.parent.parent
 SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
-GENERATOR_SCRIPT = SCRIPTS_DIR / "generate-summary.sh"
+GENERATOR_SCRIPT = SCRIPTS_DIR / "generate_summary.py"
 FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures" / "scanner-outputs" / "trivy-iac"
 
 
@@ -52,15 +52,22 @@ class TestTrivyIaCGenerateSummary:
             iac_path = str(self.iac_path)
 
         cmd = [
-            "bash",
+            "python",
             str(GENERATOR_SCRIPT),
             str(output_file),
+            "--is-pr-comment",
             is_pr_comment,
+            "--has-iac",
             has_iac,
+            "--iac-path",
             iac_path,
+            "--repo-url",
             repo_url,
+            "--github-server-url",
             github_server_url,
+            "--github-repo",
             github_repo,
+            "--github-run-id",
             github_run_id,
         ]
 

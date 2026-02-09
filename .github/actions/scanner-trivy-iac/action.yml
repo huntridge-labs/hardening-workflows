@@ -284,26 +284,26 @@ runs:
         REPO_URL="${{ github.server_url }}/${{ github.repository }}/blob/${HEAD_REF}"
 
         # Generate PR comment artifact
-        "$SCRIPT_DIR/scripts/generate-summary.sh" \
+        python3 "$SCRIPT_DIR/scripts/generate_summary.py" \
           "scanner-summaries/trivy-iac.md" \
-          "true" \
-          "${{ steps.validate.outputs.has_iac }}" \
-          "${{ steps.validate.outputs.iac_path }}" \
-          "$REPO_URL" \
-          "${{ github.server_url }}" \
-          "${{ github.repository }}" \
-          "${{ github.run_id }}"
+          --is-pr-comment "true" \
+          --has-iac "${{ steps.validate.outputs.has_iac }}" \
+          --iac-path "${{ steps.validate.outputs.iac_path }}" \
+          --repo-url "$REPO_URL" \
+          --github-server-url "${{ github.server_url }}" \
+          --github-repo "${{ github.repository }}" \
+          --github-run-id "${{ github.run_id }}"
 
         # Generate job summary
-        "$SCRIPT_DIR/scripts/generate-summary.sh" \
+        python3 "$SCRIPT_DIR/scripts/generate_summary.py" \
           "$GITHUB_STEP_SUMMARY" \
-          "false" \
-          "${{ steps.validate.outputs.has_iac }}" \
-          "${{ steps.validate.outputs.iac_path }}" \
-          "$REPO_URL" \
-          "${{ github.server_url }}" \
-          "${{ github.repository }}" \
-          "${{ github.run_id }}"
+          --is-pr-comment "false" \
+          --has-iac "${{ steps.validate.outputs.has_iac }}" \
+          --iac-path "${{ steps.validate.outputs.iac_path }}" \
+          --repo-url "$REPO_URL" \
+          --github-server-url "${{ github.server_url }}" \
+          --github-repo "${{ github.repository }}" \
+          --github-run-id "${{ github.run_id }}"
       continue-on-error: true
 
     - name: Upload scanner summary section

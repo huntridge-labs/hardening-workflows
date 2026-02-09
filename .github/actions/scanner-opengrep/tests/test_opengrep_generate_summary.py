@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unit tests for scanner-opengrep/scripts/generate-summary.sh
+Unit tests for scanner-opengrep/scripts/generate_summary.py
 Tests markdown generation for OpenGrep SAST scan results
 """
 
@@ -14,7 +14,7 @@ import pytest
 # Paths
 REPO_ROOT = Path(__file__).parent.parent.parent.parent.parent
 SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
-GENERATOR_SCRIPT = SCRIPTS_DIR / "generate-summary.sh"
+GENERATOR_SCRIPT = SCRIPTS_DIR / "generate_summary.py"
 FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures" / "scanner-outputs" / "opengrep"
 
 
@@ -51,17 +51,26 @@ class TestOpenGrepGenerateSummary:
             output_file = str(self.output_file)
 
         cmd = [
-            "bash",
+            "python",
             str(GENERATOR_SCRIPT),
             str(output_file),
+            "--is-pr-comment",
             is_pr_comment,
+            "--error-count",
             error_count,
+            "--warning-count",
             warning_count,
+            "--info-count",
             info_count,
+            "--total",
             total,
+            "--repo-url",
             repo_url,
+            "--github-server-url",
             server_url,
+            "--github-repo",
             repository,
+            "--github-run-id",
             run_id,
         ]
 

@@ -80,9 +80,10 @@ runs:
         ARTIFACT_PATTERN: ${{ inputs.artifact_pattern }}
         SUMMARY_PATTERN: ${{ inputs.summary_pattern }}
       run: |
-        SCRIPTS_DIR="${{ github.action_path }}/scripts"
-        PARSER="$SCRIPTS_DIR/parse-zap-results.sh"
-        GENERATOR="$SCRIPTS_DIR/generate-zap-summary.sh"
+        # Reference Python scripts from scanner-zap action
+        SCANNER_ZAP_SCRIPTS="${{ github.action_path }}/../scanner-zap/scripts"
+        PARSER="$SCANNER_ZAP_SCRIPTS/parse_zap_results.py"
+        GENERATOR="$SCANNER_ZAP_SCRIPTS/generate_zap_summary.py"
 
         chmod +x "$PARSER" "$GENERATOR"
 
@@ -93,7 +94,7 @@ runs:
         mkdir -p scanner-summaries
 
         # Run the summary generator
-        "$GENERATOR"
+        python3 "$GENERATOR"
 
         # Set outputs
         SUMMARY_FILE="scanner-summaries/zap.md"
@@ -117,7 +118,7 @@ runs:
           if [[ -d "$dir" ]]; then
             for report in "$dir"*.json; do
               if [[ -f "$report" ]]; then
-                COUNTS=$("$PARSER" counts-with-info "$report" 2>/dev/null || echo "0 0 0 0 0")
+                COUNTS=$(python3 "$PARSER" counts-with-info "$report" 2>/dev/null || echo "0 0 0 0 0")
                 read -r C H M L I <<< "$COUNTS"
                 TOTAL_CRIT=$((TOTAL_CRIT + C))
                 TOTAL_HIGH=$((TOTAL_HIGH + H))

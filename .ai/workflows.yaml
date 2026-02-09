@@ -116,18 +116,13 @@ contributor_workflows:
 
   run_tests:
     description: "Execute the full test suite"
-    command: "npm test"
+    command: "pytest"
     breakdown:
-      all: "npm test"
-      unit: "npm run test:unit"
-      bash: "npm run test:bash"
-      javascript: "npm run test:js"
-      python: "npm run test:python"
-      coverage: "npm run test:coverage"
+      all: "pytest"
+      fast: "pytest --no-cov -q"
+      coverage: "pytest --cov"
     coverage_targets:
-      python: "80%"
-      javascript: "80%"
-      bash: "60%"
+      overall: "80%"
 
   local_development:
     description: "Set up local development environment"
@@ -135,20 +130,17 @@ contributor_workflows:
       - action: "Clone repository"
         command: "git clone <repo-url> && cd hardening-workflows"
 
-      - action: "Install Node dependencies"
-        command: "npm install"
-
       - action: "Install Python dependencies"
-        command: "pip install -r .devcontainer/requirements.txt"
+        command: "pip install -r requirements.txt"
 
       - action: "Run tests to verify setup"
-        command: "npm test"
+        command: "pytest"
     alternative: "Use Dev Container (recommended)"
     devcontainer_steps:
       - "Open in VS Code"
       - "Command Palette → 'Reopen in Container'"
       - "Wait for container build"
-      - "Run: npm test"
+      - "Run: pytest"
 
   add_new_scanner:
     description: "Add support for a new security scanner"
@@ -161,18 +153,18 @@ contributor_workflows:
         template: ".github/actions/scanner-bandit/action.yml"
 
       - action: "Create parse script"
-        location: ".github/actions/scanner-{name}/scripts/parse.sh"
+        location: ".github/actions/scanner-{name}/scripts/parse-results.py"
         purpose: "Convert scanner output → JSON"
 
       - action: "Create summary script"
-        location: ".github/actions/scanner-{name}/scripts/summary.sh"
+        location: ".github/actions/scanner-{name}/scripts/generate-summary.py"
         purpose: "Convert JSON → Markdown summary"
 
       - action: "Add tests"
         location: ".github/actions/scanner-{name}/tests/"
         required_files:
-          - "test-parse.sh"
-          - "fixtures/sample-output.json"
+          - "test_parse_results.py"
+          - "test_generate_summary.py"
 
       - action: "Update orchestrator"
         file: ".github/workflows/reusable-security-hardening.yml"
@@ -219,14 +211,9 @@ contributor_workflows:
 testing:
 
   unit_tests:
-    command: "npm run test:unit"
+    command: "pytest"
     coverage_requirement: "80%"
-    what_it_tests: "JSON schema validation for action inputs/outputs"
-
-  bash_tests:
-    command: "npm run test:bash"
-    coverage_requirement: "60%"
-    what_it_tests: "Parse and summary script behavior"
+    what_it_tests: "Parser and summary script behavior, JSON schema validation"
 
   integration_tests:
     location: ".github/workflows/test-actions.yml"
@@ -241,16 +228,16 @@ testing:
       - "Pipe output through parse script"
       - "Verify JSON structure"
     example: |
-      bandit -r tests/fixtures/test-apps/python-app -f json \
-        | .github/actions/scanner-bandit/scripts/parse.sh
+      bandit -r tests/fixtures/test-apps/python-app -f json | python .github/actions/scanner-bandit/scripts/parse-results.py counts -
 
 # ==============================================================================
 # QUICK REFERENCE - Most common commands
 # ==============================================================================
 
 quick_reference:
-  test_all: "npm test"
-  test_bash: "npm run test:bash"
+  test_all: "pytest"
+  test_fast: "pytest --no-cov -q"
+  test_with_coverage: "pytest --cov"
   lint: "npm run lint"
   release: "npm run release"
   format: "npm run format"

@@ -32,19 +32,26 @@ Welcome! This guide covers how to contribute composite actions to the security s
 ├── scanner-*/                    # Scanner composite actions
 │   ├── action.yml               # Action definition
 │   ├── README.md                # Action documentation
-│   └── scripts/                 # Bundled scripts
-│       ├── parse-results.sh     # Parse scanner output
-│       └── generate-summary.sh  # Generate markdown summary
+│   ├── scripts/                 # Bundled Python scripts
+│   │   ├── parse-results.py     # Parse scanner output → JSON
+│   │   └── generate-summary.py  # Generate markdown summary
+│   └── tests/                   # Co-located pytest tests
+│       ├── test_parse_results.py
+│       ├── test_generate_summary.py
+│       └── conftest.py (optional)
 ├── linter-*/                    # Linter composite actions
 ├── parse-container-config/      # Config parser actions
 ├── security-summary/            # Summary aggregators
+├── _shared/                     # Shared Python utility modules
+│   ├── sarif.py
+│   ├── summary.py
+│   └── severity.py
 └── README.md                    # Actions catalog
 
 examples/
 ├── composite-actions-example.yml     # Complete security workflow
 └── composite-linting-example.yml     # Complete linting workflow
 
-.github/actions/*/tests/         # Co-located unit tests
 tests/
 ├── fixtures/                    # Shared mock data and test apps
 └── unit/actions/                # Action schema validation
@@ -121,86 +128,115 @@ runs:
 
 ### Step 3: Create Parser Script
 
-Create `scripts/parse-results.sh`:
+Create `scripts/parse-results.py`:
 
-```bash
-#!/bin/bash
-set -euo pipefail
+```python
+#!/usr/bin/env python3
+"""
+Example Scanner Results Parser
+Usage: parse-results.py counts <report_file>
+"""
 
-# Example Scanner Results Parser
-# Usage: parse-results.sh counts <report_file>
+import json
+import sys
+from pathlib import Path
 
-COMMAND="${1:-}"
-REPORT_FILE="${2:-}"
+def parse_counts(report_file):
+    """Extract severity counts from scanner report."""
+    if report_file == '-':
+        data = json.load(sys.stdin)
+    else:
+        try:
+            with open(report_file) as f:
+                data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return 0, 0, 0, 0
 
-case "$COMMAND" in
-  counts)
-    # Parse scanner output and extract severity counts
-    # TODO: Adjust parsing logic for your scanner's output format
+    # Adjust parsing logic for your scanner's output format
+    critical = len([r for r in data.get('results', []) if r.get('severity') == 'CRITICAL'])
+    high = len([r for r in data.get('results', []) if r.get('severity') == 'HIGH'])
+    medium = len([r for r in data.get('results', []) if r.get('severity') == 'MEDIUM'])
+    low = len([r for r in data.get('results', []) if r.get('severity') == 'LOW'])
 
-    critical=$(jq -r '[.results[]? | select(.severity == "CRITICAL")] | length' "$REPORT_FILE" 2>/dev/null || echo "0")
-    high=$(jq -r '[.results[]? | select(.severity == "HIGH")] | length' "$REPORT_FILE" 2>/dev/null || echo "0")
-    medium=$(jq -r '[.results[]? | select(.severity == "MEDIUM")] | length' "$REPORT_FILE" 2>/dev/null || echo "0")
-    low=$(jq -r '[.results[]? | select(.severity == "LOW")] | length' "$REPORT_FILE" 2>/dev/null || echo "0")
+    return critical, high, medium, low
 
-    # Output: critical high medium low (space-separated)
-    echo "$critical $high $medium $low"
-    ;;
-  *)
-    echo "Unknown command: $COMMAND"
-    exit 1
-    ;;
-esac
+if __name__ == '__main__':
+    command = sys.argv[1] if len(sys.argv) > 1 else None
+    report_file = sys.argv[2] if len(sys.argv) > 2 else None
+
+    if command == 'counts':
+        c, h, m, l = parse_counts(report_file)
+        print(f"{c} {h} {m} {l}")
+    else:
+        print(f"Unknown command: {command}", file=sys.stderr)
+        sys.exit(1)
 ```
 
 **Parser requirements**:
-- Must handle missing files gracefully (default to 0 counts)
-- Must handle malformed data (use `|| echo "0"`)
+- Must handle missing files gracefully (return 0 counts)
+- Must handle malformed JSON (catch exceptions)
 - Must map scanner's severity levels to standard: CRITICAL, HIGH, MEDIUM, LOW
-- Output format: space-separated counts for easy parsing
+- Output format: space-separated counts for environment variable assignment
+- Support reading from stdin with `-` argument
 
 ### Step 4: Create Summary Generator
 
-Create `scripts/generate-summary.sh`:
+Create `scripts/generate-summary.py`:
 
-```bash
-#!/bin/bash
-set -euo pipefail
+```python
+#!/usr/bin/env python3
+"""
+Example Scanner Summary Generator
+Usage: generate-summary.py <output_file> <is_pr_comment>
+"""
 
-# Example Scanner Summary Generator
-# Usage: generate-summary.sh <output_file> <is_pr_comment>
+import os
+import sys
+from pathlib import Path
 
-OUTPUT_FILE="${1:-scanner-summaries/example.md}"
-IS_PR_COMMENT="${2:-false}"
+def generate_summary(output_file, is_pr_comment=False):
+    """Generate markdown summary from severity counts."""
 
-# Get counts from environment
-CRITICAL="${CRITICAL:-0}"
-HIGH="${HIGH:-0}"
-MEDIUM="${MEDIUM:-0}"
-LOW="${LOW:-0}"
-TOTAL="${TOTAL:-0}"
+    # Get counts from environment
+    critical = os.environ.get('CRITICAL', '0')
+    high = os.environ.get('HIGH', '0')
+    medium = os.environ.get('MEDIUM', '0')
+    low = os.environ.get('LOW', '0')
+    total = os.environ.get('TOTAL', '0')
 
-# Generate markdown summary
-if [ "$IS_PR_COMMENT" = "true" ]; then
-  echo "<details>" >> "$OUTPUT_FILE"
-  echo "<summary>🔍 Example Scanner</summary>" >> "$OUTPUT_FILE"
-else
-  echo "## 🔍 Example Scanner Results" >> "$OUTPUT_FILE"
-fi
+    lines = []
 
-echo "" >> "$OUTPUT_FILE"
-echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | ❌ Total |" >> "$OUTPUT_FILE"
-echo "|-------------|---------|-----------|--------|----------|" >> "$OUTPUT_FILE"
-echo "| **$CRITICAL** | **$HIGH** | **$MEDIUM** | **$LOW** | **$TOTAL** |" >> "$OUTPUT_FILE"
-echo "" >> "$OUTPUT_FILE"
+    if is_pr_comment:
+        lines.append('<details>')
+        lines.append('<summary>🔍 Example Scanner</summary>')
+    else:
+        lines.append('## 🔍 Example Scanner Results')
 
-# TODO: Add detailed findings sections if needed
+    lines.append('')
+    lines.append('| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | ❌ Total |')
+    lines.append('|-------------|---------|-----------|--------|----------|')
+    lines.append(f'| **{critical}** | **{high}** | **{medium}** | **{low}** | **{total}** |')
+    lines.append('')
 
-echo "**📁 Artifacts:** [View Reports](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}#artifacts)" >> "$OUTPUT_FILE"
+    # Add artifacts link
+    github_url = os.environ.get('GITHUB_SERVER_URL', 'https://github.com')
+    repo = os.environ.get('GITHUB_REPOSITORY', '')
+    run_id = os.environ.get('GITHUB_RUN_ID', '')
+    artifacts_url = f"{github_url}/{repo}/actions/runs/{run_id}#artifacts"
+    lines.append(f'**📁 Artifacts:** [View Reports]({artifacts_url})')
 
-if [ "$IS_PR_COMMENT" = "true" ]; then
-  echo "</details>" >> "$OUTPUT_FILE"
-fi
+    if is_pr_comment:
+        lines.append('</details>')
+
+    # Write to file
+    Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+    with open(output_file, 'w') as f:
+        f.write('\n'.join(lines) + '\n')
+
+if __name__ == '__main__':
+    output_file = sys.argv[1] if len(sys.argv) > 1 else 'scanner-summaries/example.md'
+    is_pr_comment = sys.argv[2].lower() == 'true' if len(sys.argv) > 2 else False
+    generate_summary(output_file, is_pr_comment)
 ```
 
 **Summary requirements**:
@@ -208,6 +244,7 @@ fi
 - Support both PR comment and job summary modes
 - Include artifacts link
 - Keep it concise but informative
+- Create output directory if it doesn't exist
 
 ### Step 5: Create Documentation
 
@@ -291,18 +328,19 @@ Add your scanner to `examples/composite-actions-example.yml`:
 
 ## Testing Your Changes
 
-### Current Testing Approach
+### Testing Approach
 
-**Co-located tests** - tests live with the actions they validate:
+**Co-located tests** - pytest tests live with the actions they validate:
 ```
 .github/actions/scanner-myScanner/
 ├── action.yml
 ├── scripts/
-│   ├── parse-results.sh
-│   └── generate-summary.sh
+│   ├── parse-results.py
+│   └── generate-summary.py
 └── tests/                      # ← Tests co-located here
-    ├── test-parse-results.sh
-    └── test-generate-summary.sh
+    ├── test_parse_results.py
+    ├── test_generate_summary.py
+    └── conftest.py (optional)
 ```
 
 **Shared fixtures** - mock data centralized for reuse:
@@ -315,19 +353,18 @@ tests/fixtures/
 
 **Run tests**:
 ```bash
-npm test                        # All 174+ tests
-npm run test:bash               # Bash tests
-npm run test:js                 # JavaScript tests
-npm run test:python             # Python tests
+pytest                          # All tests with coverage
+pytest --no-cov -q              # Fast mode (no coverage)
+pytest .github/actions/scanner-x/tests/  # Single action tests
 ```
 
 **Key principles**:
 1. Tests co-located with actions they test
 2. Fixtures shared across actions (avoid duplication)
 3. Use synthetic data, not real vulnerabilities
-4. Measure coverage with Codecov
+4. Measure coverage with pytest-cov
 
-See `tests/TODO.md` and `tests/CONTRIBUTING.md` for detailed testing guide.
+See `tests/CONTRIBUTING.md` for detailed pytest guide.
 
 ### Manual Testing
 
@@ -409,9 +446,11 @@ Every scanner action must include:
 
 - [ ] Manual testing complete
 - [ ] Documentation complete
-- [ ] Scripts are executable
+- [ ] Unit tests added in `.github/actions/*/tests/`
+- [ ] All tests pass: `pytest`
+- [ ] Coverage meets 80% threshold
 - [ ] Follows existing patterns
-- [ ] TODO: Automated tests pass (once available)
+- [ ] Automated tests pass in CI
 
 ### PR Template
 
@@ -481,18 +520,14 @@ Brief description of the scanner.
 
 ---
 
-## TODO: Items Pending Migration Completion
+## Migration Complete ✅
 
-Areas needing clarification:
-
-- [ ] **Test Framework**: Exact unit/integration test process
-- [ ] **CI Integration**: How tests run in PRs
-- [ ] **Coverage Requirements**: Specific thresholds
-- [ ] **Release Process**: How to version/release actions
-- [ ] **Dependency Management**: Scanner tool updates
-- [ ] **GHES Compatibility**: Testing procedures
-
-See `tests/TODO.md` for testing roadmap details.
+All action scripts and tests are now Python with pytest:
+- ✅ All scripts converted to Python (`*.py`)
+- ✅ All tests migrated to pytest
+- ✅ Unified coverage with pytest-cov
+- ✅ Shared utility modules in `.github/actions/_shared/`
+- ✅ Duplicate scripts eliminated (container-summary, zap-summary)
 
 ---
 

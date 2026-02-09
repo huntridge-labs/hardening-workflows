@@ -308,3 +308,57 @@ decisions:
         with:
           scanners: all
           post_pr_comment: true  # Controls security-summary, not individual scanners
+
+  - id: ADR-009
+    title: "Consolidate scripts and tests to Python"
+    date: "2026-02-08"
+    status: accepted
+
+    context: |
+      Project maintained three languages for action scripts (Bash, JavaScript, Python)
+      plus Ruby for Bash coverage via bashcov/SimpleCov. This fragmentation created:
+      - Three test frameworks with different patterns
+      - Three coverage tools with incompatible reporting
+      - Higher contributor barrier (must learn multiple languages)
+      - Harder to maintain and refactor code
+      - CI complexity (multiple setup/teardown steps)
+
+    decision: "Migrate all action scripts and tests to Python with pytest"
+
+    alternatives_considered:
+      - name: "Keep multi-language approach"
+        rejected_because: "Undermines trust in coverage metrics and raises contributor barrier"
+
+      - name: "Migrate only to Bash"
+        rejected_because: "Bash lacks type safety, harder to test complex logic"
+
+      - name: "Migrate only to JavaScript"
+        rejected_because: "Adds Node.js dependency; Python already used for some actions"
+
+    consequences:
+      positive:
+        - "Single test framework (pytest) with consistent patterns"
+        - "One coverage tool (pytest-cov) producing unified metrics"
+        - "Lower contributor barrier (Python widely known, standard on CI runners)"
+        - "Better readability (200-line Bash becomes ~80 lines Python)"
+        - "Simplified CI/CD (no Ruby, no Node.js for tests)"
+        - "Eliminated duplicate script pairs (container/container-summary, zap/zap-summary)"
+        - "Shared utility modules (sarif.py, summary.py, severity.py)"
+      negative:
+        - "Initial migration effort across 18 scripts + 15 test files"
+        - "Python 3.11+ runtime requirement (but pre-installed on ubuntu-latest)"
+
+    implementation: |
+      Phase 0: Foundation (.github/actions/_shared/ utilities + pytest.ini)
+      Phase 1: Migrate action scripts (.sh → .py) and tests
+      Phase 2: Migrate config parsers (.js → .py)
+      Phase 3: Clean up (remove old Bash/JS files and coverage tools)
+      Phase 4: Harden testing (edge cases, integration tests)
+      Phase 5: Update documentation
+
+    supersedes: "ADR-003 (Bash for scripts with no runtime dependencies)"
+
+    note: |
+      Python is now the lingua franca for action scripts and tests.
+      Node.js remains for release tooling (release-it, commitlint, husky) which is
+      appropriate as those are developer workflow tools, not pipeline logic.

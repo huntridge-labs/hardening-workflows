@@ -10,7 +10,7 @@ project:
   type: security-pipeline
   purpose: "Automated security scanning orchestration for GitHub Actions"
   primary_language: yaml  # GitHub Actions workflows
-  secondary_languages: [bash, python, javascript]
+  secondary_languages: [python]
   version: "2.12.0"
   license: "AGPL-3.0"
   repository: "huntridge-labs/hardening-workflows"

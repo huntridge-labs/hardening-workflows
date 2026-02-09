@@ -214,37 +214,37 @@ runs:
         SCRIPT_DIR="${{ github.action_path }}"
         REPO_URL="${{ github.server_url }}/${{ github.repository }}/blob/${HEAD_REF}"
 
-        "$SCRIPT_DIR/scripts/generate-summary.sh" \
+        python3 "$SCRIPT_DIR/scripts/generate_summary.py" \
           "scanner-summaries/checkov.md" \
-          "true" \
-          "$HAS_IAC" \
-          "$IAC_PATH" \
-          "$CRITICAL" \
-          "$HIGH" \
-          "$MEDIUM" \
-          "$LOW" \
-          "$PASSED" \
-          "$TOTAL" \
-          "$REPO_URL" \
-          "${{ github.server_url }}" \
-          "${{ github.repository }}" \
-          "${{ github.run_id }}"
+          --is-pr-comment "true" \
+          --has-iac "$HAS_IAC" \
+          --iac-path "$IAC_PATH" \
+          --critical "$CRITICAL" \
+          --high "$HIGH" \
+          --medium "$MEDIUM" \
+          --low "$LOW" \
+          --passed "$PASSED" \
+          --total "$TOTAL" \
+          --repo-url "$REPO_URL" \
+          --github-server-url "${{ github.server_url }}" \
+          --github-repo "${{ github.repository }}" \
+          --github-run-id "${{ github.run_id }}"
 
-        "$SCRIPT_DIR/scripts/generate-summary.sh" \
+        python3 "$SCRIPT_DIR/scripts/generate_summary.py" \
           "$GITHUB_STEP_SUMMARY" \
-          "false" \
-          "$HAS_IAC" \
-          "$IAC_PATH" \
-          "$CRITICAL" \
-          "$HIGH" \
-          "$MEDIUM" \
-          "$LOW" \
-          "$PASSED" \
-          "$TOTAL" \
-          "$REPO_URL" \
-          "${{ github.server_url }}" \
-          "${{ github.repository }}" \
-          "${{ github.run_id }}"
+          --is-pr-comment "false" \
+          --has-iac "$HAS_IAC" \
+          --iac-path "$IAC_PATH" \
+          --critical "$CRITICAL" \
+          --high "$HIGH" \
+          --medium "$MEDIUM" \
+          --low "$LOW" \
+          --passed "$PASSED" \
+          --total "$TOTAL" \
+          --repo-url "$REPO_URL" \
+          --github-server-url "${{ github.server_url }}" \
+          --github-repo "${{ github.repository }}" \
+          --github-run-id "${{ github.run_id }}"
       continue-on-error: true
 
     - name: Upload scanner summary

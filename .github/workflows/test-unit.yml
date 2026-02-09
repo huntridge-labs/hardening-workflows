@@ -22,90 +22,26 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ruby-full
-          sudo gem install bashcov simplecov-cobertura
+          python-version: '3.13'
 
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pytest pytest-cov pyyaml
 
-      - name: Install Node dependencies
-        run: npm ci
-
-      - name: Make bash tests executable
-        run: find .github/actions -path '*/tests/*.bats' -type f -exec chmod +x {} \;
-
       - name: Run all tests
-        run: npm test
-
-      - name: JavaScript Coverage
-        if: always()
-        run: npm run test:coverage:js
-
-      - name: Python Coverage
-        if: always()
-        run: npm run test:coverage:python
-
-      - name: Bash Coverage
-        if: always()
-        run: |
-          echo "Running bash tests with kcov coverage..."
-          bash scripts/run-bash-coverage.sh || echo "⚠ Bash coverage failed, continuing..."
-
-          # Copy cobertura.xml to expected location for Codecov
-          if [ -f coverage/bash/cobertura.xml ]; then
-            echo "✓ Bash coverage generated: coverage/bash/cobertura.xml"
-            ls -lh coverage/bash/cobertura.xml
-          fi
+        run: pytest
 
       - name: Coverage Report Summary
         if: always()
         run: |
           echo "## Coverage Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-
-          # JavaScript coverage
-          if [ -f coverage/js/lcov.info ]; then
-            echo "### JavaScript Coverage" >> $GITHUB_STEP_SUMMARY
-            npm run test:coverage:js 2>&1 | grep -A5 "All files" >> $GITHUB_STEP_SUMMARY || true
-          else
-            echo "No JavaScript coverage data found" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Python coverage
           if [ -f coverage/python.lcov ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Python Coverage" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
             head -20 coverage/python.lcov >> $GITHUB_STEP_SUMMARY || true
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Bash coverage
-          if [ -d coverage/bash ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Bash Coverage" >> $GITHUB_STEP_SUMMARY
-
-            # Extract coverage percentage from kcov's index.json
-            if [ -f coverage/bash/index.json ]; then
-              percent=$(jq -r '.percent_covered // "N/A"' coverage/bash/index.json 2>/dev/null || echo "N/A")
-              lines_covered=$(jq -r '.lines_covered // "N/A"' coverage/bash/index.json 2>/dev/null || echo "N/A")
-              lines_total=$(jq -r '.lines_total // "N/A"' coverage/bash/index.json 2>/dev/null || echo "N/A")
-              echo "- **Coverage:** ${percent}%" >> $GITHUB_STEP_SUMMARY
-              echo "- **Lines Covered:** ${lines_covered} / ${lines_total}" >> $GITHUB_STEP_SUMMARY
-              echo "✓ Bash coverage tracked with kcov via bats" >> $GITHUB_STEP_SUMMARY
-            fi
           fi
 
       - name: Test Summary
@@ -116,29 +52,10 @@ jobs:
           echo "✅ All tests completed!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Test Coverage:**" >> $GITHUB_STEP_SUMMARY
-          echo "- Bash tests (parsers & summary generators)" >> $GITHUB_STEP_SUMMARY
-          echo "- JavaScript tests (config parsers)" >> $GITHUB_STEP_SUMMARY
           echo "- Python tests (utilities & ClamAV)" >> $GITHUB_STEP_SUMMARY
-          echo "- Action schema validation (174 tests)" >> $GITHUB_STEP_SUMMARY
+          echo "- Action schema validation" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "See detailed coverage reports in artifacts" >> $GITHUB_STEP_SUMMARY
-
-      - name: List generated coverage files
-        if: always()
-        shell: bash
-        run: |
-          echo "Coverage files generated:"
-          find coverage -type f \( -name "*.lcov" -o -name "*.xml" -o -name "cobertura.xml" \) 2>/dev/null || echo "No coverage files found"
-          echo ""
-          echo "Coverage directory structure:"
-          ls -laR coverage/ 2>/dev/null || echo "No coverage directory"
-          echo ""
-          echo "Checking coverage file contents (first 10 lines of each):"
-          for file in $(find coverage -type f \( -name "*.lcov" -o -name "cobertura.xml" \) 2>/dev/null); do
-            echo "=== $file ==="
-            head -10 "$file"
-            echo ""
-          done
 
       - name: Upload coverage to Codecov
         if: always()
