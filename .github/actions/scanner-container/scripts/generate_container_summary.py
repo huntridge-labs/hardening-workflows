@@ -310,7 +310,7 @@ def generate_summary(
                     f.write("## 🐳 Container Security Scan Summary\n\n")
 
             # Summary table
-            f.write("### 📊 Combined Findings Summary (Deduplicated)\n\n")
+            f.write("### 📊 Combined Findings Summary\n\n")
             f.write("| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📦 Total | 🔢 Unique |\n")
             f.write("|-------------|---------|-----------|---------|----------|----------|\n")
             f.write(f"| **{total_crit}** | **{total_high}** | **{total_med}** | **{total_low}** | **{total_vulns}** | **{unique_cves}** |\n\n")
