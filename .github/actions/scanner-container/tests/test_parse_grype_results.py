@@ -40,31 +40,26 @@ class TestParseGrypeResults:
         result = run_parser("counts", FIXTURES_DIR / "results-zero-findings.json")
         assert result == "0 0 0 0"
 
-    def test_counts_with_findings(self):
-        """Test counts command with mixed severities."""
+    def test_counts_with_findings_and_errors(self, tmp_path):
+        """Test counts with findings (including errors: nonexistent, empty, invalid JSON)."""
+        # With findings - Grype uses: Critical, High, Medium, Low
         result = run_parser("counts", FIXTURES_DIR / "results-with-findings.json")
-        # Grype uses different severity casing: Critical, High, Medium, Low
-        # The fixture has at least 1 of each
         parts = result.split()
         assert len(parts) == 4
-        # Just check all are non-negative integers
         for part in parts:
             assert int(part) >= 0
 
-    def test_counts_nonexistent_file(self):
-        """Test counts with nonexistent file."""
+        # Nonexistent file
         result = run_parser("counts", Path("/nonexistent/file.json"))
         assert result == "0 0 0 0"
 
-    def test_counts_empty_file(self, tmp_path):
-        """Test counts with empty file."""
+        # Empty file
         empty_file = tmp_path / "empty.json"
         empty_file.write_text("")
         result = run_parser("counts", empty_file)
         assert result == "0 0 0 0"
 
-    def test_counts_invalid_json(self, tmp_path):
-        """Test counts with invalid JSON."""
+        # Invalid JSON
         bad_file = tmp_path / "bad.json"
         bad_file.write_text("{invalid json")
         result = run_parser("counts", bad_file)
@@ -78,13 +73,12 @@ class TestParseGrypeResults:
         assert result == "0"
 
     def test_total_with_findings(self):
-        """Test total command with findings."""
+        """Test total command with findings and nonexistent file."""
+        # With findings
         result = run_parser("total", FIXTURES_DIR / "results-with-findings.json")
-        # Should be more than zero
         assert int(result) > 0
 
-    def test_total_nonexistent_file(self):
-        """Test total with nonexistent file."""
+        # Nonexistent file
         result = run_parser("total", Path("/nonexistent/file.json"))
         assert result == "0"
 
@@ -95,13 +89,13 @@ class TestParseGrypeResults:
         result = run_parser("unique", FIXTURES_DIR / "results-zero-findings.json")
         assert result == "0"
 
-    def test_unique_with_findings(self):
-        """Test unique command with findings."""
+    def test_unique_with_findings_and_duplicates(self, tmp_path):
+        """Test unique command with findings (including duplicate deduplication)."""
+        # With findings
         result = run_parser("unique", FIXTURES_DIR / "results-with-findings.json")
         assert int(result) > 0
 
-    def test_unique_with_duplicates(self, tmp_path):
-        """Test unique count with duplicate CVE IDs."""
+        # With duplicates - should deduplicate
         json_file = tmp_path / "duplicates.json"
         data = {
             "matches": [
@@ -149,16 +143,15 @@ class TestParseGrypeResults:
         result = run_parser("cves", FIXTURES_DIR / "results-zero-findings.json")
         assert result == ""
 
-    def test_cves_with_findings(self):
-        """Test cves command returns CVE IDs."""
+    def test_cves_with_findings_and_sorting(self, tmp_path):
+        """Test cves command with findings (including sorting and deduplication)."""
+        # With findings - should return CVE IDs
         result = run_parser("cves", FIXTURES_DIR / "results-with-findings.json")
         lines = result.split("\n")
         assert len(lines) > 0
-        # Check that we got CVE format
         assert any("CVE-" in line for line in lines)
 
-    def test_cves_sorted_and_unique(self, tmp_path):
-        """Test that cves output is sorted and unique."""
+        # Test sorting and uniqueness
         json_file = tmp_path / "cves.json"
         data = {
             "matches": [
@@ -176,29 +169,14 @@ class TestParseGrypeResults:
 
     # ====== Tests for 'cves-by-severity' command ======
 
-    def test_cves_by_severity_critical(self):
-        """Test cves-by-severity for Critical severity."""
-        result = run_parser("cves-by-severity", FIXTURES_DIR / "results-with-findings.json", "-s", "Critical")
-        # Fixture has at least one Critical
-        assert "CVE-" in result or result == ""
+    def test_cves_by_severity_filters(self):
+        """Test cves-by-severity filters by severity level."""
+        # Test multiple severity levels (Critical, High, Medium, Low, Unknown)
+        for severity in ["Critical", "High", "Medium", "Low"]:
+            result = run_parser("cves-by-severity", FIXTURES_DIR / "results-with-findings.json", "-s", severity)
+            assert "CVE-" in result or result == ""
 
-    def test_cves_by_severity_high(self):
-        """Test cves-by-severity for High severity."""
-        result = run_parser("cves-by-severity", FIXTURES_DIR / "results-with-findings.json", "-s", "High")
-        assert "CVE-" in result or result == ""
-
-    def test_cves_by_severity_medium(self):
-        """Test cves-by-severity for Medium severity."""
-        result = run_parser("cves-by-severity", FIXTURES_DIR / "results-with-findings.json", "-s", "Medium")
-        assert "CVE-" in result or result == ""
-
-    def test_cves_by_severity_low(self):
-        """Test cves-by-severity for Low severity."""
-        result = run_parser("cves-by-severity", FIXTURES_DIR / "results-with-findings.json", "-s", "Low")
-        assert "CVE-" in result or result == ""
-
-    def test_cves_by_severity_none(self):
-        """Test cves-by-severity when none found."""
+        # Unknown severity should return empty
         result = run_parser("cves-by-severity", FIXTURES_DIR / "results-with-findings.json", "-s", "Unknown")
         assert result == ""
 
@@ -215,24 +193,20 @@ class TestParseGrypeResults:
         result = run_parser("table", FIXTURES_DIR / "results-zero-findings.json")
         assert "No data" in result
 
-    def test_table_with_findings(self):
-        """Test table command generates markdown."""
+    def test_table_with_findings_limit_and_emoji(self):
+        """Test table command with findings, limit, and emojis."""
+        # With findings - should contain pipe separators and CVE IDs
         result = run_parser("table", FIXTURES_DIR / "results-with-findings.json")
-        # Should contain pipe separators
         assert "|" in result
-        # Should contain CVE IDs or severity info
         assert "CVE-" in result or "CRITICAL" in result.upper()
 
-    def test_table_limit(self):
-        """Test table command respects limit."""
+        # With limit - should respect row count
         result = run_parser("table", FIXTURES_DIR / "results-with-findings.json", "-l", "2")
         lines = [l for l in result.split("\n") if "|" in l and "CVE" in l]
         assert len(lines) <= 2
 
-    def test_table_contains_severity_emoji(self):
-        """Test that table output contains severity emojis."""
+        # Check for severity emojis
         result = run_parser("table", FIXTURES_DIR / "results-with-findings.json")
-        # Check for at least one severity emoji
         assert any(emoji in result for emoji in ["🚨", "⚠️", "🟡", "🔵"])
 
     # ====== Integration tests ======

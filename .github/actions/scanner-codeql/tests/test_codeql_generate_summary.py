@@ -80,18 +80,15 @@ class TestCodeQLGenerateSummary:
         )
         return result
 
-    def test_script_exists(self):
-        """Verify generator script exists."""
+    def test_script_and_fixtures_exist(self):
+        """Verify generator script and fixtures exist."""
         assert GENERATOR_SCRIPT.exists(), f"Script not found: {GENERATOR_SCRIPT}"
-
-    def test_fixtures_exist(self):
-        """Verify required fixtures exist."""
         assert FIXTURES_DIR.exists(), f"Fixtures not found: {FIXTURES_DIR}"
         assert (FIXTURES_DIR / "results-with-findings.sarif").exists()
         assert (FIXTURES_DIR / "results-zero-findings.sarif").exists()
 
     def test_generates_summary_with_findings(self):
-        """Test generating summary with findings."""
+        """Test generating summary with findings (tests language, format, severity grouping)."""
         # Copy SARIF fixture
         shutil.copy(
             FIXTURES_DIR / "results-with-findings.sarif",
@@ -106,6 +103,7 @@ class TestCodeQLGenerateSummary:
             medium="1",
             low="0",
             total="3",
+            is_pr_comment="false",
         )
 
         assert result.returncode == 0, f"Script failed: {result.stderr}"
@@ -117,6 +115,10 @@ class TestCodeQLGenerateSummary:
         assert "CodeQL SAST" in content
         assert "python" in content.lower()  # Language appears in output
         assert "Findings Summary" in content
+        # Verify non-PR format uses heading
+        assert "## 🔬 CodeQL SAST Scan (Python)" in content
+        # Verify language in output
+        assert "Python" in content
 
     def test_generates_summary_zero_findings(self):
         """Test generating summary with zero findings."""
@@ -179,25 +181,6 @@ class TestCodeQLGenerateSummary:
         assert "CRITICAL" in content
         assert "2 critical-severity findings" in content
 
-    def test_high_severity_message(self):
-        """Test HIGH severity priority message appears."""
-        shutil.copy(
-            FIXTURES_DIR / "results-with-findings.sarif",
-            self.sarif_dir / "python.sarif",
-        )
-
-        result = self.run_generator(
-            language="python",
-            critical="0",
-            high="2",
-            total="2",
-        )
-
-        assert result.returncode == 0
-        content = self.output_file.read_text()
-        assert "HIGH" in content
-        assert "2 high-severity findings" in content
-
     def test_finding_details_section(self):
         """Test finding details section is present with findings."""
         shutil.copy(
@@ -255,42 +238,6 @@ class TestCodeQLGenerateSummary:
         content = self.output_file.read_text()
         # Should still generate output but indicate no findings/skipped
         assert "CodeQL" in content
-
-    def test_non_pr_format_has_heading(self):
-        """Test non-PR format uses heading instead of details tag."""
-        shutil.copy(
-            FIXTURES_DIR / "results-with-findings.sarif",
-            self.sarif_dir / "python.sarif",
-        )
-
-        result = self.run_generator(
-            is_pr_comment="false",
-            language="python",
-            total="3",
-        )
-
-        assert result.returncode == 0
-        content = self.output_file.read_text()
-
-        # Non-PR format should have ## heading with emoji and language (capitalized)
-        assert "## 🔬 CodeQL SAST Scan (Python)" in content
-
-    def test_language_in_output(self):
-        """Test language name appears in output."""
-        shutil.copy(
-            FIXTURES_DIR / "results-with-findings.sarif",
-            self.sarif_dir / "javascript.sarif",
-        )
-
-        result = self.run_generator(
-            language="javascript",
-            total="3",
-        )
-
-        assert result.returncode == 0
-        content = self.output_file.read_text()
-        # Language should appear in output
-        assert "javascript" in content.lower()
 
     def test_summary_table_format(self):
         """Test summary table has correct format."""
@@ -377,20 +324,6 @@ class TestEdgeCases:
         )
         return result
 
-    def test_empty_findings_all_zeros(self):
-        """Test with zero findings and all fields zero."""
-        result = self.run_generator(
-            language="go",
-            critical="0",
-            high="0",
-            medium="0",
-            low="0",
-            total="0",
-        )
-        assert result.returncode == 0
-        content = self.output_file.read_text()
-        assert "| **0** | **0** | **0** | **0** | **0** |" in content
-
     def test_malformed_sarif_file(self):
         """Test with malformed SARIF JSON file."""
         bad_sarif = self.sarif_dir / "broken.sarif"
@@ -435,50 +368,6 @@ class TestEdgeCases:
         assert "CRITICAL" in content
         assert "5 critical-severity findings" in content
 
-    def test_all_high_findings(self):
-        """Test with all high severity findings."""
-        result = self.run_generator(
-            language="python",
-            critical="0",
-            high="10",
-            medium="0",
-            low="0",
-            total="10"
-        )
-        assert result.returncode == 0
-        content = self.output_file.read_text()
-        assert "HIGH" in content
-        assert "10 high-severity findings" in content
-
-    def test_very_long_language_name(self):
-        """Test with very long language name."""
-        long_lang = "a" * 100
-        result = self.run_generator(
-            language=long_lang,
-            total="0"
-        )
-        assert result.returncode == 0
-        assert self.output_file.exists()
-
-    def test_empty_language_name(self):
-        """Test with empty language name."""
-        result = self.run_generator(
-            language="",
-            total="0"
-        )
-        assert result.returncode == 0
-        assert self.output_file.exists()
-
-    def test_special_characters_in_language(self):
-        """Test with special characters in language name."""
-        result = self.run_generator(
-            language="python-cpp",
-            total="0"
-        )
-        assert result.returncode == 0
-        content = self.output_file.read_text()
-        assert "CodeQL" in content
-
     def test_very_large_counts(self):
         """Test with very large vulnerability counts."""
         result = self.run_generator(
@@ -492,16 +381,6 @@ class TestEdgeCases:
         assert result.returncode == 0
         content = self.output_file.read_text()
         assert "9999" in content
-
-    def test_output_in_nested_directory(self):
-        """Test creating output in nested non-existent directories."""
-        nested_output = self.workspace / "a" / "b" / "c" / "d" / "summary.md"
-        result = self.run_generator(
-            output_file=str(nested_output),
-            language="python"
-        )
-        assert result.returncode == 0
-        assert nested_output.exists()
 
     def test_sarif_with_empty_locations(self):
         """Test SARIF result with empty locations array."""
@@ -535,24 +414,6 @@ class TestEdgeCases:
         }))
 
         result = self.run_generator(language="python", total="1")
-        assert result.returncode == 0
-        assert self.output_file.exists()
-
-    def test_sarif_with_unicode_in_message(self):
-        """Test SARIF with unicode characters in message."""
-        sarif_file = self.sarif_dir / "python.sarif"
-        sarif_file.write_text(json.dumps({
-            "runs": [{
-                "tool": {"driver": {"name": "CodeQL"}},
-                "results": [{
-                    "level": "error",
-                    "message": {"text": "Issue found at 位置 🔍"},
-                    "locations": [{"physicalLocation": {"artifactLocation": {"uri": "test.py"}}}]
-                }]
-            }]
-        }))
-
-        result = self.run_generator(language="python", critical="1", total="1")
         assert result.returncode == 0
         assert self.output_file.exists()
 

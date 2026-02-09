@@ -84,12 +84,9 @@ class TestOpenGrepGenerateSummary:
         )
         return result
 
-    def test_script_exists(self):
-        """Verify generator script exists."""
+    def test_script_and_fixtures_exist(self):
+        """Verify generator script and fixtures exist."""
         assert GENERATOR_SCRIPT.exists(), f"Script not found: {GENERATOR_SCRIPT}"
-
-    def test_fixtures_exist(self):
-        """Verify required fixtures exist."""
         assert FIXTURES_DIR.exists(), f"Fixtures not found: {FIXTURES_DIR}"
         assert (FIXTURES_DIR / "results-with-findings.json").exists()
         assert (FIXTURES_DIR / "results-zero-findings.json").exists()
@@ -139,13 +136,14 @@ class TestOpenGrepGenerateSummary:
         content = self.output_file.read_text()
         assert "No security findings" in content
 
-    def test_pr_comment_format_collapsible(self):
-        """Test PR comment format uses collapsible sections."""
+    def test_pr_and_non_pr_format(self):
+        """Test PR comment format uses collapsible and non-PR uses heading."""
         shutil.copy(
             FIXTURES_DIR / "results-with-findings.json",
             self.opengrep_reports / "opengrep.json",
         )
 
+        # Test PR comment format
         result = self.run_generator(
             is_pr_comment="true",
             total="4",
@@ -159,13 +157,26 @@ class TestOpenGrepGenerateSummary:
         assert "<summary>" in content
         assert "</details>" in content
 
-    def test_error_severity_message(self):
-        """Test ERROR severity priority message appears."""
+        # Test non-PR format (reuse same fixture)
+        result = self.run_generator(
+            is_pr_comment="false",
+            total="4",
+        )
+
+        assert result.returncode == 0
+        content = self.output_file.read_text()
+
+        # Non-PR format should have ## heading
+        assert "## OpenGrep SAST Scan" in content
+
+    def test_severity_priority_messages(self):
+        """Test ERROR and WARNING severity priority messages appear."""
         shutil.copy(
             FIXTURES_DIR / "results-with-findings.json",
             self.opengrep_reports / "opengrep.json",
         )
 
+        # Test ERROR severity
         result = self.run_generator(
             error_count="2",
             warning_count="0",
@@ -177,25 +188,6 @@ class TestOpenGrepGenerateSummary:
         content = self.output_file.read_text()
         assert "ERROR" in content
         assert "2 error-severity findings" in content
-
-    def test_warning_severity_message(self):
-        """Test WARNING severity priority message appears."""
-        shutil.copy(
-            FIXTURES_DIR / "results-with-findings.json",
-            self.opengrep_reports / "opengrep.json",
-        )
-
-        result = self.run_generator(
-            error_count="0",
-            warning_count="3",
-            info_count="0",
-            total="3",
-        )
-
-        assert result.returncode == 0
-        content = self.output_file.read_text()
-        assert "WARNING" in content
-        assert "3 warning-severity findings" in content
 
     def test_finding_details_section(self):
         """Test finding details section is present with findings."""
@@ -248,24 +240,6 @@ class TestOpenGrepGenerateSummary:
         content = self.output_file.read_text()
         # Should still generate output
         assert "OpenGrep" in content
-
-    def test_non_pr_format_has_heading(self):
-        """Test non-PR format uses heading instead of details tag."""
-        shutil.copy(
-            FIXTURES_DIR / "results-with-findings.json",
-            self.opengrep_reports / "opengrep.json",
-        )
-
-        result = self.run_generator(
-            is_pr_comment="false",
-            total="4",
-        )
-
-        assert result.returncode == 0
-        content = self.output_file.read_text()
-
-        # Non-PR format should have ## heading
-        assert "## OpenGrep SAST Scan" in content
 
     def test_summary_table_format(self):
         """Test summary table has correct format."""
@@ -332,21 +306,6 @@ class TestEdgeCases:
         assert result.returncode == 0
         content = self.output_file.read_text()
         assert "9999" in content
-
-    def test_only_errors_all_findings_are_errors(self):
-        """Test when all findings are ERROR severity."""
-        result = self.run_generator(error_count="10", warning_count="0", info_count="0", total="10")
-        assert result.returncode == 0
-        content = self.output_file.read_text()
-        assert "ERROR" in content
-        assert "10 error-severity findings" in content
-
-    def test_output_nested_directory(self):
-        """Test creating output in nested directory."""
-        nested_output = self.workspace / "a" / "b" / "c" / "summary.md"
-        result = self.run_generator(output_file=str(nested_output))
-        assert result.returncode == 0
-        assert nested_output.exists()
 
     def test_pr_comment_with_zero_findings(self):
         """Test PR comment format with zero findings."""

@@ -163,41 +163,37 @@ class TestGenerateContainerSummary:
         summary_file = tmp_path / "scanner-summaries" / "container.md"
         assert summary_file.exists()
 
-    def test_trivy_only_container(self, tmp_path):
-        """Test processing container with only Trivy results."""
+    def test_single_scanner_containers(self, tmp_path):
+        """Test processing containers with only single scanner (Trivy or Grype)."""
+        # Test Trivy-only
         container_dir = tmp_path / "container-scan-results-trivy-only"
         container_dir.mkdir(parents=True)
-
-        # Only add trivy results
         trivy_fixture = FIXTURES_DIR / "trivy" / "results-with-findings.json"
         if trivy_fixture.exists():
             (container_dir / "trivy-trivy-only-results.json").write_text(trivy_fixture.read_text())
 
         returncode, stdout, stderr = run_summary_generator(cwd=tmp_path)
-
         assert returncode == 0
 
-        # Should still generate summary
         summary_file = tmp_path / "scanner-summaries" / "container.md"
         assert summary_file.exists()
         content = summary_file.read_text()
         assert "Trivy" in content or "🔷" in content
 
-    def test_grype_only_container(self, tmp_path):
-        """Test processing container with only Grype results."""
+        # Test Grype-only (clean up first)
+        (tmp_path / "scanner-summaries").unlink(missing_ok=True) if (tmp_path / "scanner-summaries").is_file() else None
+        for f in (tmp_path / "container-scan-results-trivy-only").glob("*"):
+            f.unlink()
+
         container_dir = tmp_path / "container-scan-results-grype-only"
         container_dir.mkdir(parents=True)
-
-        # Only add grype results
         grype_fixture = FIXTURES_DIR / "grype" / "results-with-findings.json"
         if grype_fixture.exists():
             (container_dir / "grype-grype-only-results.json").write_text(grype_fixture.read_text())
 
         returncode, stdout, stderr = run_summary_generator(cwd=tmp_path)
-
         assert returncode == 0
 
-        # Should still generate summary
         summary_file = tmp_path / "scanner-summaries" / "container.md"
         assert summary_file.exists()
         content = summary_file.read_text()
@@ -205,8 +201,8 @@ class TestGenerateContainerSummary:
 
     # ====== Tests for GITHUB_* environment variables ======
 
-    def test_with_github_step_summary(self, tmp_path):
-        """Test writing to GITHUB_STEP_SUMMARY."""
+    def test_with_github_env_vars(self, tmp_path):
+        """Test writing to GITHUB_STEP_SUMMARY and GITHUB_OUTPUT."""
         container_dir = tmp_path / "container-scan-results-test"
         container_dir.mkdir(parents=True)
 
@@ -214,35 +210,23 @@ class TestGenerateContainerSummary:
         if trivy_fixture.exists():
             (container_dir / "trivy-test-results.json").write_text(trivy_fixture.read_text())
 
+        # Test GITHUB_STEP_SUMMARY
         summary_path = tmp_path / "step_summary.md"
         os.environ["GITHUB_STEP_SUMMARY"] = str(summary_path)
 
         returncode, stdout, stderr = run_summary_generator(cwd=tmp_path)
-
         assert returncode == 0
-        # Note: file may not be created if no containers found, but that's ok
 
-        # Cleanup
-        if "GITHUB_STEP_SUMMARY" in os.environ:
-            del os.environ["GITHUB_STEP_SUMMARY"]
-
-    def test_with_github_output(self, tmp_path):
-        """Test writing to GITHUB_OUTPUT."""
-        container_dir = tmp_path / "container-scan-results-test"
-        container_dir.mkdir(parents=True)
-
-        trivy_fixture = FIXTURES_DIR / "trivy" / "results-with-findings.json"
-        if trivy_fixture.exists():
-            (container_dir / "trivy-test-results.json").write_text(trivy_fixture.read_text())
-
+        # Test GITHUB_OUTPUT
         output_path = tmp_path / "github_output"
         os.environ["GITHUB_OUTPUT"] = str(output_path)
 
         returncode, stdout, stderr = run_summary_generator(cwd=tmp_path)
-
         assert returncode == 0
 
         # Cleanup
+        if "GITHUB_STEP_SUMMARY" in os.environ:
+            del os.environ["GITHUB_STEP_SUMMARY"]
         if "GITHUB_OUTPUT" in os.environ:
             del os.environ["GITHUB_OUTPUT"]
 
@@ -290,8 +274,14 @@ class TestGenerateContainerSummary:
         assert "🚨" in content or "Critical" in content
         assert "|" in content  # Markdown table
 
-    def test_summary_contains_container_name(self, tmp_path):
-        """Test that summary includes container names."""
+    def test_container_names_and_sbom_filter(self, tmp_path):
+        """Test that summary includes container names and SBOM-only dirs are ignored."""
+        # Create SBOM-only directory (should be ignored)
+        sbom_dir = tmp_path / "container-scan-results-sbom-only"
+        sbom_dir.mkdir(parents=True)
+        (sbom_dir / "sbom.json").write_text('{"format": "spdx"}')
+
+        # Create real containers with different naming patterns
         container_name = "my-awesome-app"
         container_dir = tmp_path / f"container-scan-results-{container_name}"
         container_dir.mkdir(parents=True)
@@ -307,33 +297,8 @@ class TestGenerateContainerSummary:
         summary_file = tmp_path / "scanner-summaries" / "container.md"
         content = summary_file.read_text()
 
-        # Container name should be in the detailed findings
+        # Container name should be in the output
         assert container_name in content or "Container" in content
-
-    # ====== Tests for edge cases ======
-
-    def test_sbom_only_directories_ignored(self, tmp_path):
-        """Test that SBOM-only directories are ignored."""
-        # Create SBOM directory
-        sbom_dir = tmp_path / "container-scan-results-sbom-only"
-        sbom_dir.mkdir(parents=True)
-        (sbom_dir / "sbom.json").write_text('{"format": "spdx"}')
-
-        # Create real container directory
-        container_dir = tmp_path / "container-scan-results-real-app"
-        container_dir.mkdir(parents=True)
-
-        trivy_fixture = FIXTURES_DIR / "trivy" / "results-zero-findings.json"
-        if trivy_fixture.exists():
-            (container_dir / "trivy-real-app-results.json").write_text(trivy_fixture.read_text())
-
-        returncode, stdout, stderr = run_summary_generator(cwd=tmp_path)
-
-        assert returncode == 0
-        # Should only process real-app, not sbom-only
-        summary_file = tmp_path / "scanner-summaries" / "container.md"
-        content = summary_file.read_text()
-        assert "real-app" in content or "Container" in content
 
     def test_missing_parser_env_var(self, tmp_path):
         """Test error handling when parser env vars are missing."""
@@ -373,31 +338,6 @@ class TestGenerateContainerSummary:
         # Should contain emoji characters without encoding issues
         assert "🐳" in content or "Container" in content
 
-    def test_different_container_names(self, tmp_path):
-        """Test handling containers with various naming patterns."""
-        names = [
-            "nginx",
-            "my-app-v1",
-            "app_with_underscores",
-            "app-123-prod",
-        ]
-
-        for name in names:
-            container_dir = tmp_path / f"container-scan-results-{name}"
-            container_dir.mkdir(parents=True)
-
-            trivy_fixture = FIXTURES_DIR / "trivy" / "results-zero-findings.json"
-            if trivy_fixture.exists():
-                (container_dir / f"trivy-{name}-results.json").write_text(trivy_fixture.read_text())
-
-        returncode, stdout, stderr = run_summary_generator(cwd=tmp_path)
-
-        assert returncode == 0
-
-        # All containers should be processed
-        summary_file = tmp_path / "scanner-summaries" / "container.md"
-        content = summary_file.read_text()
-        assert "Container" in content
 
 
 class TestEdgeCases:

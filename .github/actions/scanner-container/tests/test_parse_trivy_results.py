@@ -45,20 +45,19 @@ class TestParseTrivyResults:
         result = run_parser("counts", FIXTURES_DIR / "results-with-findings.json")
         assert result == "1 1 1 1"
 
-    def test_counts_nonexistent_file(self):
-        """Test counts with nonexistent file."""
+    def test_counts_with_errors(self, tmp_path):
+        """Test counts with various error conditions (nonexistent, empty, invalid JSON)."""
+        # Nonexistent file
         result = run_parser("counts", Path("/nonexistent/file.json"))
         assert result == "0 0 0 0"
 
-    def test_counts_empty_file(self, tmp_path):
-        """Test counts with empty file."""
+        # Empty file
         empty_file = tmp_path / "empty.json"
         empty_file.write_text("")
         result = run_parser("counts", empty_file)
         assert result == "0 0 0 0"
 
-    def test_counts_invalid_json(self, tmp_path):
-        """Test counts with invalid JSON."""
+        # Invalid JSON
         bad_file = tmp_path / "bad.json"
         bad_file.write_text("{invalid json")
         result = run_parser("counts", bad_file)
@@ -72,12 +71,12 @@ class TestParseTrivyResults:
         assert result == "0"
 
     def test_total_with_findings(self):
-        """Test total command with findings."""
+        """Test total command with findings and nonexistent file."""
+        # With findings
         result = run_parser("total", FIXTURES_DIR / "results-with-findings.json")
         assert result == "4"
 
-    def test_total_nonexistent_file(self):
-        """Test total with nonexistent file."""
+        # With nonexistent file
         result = run_parser("total", Path("/nonexistent/file.json"))
         assert result == "0"
 
@@ -88,13 +87,13 @@ class TestParseTrivyResults:
         result = run_parser("unique", FIXTURES_DIR / "results-zero-findings.json")
         assert result == "0"
 
-    def test_unique_with_findings(self):
-        """Test unique command with findings."""
+    def test_unique_with_findings_and_duplicates(self, tmp_path):
+        """Test unique command with findings (including duplicates)."""
+        # With findings (unique count)
         result = run_parser("unique", FIXTURES_DIR / "results-with-findings.json")
         assert result == "4"
 
-    def test_unique_with_duplicates(self, tmp_path):
-        """Test unique count with duplicate CVE IDs."""
+        # With duplicate CVE IDs (dedup should work)
         json_file = tmp_path / "duplicates.json"
         data = {
             "Results": [
@@ -121,7 +120,7 @@ class TestParseTrivyResults:
     def test_unique_by_severity_with_findings(self):
         """Test unique-by-severity with findings."""
         result = run_parser("unique-by-severity", FIXTURES_DIR / "results-with-findings.json")
-        assert result == "1 1 1 1"
+        assert result == "1 1 1 1"  # 1 of each severity based on fixture
 
     # ====== Tests for 'cves' command ======
 
@@ -161,28 +160,22 @@ class TestParseTrivyResults:
 
     # ====== Tests for 'cves-by-severity' command ======
 
-    def test_cves_by_severity_critical(self):
-        """Test cves-by-severity for CRITICAL severity."""
+    def test_cves_by_severity_multiple_levels(self):
+        """Test cves-by-severity filters by severity level."""
+        # Test each severity level
         result = run_parser("cves-by-severity", FIXTURES_DIR / "results-with-findings.json", "-s", "CRITICAL")
         assert "CVE-2023-1234" in result
 
-    def test_cves_by_severity_high(self):
-        """Test cves-by-severity for HIGH severity."""
         result = run_parser("cves-by-severity", FIXTURES_DIR / "results-with-findings.json", "-s", "HIGH")
         assert "CVE-2023-5678" in result
 
-    def test_cves_by_severity_medium(self):
-        """Test cves-by-severity for MEDIUM severity."""
         result = run_parser("cves-by-severity", FIXTURES_DIR / "results-with-findings.json", "-s", "MEDIUM")
         assert "CVE-2023-9012" in result
 
-    def test_cves_by_severity_low(self):
-        """Test cves-by-severity for LOW severity."""
         result = run_parser("cves-by-severity", FIXTURES_DIR / "results-with-findings.json", "-s", "LOW")
         assert "CVE-2024-0001" in result
 
-    def test_cves_by_severity_none(self):
-        """Test cves-by-severity when none found."""
+        # Test unknown severity returns empty
         result = run_parser("cves-by-severity", FIXTURES_DIR / "results-with-findings.json", "-s", "UNKNOWN")
         assert result == ""
 
@@ -199,60 +192,54 @@ class TestParseTrivyResults:
         result = run_parser("table", FIXTURES_DIR / "results-zero-findings.json")
         assert "No data" in result
 
-    def test_table_with_findings(self):
-        """Test table command generates markdown."""
+    def test_table_with_findings_limit_and_emoji(self):
+        """Test table command generates markdown with findings, limit, and emojis."""
+        # With findings - should contain pipe separators and CVE IDs
         result = run_parser("table", FIXTURES_DIR / "results-with-findings.json")
-        # Should contain pipe separators
         assert "|" in result
-        # Should contain CVE IDs
         assert "CVE-2023-1234" in result or "CVE-" in result
 
-    def test_table_limit(self):
-        """Test table command respects limit."""
+        # With limit - should respect row count
         result = run_parser("table", FIXTURES_DIR / "results-with-findings.json", "-l", "2")
         lines = [l for l in result.split("\n") if "|" in l and "CVE" in l]
         assert len(lines) <= 2
 
-    def test_table_contains_severity_emoji(self):
-        """Test that table output contains severity emojis."""
+        # Check for severity emojis
         result = run_parser("table", FIXTURES_DIR / "results-with-findings.json")
-        # Check for at least one severity emoji
         assert any(emoji in result for emoji in ["🚨", "⚠️", "🟡", "🔵"])
 
     # ====== Tests for 'digest' command ======
 
     def test_digest_with_findings(self):
-        """Test digest extraction."""
+        """Test digest extraction from various inputs."""
+        # With findings
         result = run_parser("digest", FIXTURES_DIR / "results-with-findings.json")
         assert result != "unknown"
         assert "sha256:" in result or len(result) > 10
 
-    def test_digest_zero_findings(self):
-        """Test digest with zero findings (alpine:latest)."""
+        # Zero findings (alpine:latest)
         result = run_parser("digest", FIXTURES_DIR / "results-zero-findings.json")
         assert result != "unknown"
 
-    def test_digest_nonexistent_file(self):
-        """Test digest with nonexistent file."""
+        # Nonexistent file
         result = run_parser("digest", Path("/nonexistent/file.json"))
         assert result == "unknown"
 
     # ====== Tests for 'image' command ======
 
-    def test_image_with_findings(self):
-        """Test image ref extraction."""
+    def test_image_extraction_various_inputs(self):
+        """Test image ref extraction from various inputs."""
+        # With findings - should have image:tag format
         result = run_parser("image", FIXTURES_DIR / "results-with-findings.json")
         assert result != "unknown"
-        assert ":" in result  # Should be image:tag format
+        assert ":" in result
 
-    def test_image_zero_findings(self):
-        """Test image ref with zero findings."""
+        # Zero findings (alpine:latest)
         result = run_parser("image", FIXTURES_DIR / "results-zero-findings.json")
         assert result != "unknown"
         assert "alpine" in result.lower()
 
-    def test_image_nonexistent_file(self):
-        """Test image with nonexistent file."""
+        # Nonexistent file
         result = run_parser("image", Path("/nonexistent/file.json"))
         assert result == "unknown"
 

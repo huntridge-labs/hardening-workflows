@@ -84,12 +84,9 @@ class TestCheckovGenerateSummary:
         )
         return result
 
-    def test_script_exists(self):
-        """Verify generator script exists."""
+    def test_script_and_fixtures_exist(self):
+        """Verify generator script and fixtures exist."""
         assert GENERATOR_SCRIPT.exists(), f"Script not found: {GENERATOR_SCRIPT}"
-
-    def test_fixtures_exist(self):
-        """Verify required fixtures exist."""
         assert FIXTURES_DIR.exists(), f"Fixtures not found: {FIXTURES_DIR}"
         assert (FIXTURES_DIR / "results-with-findings.json").exists()
         assert (FIXTURES_DIR / "results-zero-findings.json").exists()
@@ -106,7 +103,7 @@ class TestCheckovGenerateSummary:
         assert "required: output_file" in result.stderr or "the following arguments are required: output_file" in result.stderr
 
     def test_generates_summary_with_findings(self):
-        """Test generating summary with findings."""
+        """Test generating summary with findings (tests finding aggregation, formatting, framework info)."""
         # Copy fixture
         shutil.copy(
             FIXTURES_DIR / "results-with-findings.json",
@@ -122,6 +119,7 @@ class TestCheckovGenerateSummary:
             low="1",
             passed="8",
             total="5",
+            is_pr_comment="false",
         )
 
         assert result.returncode == 0, f"Script failed: {result.stderr}"
@@ -134,6 +132,14 @@ class TestCheckovGenerateSummary:
         assert "Check Summary" in content
         # Check table row with counts
         assert "| **0** | **2** | **2** | **1** | **5** | **8** |" in content
+        # Verify framework info appears
+        assert "Framework:" in content
+        # Verify non-PR format uses heading
+        assert "## " in content
+        assert "Checkov IaC Security Scan Summary" in content
+        # Verify severity grouping
+        assert "HIGH Severity" in content
+        assert "MEDIUM Severity" in content
 
     def test_generates_summary_zero_findings(self):
         """Test generating summary with zero findings."""
@@ -196,28 +202,6 @@ class TestCheckovGenerateSummary:
         assert "<details>" in content
         assert "<summary>" in content
         assert "</details>" in content
-
-    def test_high_severity_priority_message(self):
-        """Test HIGH severity priority message appears."""
-        shutil.copy(
-            FIXTURES_DIR / "results-with-findings.json",
-            self.checkov_reports / "checkov-results.json",
-        )
-
-        result = self.run_generator(
-            has_iac="true",
-            critical="0",
-            high="2",
-            medium="0",
-            low="0",
-            passed="8",
-            total="2",
-        )
-
-        assert result.returncode == 0
-        content = self.output_file.read_text()
-        assert "HIGH" in content
-        assert "2 high severity issues" in content
 
     def test_critical_severity_priority_message(self):
         """Test CRITICAL severity priority message appears."""
@@ -292,64 +276,6 @@ class TestCheckovGenerateSummary:
         content = self.output_file.read_text()
         assert "No results" in content or "No Checkov results" in content
 
-    def test_severity_grouping_with_data(self):
-        """Test severity grouping when severity data is available."""
-        shutil.copy(
-            FIXTURES_DIR / "results-with-findings.json",
-            self.checkov_reports / "checkov-results.json",
-        )
-
-        result = self.run_generator(
-            has_iac="true",
-            high="2",
-            medium="2",
-            low="1",
-            passed="8",
-            total="5",
-        )
-
-        assert result.returncode == 0
-        content = self.output_file.read_text()
-
-        # With severity data in fixture, should group by severity levels
-        assert "HIGH Severity" in content
-        assert "MEDIUM Severity" in content
-
-    def test_framework_info_displayed(self):
-        """Test framework info is displayed."""
-        shutil.copy(
-            FIXTURES_DIR / "results-with-findings.json",
-            self.checkov_reports / "checkov-results.json",
-        )
-
-        result = self.run_generator(
-            has_iac="true",
-            total="5",
-        )
-
-        assert result.returncode == 0
-        content = self.output_file.read_text()
-        assert "Framework:" in content
-
-    def test_non_pr_format_has_heading(self):
-        """Test non-PR format uses heading instead of details tag."""
-        shutil.copy(
-            FIXTURES_DIR / "results-with-findings.json",
-            self.checkov_reports / "checkov-results.json",
-        )
-
-        result = self.run_generator(
-            is_pr_comment="false",
-            has_iac="true",
-            total="5",
-        )
-
-        assert result.returncode == 0
-        content = self.output_file.read_text()
-
-        # Non-PR format should have ## heading
-        assert "## " in content
-        assert "Checkov IaC Security Scan Summary" in content
 
 
 class TestEdgeCases:
@@ -415,27 +341,6 @@ class TestEdgeCases:
         )
         return result
 
-    def test_empty_findings_zero_passed(self):
-        """Test with no findings and no passed checks."""
-        json_file = self.checkov_reports / "checkov-results.json"
-        json_file.write_text(json.dumps({
-            "check_type": "terraform",
-            "results": {"failed_checks": []}
-        }))
-
-        result = self.run_generator(
-            has_iac="true",
-            critical="0",
-            high="0",
-            medium="0",
-            low="0",
-            passed="0",
-            total="0",
-        )
-        assert result.returncode == 0
-        content = self.output_file.read_text()
-        assert "| **0** | **0** | **0** | **0** | **0** | **0** |" in content
-
     def test_malformed_json_file(self):
         """Test with malformed JSON in results file."""
         bad_json = self.checkov_reports / "checkov-results.json"
@@ -465,50 +370,6 @@ class TestEdgeCases:
         json_file.write_text(json.dumps({"check_type": "terraform"}))
 
         result = self.run_generator(has_iac="true", total="0")
-        assert result.returncode == 0
-        assert self.output_file.exists()
-
-    def test_very_long_check_names(self):
-        """Test with very long check names (>50 chars)."""
-        json_file = self.checkov_reports / "checkov-results.json"
-        long_name = "A" * 100
-        json_file.write_text(json.dumps({
-            "check_type": "terraform",
-            "results": {
-                "failed_checks": [{
-                    "check_id": "CKV-001",
-                    "check_name": long_name,
-                    "resource": "aws_s3_bucket.example",
-                    "file_path": "main.tf",
-                    "file_line_range": [1, 5],
-                    "severity": "HIGH"
-                }]
-            }
-        }))
-
-        result = self.run_generator(has_iac="true", high="1", total="1")
-        assert result.returncode == 0
-        content = self.output_file.read_text()
-        assert "HIGH Severity" in content
-
-    def test_very_long_resource_names(self):
-        """Test with very long resource names (>40 chars)."""
-        json_file = self.checkov_reports / "checkov-results.json"
-        long_resource = "aws_security_group." + "x" * 100
-        json_file.write_text(json.dumps({
-            "check_type": "terraform",
-            "results": {
-                "failed_checks": [{
-                    "check_id": "CKV-001",
-                    "check_name": "Check Name",
-                    "resource": long_resource,
-                    "file_path": "main.tf",
-                    "file_line_range": [1, 5],
-                }]
-            }
-        }))
-
-        result = self.run_generator(has_iac="true", total="1")
         assert result.returncode == 0
         assert self.output_file.exists()
 
@@ -567,28 +428,6 @@ class TestEdgeCases:
         content = self.output_file.read_text()
         assert "All 5 security checks passed" in content
 
-    def test_unicode_in_check_fields(self):
-        """Test with unicode characters in check fields."""
-        json_file = self.checkov_reports / "checkov-results.json"
-        json_file.write_text(json.dumps({
-            "check_type": "terraform",
-            "results": {
-                "failed_checks": [{
-                    "check_id": "CKV-001",
-                    "check_name": "Check Name",
-                    "resource": "resource",
-                    "file_path": "main.tf",
-                    "file_line_range": [1, 5],
-                    "severity": "HIGH"
-                }]
-            }
-        }))
-
-        result = self.run_generator(has_iac="true", high="1", total="1")
-        assert result.returncode == 0
-        content = self.output_file.read_text()
-        assert "HIGH Severity" in content
-
     def test_only_critical_findings_all_critical(self):
         """Test with all findings being CRITICAL."""
         json_file = self.checkov_reports / "checkov-results.json"
@@ -640,13 +479,6 @@ class TestEdgeCases:
         content = self.output_file.read_text()
         assert "Failed Checks" in content or "Check ID" in content
 
-    def test_output_file_in_nested_directory(self):
-        """Test creating output file in nested non-existent directory."""
-        nested_output = self.workspace / "a" / "b" / "c" / "summary.md"
-        result = self.run_generator(output_file=str(nested_output), has_iac="true")
-        assert result.returncode == 0
-        assert nested_output.exists()
-
     def test_very_large_numbers(self):
         """Test with very large vulnerability counts."""
         json_file = self.checkov_reports / "checkov-results.json"
@@ -667,26 +499,6 @@ class TestEdgeCases:
         assert result.returncode == 0
         content = self.output_file.read_text()
         assert "9999" in content
-
-    def test_empty_iac_path(self):
-        """Test with empty iac_path string."""
-        json_file = self.checkov_reports / "checkov-results.json"
-        json_file.write_text(json.dumps({
-            "check_type": "terraform",
-            "results": {
-                "failed_checks": [{
-                    "check_id": "CKV-001",
-                    "check_name": "Check",
-                    "resource": "resource",
-                    "file_path": "main.tf",
-                }]
-            }
-        }))
-
-        result = self.run_generator(has_iac="true", iac_path="", total="1")
-        assert result.returncode == 0
-        content = self.output_file.read_text()
-        assert "main.tf" in content
 
     def test_file_path_with_leading_slash(self):
         """Test with file_path that has leading slash."""

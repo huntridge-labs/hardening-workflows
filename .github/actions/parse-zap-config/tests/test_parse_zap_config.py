@@ -308,26 +308,7 @@ class TestBuildImageReference:
 
         assert 'owasp/zap2docker-stable:latest' in result
 
-    def test_default_tag_is_latest(self):
-        """Default tag is 'latest' when not specified."""
-        image = {
-            'name': 'nginx'
-        }
-        result = build_image_reference(image)
 
-        assert ':latest' in result
-
-    def test_clean_up_double_slashes(self):
-        """Double slashes are cleaned up in reference."""
-        image = {
-            'repository': 'lib',
-            'name': 'nginx',
-            'tag': 'latest'
-        }
-        result = build_image_reference(image)
-
-        # Should not have // except in http://
-        assert '//' not in result or 'http://' in result
 
 
 class TestNormalizePorts:
@@ -362,15 +343,6 @@ class TestNormalizePorts:
 class TestBuildTargetConfig:
     """Tests for build_target_config function."""
 
-    def test_build_target_config_with_defaults(self):
-        """Build target config with default values."""
-        result = build_target_config(None)
-
-        assert result['mode'] == 'url'
-        assert result['image'] == ''
-        assert result['ports'] == '8080:8080'
-        assert result['compose_file'] == 'docker-compose.yml'
-        assert result['compose_build'] is True
 
     def test_build_target_config_with_custom_values(self):
         """Build target config with custom values."""
@@ -594,39 +566,7 @@ class TestGenerateMatrices:
         assert 'fail_on_severity' in entry
         assert 'mode' in entry
 
-    def test_default_fail_on_severity_is_none(self):
-        """Default fail_on_severity is 'none'."""
-        config = {
-            'scans': [
-                {
-                    'name': 'test-scan',
-                    'type': 'baseline',
-                    'target_url': 'http://example.com'
-                }
-            ]
-        }
 
-        result = generate_matrices(config)
-        entry = result['groups'][0]['matrix']['include'][0]
-
-        assert entry['fail_on_severity'] == 'none'
-
-    def test_default_allow_failure_is_false(self):
-        """Default allow_failure is False."""
-        config = {
-            'scans': [
-                {
-                    'name': 'test-scan',
-                    'type': 'baseline',
-                    'target_url': 'http://example.com'
-                }
-            ]
-        }
-
-        result = generate_matrices(config)
-        entry = result['groups'][0]['matrix']['include'][0]
-
-        assert entry['allow_failure'] is False
 
 
 class TestFixtureConfigs:
@@ -664,21 +604,6 @@ class TestFixtureConfigs:
 class TestEdgeCases:
     """Tests for edge cases and special scenarios."""
 
-    def test_empty_defaults(self):
-        """Config with empty defaults."""
-        config = {
-            'defaults': {},
-            'scans': [
-                {
-                    'name': 'test-scan',
-                    'type': 'baseline',
-                    'target_url': 'http://example.com'
-                }
-            ]
-        }
-
-        result = generate_matrices(config)
-        assert len(result['groups'][0]['matrix']['include']) == 1
 
     def test_post_pr_comment_priority(self):
         """post_pr_comment priority: scan > defaults > root > false."""

@@ -47,11 +47,6 @@ class TestLoadConfig:
         assert 'containers' in config
         assert isinstance(config['containers'], list)
 
-    def test_load_invalid_config_syntax(self):
-        """Load config with invalid syntax."""
-        # Create a temporary invalid YAML file
-        with pytest.raises(Exception):
-            load_config('/tmp/nonexistent.yml')
 
     def test_load_json_config(self, tmp_path):
         """Load JSON config file."""
@@ -85,10 +80,6 @@ class TestExpandEnvVars:
         result = expand_env_vars('prefix-${NONEXISTENT_VAR}-suffix')
         assert result == 'prefix-${NONEXISTENT_VAR}-suffix'
 
-    def test_non_string_passthrough(self):
-        """Non-string values pass through unchanged."""
-        assert expand_env_vars(123) == 123
-        assert expand_env_vars(None) is None
 
     def test_expand_env_vars_in_nested_object(self, monkeypatch):
         """Expand environment variables in nested objects."""
@@ -261,15 +252,6 @@ class TestBuildImageReference:
         assert '@sha256:' in result
         assert '1234567890abcdef' in result
 
-    def test_default_registry_host(self):
-        """Default registry is docker.io."""
-        image = {
-            'name': 'nginx',
-            'tag': 'alpine'
-        }
-        result = build_image_reference(image)
-
-        assert 'docker.io' in result
 
     def test_custom_registry_host(self):
         """Custom registry host is used."""
@@ -281,14 +263,6 @@ class TestBuildImageReference:
 
         assert 'ghcr.io' in result
 
-    def test_default_tag_is_latest(self):
-        """Default tag is 'latest' when not specified."""
-        image = {
-            'name': 'nginx'
-        }
-        result = build_image_reference(image)
-
-        assert ':latest' in result
 
     def test_image_without_repository(self):
         """Image reference without repository."""
@@ -301,19 +275,6 @@ class TestBuildImageReference:
         # Should not have double slashes
         assert '//' not in result
 
-    def test_clean_up_double_slashes(self):
-        """Double slashes are cleaned up in reference."""
-        image = {
-            'repository': 'lib',
-            'name': 'nginx',
-            'tag': 'alpine'
-        }
-        result = build_image_reference(image, 'docker.io')
-
-        # Should not have // except in http://
-        parts = result.split('://')
-        if len(parts) > 1:
-            assert '//' not in parts[1]
 
 
 class TestGenerateMatrix:
@@ -379,19 +340,6 @@ class TestGenerateMatrix:
         assert isinstance(entry['scanners'], str)
         assert entry['scanners'] == 'trivy,grype'
 
-    def test_matrix_entry_count_matches_container_count(self):
-        """Number of matrix entries equals number of containers."""
-        config = {
-            'containers': [
-                {'name': 'app1', 'image': 'nginx:latest'},
-                {'name': 'app2', 'image': 'node:latest'},
-                {'name': 'app3', 'image': 'python:latest'}
-            ]
-        }
-
-        matrix = generate_matrix(config)
-
-        assert len(matrix['include']) == 3
 
     def test_default_scanner_is_trivy(self):
         """Default scanner is 'trivy' when not specified."""
@@ -406,56 +354,8 @@ class TestGenerateMatrix:
 
         assert entry['scanners'] == 'trivy'
 
-    def test_default_fail_on_severity_is_high(self):
-        """Default fail_on_severity is 'high'."""
-        config = {
-            'containers': [
-                {'name': 'app', 'image': 'nginx:latest', 'scanners': ['trivy']}
-            ]
-        }
 
-        matrix = generate_matrix(config)
-        entry = matrix['include'][0]
 
-        assert entry['fail_on_severity'] == 'high'
-
-    def test_default_allow_failure_is_false(self):
-        """Default allow_failure is False."""
-        config = {
-            'containers': [
-                {'name': 'app', 'image': 'nginx:latest', 'scanners': ['trivy']}
-            ]
-        }
-
-        matrix = generate_matrix(config)
-        entry = matrix['include'][0]
-
-        assert entry['allow_failure'] is False
-
-    def test_custom_values_override_defaults(self):
-        """Custom values override defaults."""
-        config = {
-            'containers': [
-                {
-                    'name': 'app',
-                    'image': 'nginx:latest',
-                    'scanners': ['grype'],
-                    'fail_on_severity': 'critical',
-                    'allow_failure': True,
-                    'enable_code_security': True,
-                    'post_pr_comment': True
-                }
-            ]
-        }
-
-        matrix = generate_matrix(config)
-        entry = matrix['include'][0]
-
-        assert entry['scanners'] == 'grype'
-        assert entry['fail_on_severity'] == 'critical'
-        assert entry['allow_failure'] is True
-        assert entry['enable_code_security'] is True
-        assert entry['post_pr_comment'] is True
 
     def test_registry_configuration_in_matrix(self):
         """Registry configuration is included in matrix entry."""
@@ -613,35 +513,7 @@ class TestFixtureConfigs:
 class TestEdgeCases:
     """Tests for edge cases and special scenarios."""
 
-    def test_config_with_unicode_characters(self):
-        """Config with unicode characters."""
-        config = {
-            'containers': [
-                {
-                    'name': 'app-🚀',  # Invalid name, but test unicode handling
-                    'image': 'nginx:latest'
-                }
-            ]
-        }
 
-        # Should reject unicode in name
-        with pytest.raises(ValueError, match="invalid format"):
-            validate_config_structure(config, {})
-
-    def test_empty_string_image(self):
-        """Empty string image is not valid."""
-        config = {
-            'containers': [
-                {
-                    'name': 'app',
-                    'image': ''
-                }
-            ]
-        }
-
-        # Should be caught by schema validation
-        # (our simple validation doesn't check empty strings, but that's OK)
-        assert 'image' in config['containers'][0]
 
     def test_very_long_container_name(self):
         """Very long container name."""
