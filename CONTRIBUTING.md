@@ -1,655 +1,374 @@
 # Contributing to Security Hardening Workflows
 
-Thank you for your interest in contributing! This guide will help you add new security scanners to the hardening pipeline.
+Welcome! This guide covers how to contribute composite actions to the security scanning toolkit.
+
+> **Architecture Note**: This project uses an actions-first architecture where scanner logic lives in composite actions (`.github/actions/`). The reusable workflows (`.github/workflows/`) are thin wrappers maintained for backwards compatibility on github.com.
 
 ## Table of Contents
 
-- [Architecture Overview](#architecture-overview)
-- [Adding a New Scanner](#adding-a-new-scanner)
-- [Step-by-Step Guide](#step-by-step-guide)
-- [Scanner Workflow Template](#scanner-workflow-template)
-- [Testing Your Scanner](#testing-your-scanner)
+- [Getting Started](#getting-started)
+- [Adding a New Scanner Action](#adding-a-new-scanner-action)
+- [Testing Your Changes](#testing-your-changes)
 - [Documentation Requirements](#documentation-requirements)
+- [Pull Request Process](#pull-request-process)
 - [Best Practices](#best-practices)
 
 ---
 
-## Architecture Overview
-
-The security hardening pipeline uses a modular architecture:
-
-```
-.github/workflows/
-├── reusable-security-hardening.yml   # Main orchestration workflow
-├── scanner-{name}.yml                # Individual scanner workflows
-├── container-scan.yml                # Container security scanning
-├── infrastructure-scan.yml                # Infrastructure as Code scanning
-└── linting.yml                       # Code quality & linting
-
-Key Components:
-1. Scan Coordinator - Resolves scanner selection logic
-2. Individual Scanner Workflows - Standalone, reusable scanners
-3. Report Generator - Consolidates all scanner outputs
-4. PR Comment Generator - Creates unified security report
-```
-
-**Scanner Flow:**
-1. User specifies scanners via `scanners` input (e.g., `codeql,bandit,container`)
-2. Scan coordinator resolves which scanners to run
-3. Each enabled scanner runs as a separate job
-4. Scanners generate standardized summary artifacts
-5. Report generator consolidates all summaries
-6. PR comment is posted with collapsible sections per scanner
-
----
-
-## Adding a New Scanner
+## Getting Started
 
 ### Prerequisites
 
-Before adding a new scanner, ensure:
-- [ ] The scanner is open-source or freely available in GitHub Actions
-- [ ] It can generate machine-readable output (JSON, SARIF, XML, etc.)
-- [ ] It provides severity/priority levels for findings
-- [ ] It's actively maintained and widely used
+- Git
+- GitHub account
+- Basic understanding of GitHub Actions
+- Familiarity with bash scripting (for parser scripts)
+- Knowledge of the scanner tool you're integrating
 
-### Files to Update
+### Project Structure
 
-When adding a new scanner named `example`, you'll need to update:
+```
+.github/actions/
+├── scanner-*/                    # Scanner composite actions
+│   ├── action.yml               # Action definition
+│   ├── README.md                # Action documentation
+│   ├── scripts/                 # Bundled Python scripts
+│   │   ├── parse-results.py     # Parse scanner output → JSON
+│   │   └── generate-summary.py  # Generate markdown summary
+│   └── tests/                   # Co-located pytest tests
+│       ├── test_parse_results.py
+│       ├── test_generate_summary.py
+│       └── conftest.py (optional)
+├── linter-*/                    # Linter composite actions
+├── parse-container-config/      # Config parser actions
+├── security-summary/            # Summary aggregators
+├── _shared/                     # Shared Python utility modules
+│   ├── sarif.py
+│   ├── summary.py
+│   └── severity.py
+└── README.md                    # Actions catalog
 
-1. **Create scanner workflow**: `.github/workflows/scanner-example.yml`
-2. **Update BOTH workflow files**:
-   - `.github/workflows/reusable-security-hardening.yml` (production version)
-   - `.github/workflows/pr-reusable-security-hardening.yml` (PR testing version)
-3. **Update documentation**: `README.md`, `QUICK-START.md`
-4. **Add examples**: `examples/scanner-list-examples.yml`
+examples/
+├── composite-actions-example.yml     # Complete security workflow
+└── composite-linting-example.yml     # Complete linting workflow
 
-> **Important:** We maintain two versions of the reusable workflow:
-> - **`reusable-security-hardening.yml`** uses pinned tags for external consumers (e.g., `@2.4.0`)
-> - **`pr-reusable-security-hardening.yml`** uses relative paths for PR testing
->
-> Both workflows must be kept in sync. See [PR Workflow Sync docs](docs/pr-workflow-sync.md) for details.
+tests/
+├── fixtures/                    # Shared mock data and test apps
+└── unit/actions/                # Action schema validation
+```
+
+### Key Concepts
+
+**Composite Actions** vs **Reusable Workflows**:
+- ✅ Self-contained with bundled scripts
+- ✅ Works on GHES with github.com access
+- ✅ Easier to compose and test
+- ✅ No cross-repo workflow call overhead
 
 ---
 
-## Step-by-Step Guide
+## Adding a New Scanner Action
 
-### Step 1: Create the Scanner Workflow
+### Step 1: Create Action Structure
 
-Create a new file: `.github/workflows/scanner-{name}.yml`
+Create the directory structure for your scanner:
 
-**Required structure:**
-
-```yaml
-name: [Scanner Name] Security Scanner
-
-on:
-  workflow_dispatch:
-  workflow_call:
-    inputs:
-      post_pr_comment:
-        description: 'Whether to post PR comments'
-        required: false
-        type: boolean
-        default: true
-      enable_code_security:
-        description: 'Whether GitHub Code Security is enabled for this repository'
-        required: false
-        type: boolean
-        default: false
-      fail_on_severity:
-        description: 'Fail the job if findings at or above this severity are found. Options: none, low, medium, high, critical'
-        required: false
-        type: string
-        default: 'none'
-      # Add scanner-specific inputs here
-
-permissions:
-  contents: read
-  security-events: write
-  actions: read
-  pull-requests: write
-
-env:
-  # Define environment variables
-
-jobs:
-  scanner-analysis:
-    name: [Scanner Name] Analysis
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    continue-on-error: true
-
-    steps:
-    # 1. Checkout code
-    - name: Checkout repository
-      uses: actions/checkout@v5
-
-    # 2. Setup environment (if needed)
-    - name: Set up Python/Node/etc
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
-
-    # 3. Install scanner
-    - name: Install [Scanner Name]
-      run: |
-        # Installation commands
-
-    # 4. Run scanner with multiple output formats
-    - name: Run [Scanner Name] Scan
-      run: |
-        echo "🔍 Running [Scanner Name] security analysis..."
-        mkdir -p scanner-reports
-
-        # Generate SARIF (for GitHub Security tab)
-        scanner-command -f sarif -o scanner-reports/report.sarif || true
-
-        # Generate JSON (for parsing)
-        scanner-command -f json -o scanner-reports/report.json || true
-
-        # Generate text (for humans)
-        scanner-command -f txt -o scanner-reports/report.txt || true
-      continue-on-error: true
-
-    # 5. Upload artifacts
-    - name: Upload [Scanner Name] artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: scanner-name-reports
-        path: scanner-reports/
-        retention-days: 30
-      if: always()
-
-    # 6. Upload SARIF to GitHub Security (optional)
-    - name: Upload [Scanner Name] SARIF
-      uses: github/codeql-action/upload-sarif@v4
-      with:
-        sarif_file: scanner-reports/report.sarif
-      if: inputs.enable_code_security == true && always() && github.actor != 'nektos/act' && hashFiles('scanner-reports/report.sarif') != ''
-      continue-on-error: true
-
-    # 7. Generate standardized summary section
-    - name: Generate [Scanner Name] summary section
-      if: always()
-      run: |
-        mkdir -p scanner-summaries
-
-        echo "<details>" > scanner-summaries/scanner-name.md
-        echo "<summary>🔍 [Scanner Name]</summary>" >> scanner-summaries/scanner-name.md
-        echo "" >> scanner-summaries/scanner-name.md
-
-        if [ -d "scanner-reports" ] && [ "$(ls -A scanner-reports)" ]; then
-          echo "**Status:** ✅ Completed" >> scanner-summaries/scanner-name.md
-          echo "" >> scanner-summaries/scanner-name.md
-
-          # Parse results and count issues
-          ISSUE_COUNT=0
-          CRITICAL_COUNT=0
-          HIGH_COUNT=0
-          MEDIUM_COUNT=0
-          LOW_COUNT=0
-
-          # Parse JSON report (adjust based on your scanner's output format)
-          if [ -f "scanner-reports/report.json" ] && command -v jq >/dev/null 2>&1; then
-            # Example parsing - adjust to your scanner's JSON structure
-            ISSUE_COUNT=$(jq -r '.results | length' scanner-reports/report.json 2>/dev/null || echo "0")
-            CRITICAL_COUNT=$(jq -r '.results[] | select(.severity == "CRITICAL") | .id' scanner-reports/report.json 2>/dev/null | wc -l | tr -d ' ')
-            HIGH_COUNT=$(jq -r '.results[] | select(.severity == "HIGH") | .id' scanner-reports/report.json 2>/dev/null | wc -l | tr -d ' ')
-            MEDIUM_COUNT=$(jq -r '.results[] | select(.severity == "MEDIUM") | .id' scanner-reports/report.json 2>/dev/null | wc -l | tr -d ' ')
-            LOW_COUNT=$(jq -r '.results[] | select(.severity == "LOW") | .id' scanner-reports/report.json 2>/dev/null | wc -l | tr -d ' ')
-          fi
-
-          echo "**Issues Found:** $ISSUE_COUNT" >> scanner-summaries/scanner-name.md
-          echo "" >> scanner-summaries/scanner-name.md
-
-          if [ $ISSUE_COUNT -gt 0 ]; then
-            echo "| Severity | Count |" >> scanner-summaries/scanner-name.md
-            echo "|----------|-------|" >> scanner-summaries/scanner-name.md
-            [ $CRITICAL_COUNT -gt 0 ] && echo "| 🔴 Critical | $CRITICAL_COUNT |" >> scanner-summaries/scanner-name.md
-            [ $HIGH_COUNT -gt 0 ] && echo "| 🟠 High | $HIGH_COUNT |" >> scanner-summaries/scanner-name.md
-            [ $MEDIUM_COUNT -gt 0 ] && echo "| 🟡 Medium | $MEDIUM_COUNT |" >> scanner-summaries/scanner-name.md
-            [ $LOW_COUNT -gt 0 ] && echo "| 🟢 Low | $LOW_COUNT |" >> scanner-summaries/scanner-name.md
-            echo "" >> scanner-summaries/scanner-name.md
-          fi
-
-          echo "**📁 Artifacts:** [[Scanner Name] Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/scanner-name.md
-        else
-          echo "**Status:** ⏭️ Skipped" >> scanner-summaries/scanner-name.md
-        fi
-
-        echo "" >> scanner-summaries/scanner-name.md
-        echo "</details>" >> scanner-summaries/scanner-name.md
-        echo "" >> scanner-summaries/scanner-name.md
-      continue-on-error: true
-
-    # 8. Upload summary artifact
-    - name: Upload [Scanner Name] summary section
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: scanner-summary-scanner-name
-        path: scanner-summaries/scanner-name.md
-        retention-days: 7
-      continue-on-error: true
-
-    # 9. Check severity threshold (REQUIRED for fail_on_severity support)
-    - name: Check severity threshold
-      if: inputs.fail_on_severity != 'none' && inputs.fail_on_severity != ''
-      run: |
-        echo "🔍 Checking findings against severity threshold: ${{ inputs.fail_on_severity }}"
-
-        # Parse severity counts from your scanner's report format
-        # Adjust the jq queries to match your scanner's JSON structure
-        if [ -f "scanner-reports/report.json" ]; then
-          CRITICAL_COUNT=$(jq -r '...' scanner-reports/report.json 2>/dev/null || echo "0")
-          HIGH_COUNT=$(jq -r '...' scanner-reports/report.json 2>/dev/null || echo "0")
-          MEDIUM_COUNT=$(jq -r '...' scanner-reports/report.json 2>/dev/null || echo "0")
-          LOW_COUNT=$(jq -r '...' scanner-reports/report.json 2>/dev/null || echo "0")
-        else
-          echo "⚠️ No report found, skipping severity check"
-          exit 0
-        fi
-
-        echo "Found: CRITICAL=$CRITICAL_COUNT, HIGH=$HIGH_COUNT, MEDIUM=$MEDIUM_COUNT, LOW=$LOW_COUNT"
-
-        SHOULD_FAIL=false
-        case "${{ inputs.fail_on_severity }}" in
-          critical)
-            if [ "$CRITICAL_COUNT" -gt 0 ]; then
-              echo "❌ Found $CRITICAL_COUNT critical severity issues"
-              SHOULD_FAIL=true
-            fi
-            ;;
-          high)
-            if [ "$CRITICAL_COUNT" -gt 0 ] || [ "$HIGH_COUNT" -gt 0 ]; then
-              echo "❌ Found $CRITICAL_COUNT critical and $HIGH_COUNT high severity issues"
-              SHOULD_FAIL=true
-            fi
-            ;;
-          medium)
-            if [ "$CRITICAL_COUNT" -gt 0 ] || [ "$HIGH_COUNT" -gt 0 ] || [ "$MEDIUM_COUNT" -gt 0 ]; then
-              echo "❌ Found critical/high/medium severity issues"
-              SHOULD_FAIL=true
-            fi
-            ;;
-          low)
-            if [ "$CRITICAL_COUNT" -gt 0 ] || [ "$HIGH_COUNT" -gt 0 ] || [ "$MEDIUM_COUNT" -gt 0 ] || [ "$LOW_COUNT" -gt 0 ]; then
-              echo "❌ Found issues at or above low severity"
-              SHOULD_FAIL=true
-            fi
-            ;;
-        esac
-
-        if [ "$SHOULD_FAIL" = true ]; then
-          exit 1
-        fi
-
-        echo "✅ No issues at or above severity threshold"
+```bash
+mkdir -p .github/actions/scanner-example/scripts
+touch .github/actions/scanner-example/action.yml
+touch .github/actions/scanner-example/README.md
+touch .github/actions/scanner-example/scripts/parse-results.sh
+touch .github/actions/scanner-example/scripts/generate-summary.sh
+chmod +x .github/actions/scanner-example/scripts/*.sh
 ```
 
-### Step 2: Update Both Reusable Workflows
+### Step 2: Define action.yml
 
-Edit **BOTH** workflow files:
-- `.github/workflows/reusable-security-hardening.yml`
-- `.github/workflows/pr-reusable-security-hardening.yml`
+See existing scanner actions for reference patterns (e.g., `scanner-bandit/action.yml`, `scanner-checkov/action.yml`).
 
-The changes below apply to both files. The only difference is the scanner job path:
-- Production uses: `huntridge-labs/hardening-workflows/.github/workflows/scanner-example.yml@2.4.0`
-- PR testing uses: `./.github/workflows/scanner-example.yml`
-
-#### 2.1 Add to Scanner Resolution Logic
-
-Find the `scan-coordinator` job and add your scanner:
-
+**Standard structure**:
 ```yaml
-jobs:
-  scan-coordinator:
-    name: Scan Coordinator
-    runs-on: ubuntu-latest
-    outputs:
-      # Add your scanner's output
-      run_example: ${{ steps.resolve.outputs.run_example }}
-      # ... existing outputs
+name: 'Example Scanner'
+description: |
+  Run Example security scanner and generate reports.
 
-    steps:
-    - name: Resolve scanner selection
-      id: resolve
-      run: |
-        # Add to RUN associative array
-        declare -A RUN=(
-          [codeql]=false
-          [opengrep]=false
-          [bandit]=false
-          [gitleaks]=false
-          [container]=false
-          [infrastructure]=false
-          [lint]=false
-          [example]=false  # <-- Add your scanner here
-        )
+inputs:
+  scan_path:                  # What to scan
+  fail_on_severity:          # Threshold (none/low/medium/high/critical)
+  enable_code_security:      # Upload SARIF boolean
+  post_pr_comment:          # Post PR comment boolean
+  job_id:                   # For artifact naming
 
-        # Add to DEFAULT_SCANNERS if it should run by default
-        DEFAULT_SCANNERS=(codeql opengrep bandit gitleaks container infrastructure example)
+outputs:
+  critical_count:           # Number of findings by severity
+  high_count:
+  medium_count:
+  low_count:
+  total_count:
+  scan_status:             # passed/failed/skipped
 
-        # Add token handling in apply_token function
-        apply_token() {
-          local token="$1"
-          case "$token" in
-            # ... existing cases
-            example|example-scanner)  # Add aliases if needed
-              add_scanner example
-              ;;
-            # ... other cases
-          esac
-        }
-
-        # At the end, add output for your scanner
-        echo "run_example=${RUN[example]}" >> $GITHUB_OUTPUT
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate inputs
+    - name: Run scanner
+    - name: Parse results (using scripts/parse-results.sh)
+    - name: Upload SARIF (if enabled)
+    - name: Upload reports artifact
+    - name: Generate summary (using scripts/generate-summary.sh)
+    - name: Upload summary artifact
+    - name: Comment PR (if enabled)
 ```
 
-#### 2.2 Add Scanner Job
+**Key patterns to follow**:
+- Use `${{ github.action_path }}/scripts/` to reference bundled scripts
+- Set `if: always()` on result processing steps
+- Use `continue-on-error: true` for optional steps (SARIF, PR comments)
+- Follow naming conventions for artifacts: `{scanner}-reports-{job_id}`
 
-Add your scanner job after the scan-coordinator.
+### Step 3: Create Parser Script
 
-**In `reusable-security-hardening.yml` (production):**
+Create `scripts/parse-results.py`:
+
+```python
+#!/usr/bin/env python3
+"""
+Example Scanner Results Parser
+Usage: parse-results.py counts <report_file>
+"""
+
+import json
+import sys
+from pathlib import Path
+
+def parse_counts(report_file):
+    """Extract severity counts from scanner report."""
+    if report_file == '-':
+        data = json.load(sys.stdin)
+    else:
+        try:
+            with open(report_file) as f:
+                data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return 0, 0, 0, 0
+
+    # Adjust parsing logic for your scanner's output format
+    critical = len([r for r in data.get('results', []) if r.get('severity') == 'CRITICAL'])
+    high = len([r for r in data.get('results', []) if r.get('severity') == 'HIGH'])
+    medium = len([r for r in data.get('results', []) if r.get('severity') == 'MEDIUM'])
+    low = len([r for r in data.get('results', []) if r.get('severity') == 'LOW'])
+
+    return critical, high, medium, low
+
+if __name__ == '__main__':
+    command = sys.argv[1] if len(sys.argv) > 1 else None
+    report_file = sys.argv[2] if len(sys.argv) > 2 else None
+
+    if command == 'counts':
+        c, h, m, l = parse_counts(report_file)
+        print(f"{c} {h} {m} {l}")
+    else:
+        print(f"Unknown command: {command}", file=sys.stderr)
+        sys.exit(1)
+```
+
+**Parser requirements**:
+- Must handle missing files gracefully (return 0 counts)
+- Must handle malformed JSON (catch exceptions)
+- Must map scanner's severity levels to standard: CRITICAL, HIGH, MEDIUM, LOW
+- Output format: space-separated counts for environment variable assignment
+- Support reading from stdin with `-` argument
+
+### Step 4: Create Summary Generator
+
+Create `scripts/generate-summary.py`:
+
+```python
+#!/usr/bin/env python3
+"""
+Example Scanner Summary Generator
+Usage: generate-summary.py <output_file> <is_pr_comment>
+"""
+
+import os
+import sys
+from pathlib import Path
+
+def generate_summary(output_file, is_pr_comment=False):
+    """Generate markdown summary from severity counts."""
+
+    # Get counts from environment
+    critical = os.environ.get('CRITICAL', '0')
+    high = os.environ.get('HIGH', '0')
+    medium = os.environ.get('MEDIUM', '0')
+    low = os.environ.get('LOW', '0')
+    total = os.environ.get('TOTAL', '0')
+
+    lines = []
+
+    if is_pr_comment:
+        lines.append('<details>')
+        lines.append('<summary>🔍 Example Scanner</summary>')
+    else:
+        lines.append('## 🔍 Example Scanner Results')
+
+    lines.append('')
+    lines.append('| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | ❌ Total |')
+    lines.append('|-------------|---------|-----------|--------|----------|')
+    lines.append(f'| **{critical}** | **{high}** | **{medium}** | **{low}** | **{total}** |')
+    lines.append('')
+
+    # Add artifacts link
+    github_url = os.environ.get('GITHUB_SERVER_URL', 'https://github.com')
+    repo = os.environ.get('GITHUB_REPOSITORY', '')
+    run_id = os.environ.get('GITHUB_RUN_ID', '')
+    artifacts_url = f"{github_url}/{repo}/actions/runs/{run_id}#artifacts"
+    lines.append(f'**📁 Artifacts:** [View Reports]({artifacts_url})')
+
+    if is_pr_comment:
+        lines.append('</details>')
+
+    # Write to file
+    Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+    with open(output_file, 'w') as f:
+        f.write('\n'.join(lines) + '\n')
+
+if __name__ == '__main__':
+    output_file = sys.argv[1] if len(sys.argv) > 1 else 'scanner-summaries/example.md'
+    is_pr_comment = sys.argv[2].lower() == 'true' if len(sys.argv) > 2 else False
+    generate_summary(output_file, is_pr_comment)
+```
+
+**Summary requirements**:
+- Use consistent emoji and formatting
+- Support both PR comment and job summary modes
+- Include artifacts link
+- Keep it concise but informative
+- Create output directory if it doesn't exist
+
+### Step 5: Create Documentation
+
+Create `README.md` for your action:
+
+```markdown
+# Example Scanner Composite Action
+
+Brief description of what this scanner detects.
+
+## Usage
+
+### Basic Example
+\`\`\`yaml
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-example@v3
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  with:
+    scan_path: 'src'
+    fail_on_severity: 'high'
+\`\`\`
+
+## Inputs
+
+| Input | Description | Required | Default |
+|-------|-------------|----------|---------|
+| `scan_path` | Path to scan | No | `.` |
+| `fail_on_severity` | Fail threshold | No | `none` |
+| `enable_code_security` | Upload SARIF | No | `false` |
+| `post_pr_comment` | Post PR comment | No | `true` |
+
+## Outputs
+
+| Output | Description |
+|--------|-------------|
+| `critical_count` | Critical findings |
+| `high_count` | High findings |
+| `total_count` | Total findings |
+| `scan_status` | Status (passed/failed/skipped) |
+
+## Requirements
+
+- Scanner tool version requirements
+- Supported file types
+- Dependencies
+```
+
+### Step 6: Update Actions Catalog
+
+Add to `.github/actions/README.md`:
+
+```markdown
+| [scanner-example](scanner-example/) | Example scanner description | Languages | [README](scanner-example/README.md) |
+```
+
+### Step 7: Add to Example Workflows
+
+Add your scanner to `examples/composite-actions-example.yml`:
+
 ```yaml
   example-scanner:
     name: Example Scanner
-    needs: scan-coordinator
-    if: needs.scan-coordinator.outputs.run_example == 'true'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-example.yml@2.4.0
-    with:
-      post_pr_comment: ${{ inputs.post_pr_comment }}
-      enable_code_security: ${{ inputs.enable_code_security }}
-      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
-      # Pass any scanner-specific inputs
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-```
-
-**In `pr-reusable-security-hardening.yml` (PR testing):**
-```yaml
-  example-scanner:
-    name: Example Scanner
-    needs: scan-coordinator
-    if: needs.scan-coordinator.outputs.run_example == 'true'
-    uses: ./.github/workflows/scanner-example.yml
-    with:
-      post_pr_comment: ${{ inputs.post_pr_comment }}
-      enable_code_security: ${{ inputs.enable_code_security }}
-      fail_on_severity: ${{ inputs.allow_failure == false && inputs.severity_threshold || 'none' }}
-      # Pass any scanner-specific inputs
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-```
-
-> **Note:** The `fail_on_severity` parameter maps the parent workflow's `allow_failure` and `severity_threshold` inputs to the scanner's severity check. When `allow_failure: false`, the scanner will fail if findings meet or exceed the `severity_threshold`.
-
-#### 2.3 Update Report Generator
-
-Find the `generate-security-report` job and add your scanner to the needs:
-
-```yaml
-  generate-security-report:
-    name: Generate Security Report
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-example@feat/migrate-to-composite-actions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          scan_path: 'src'
+          post_pr_comment: false  # Let security-summary handle comments
+
+  security-summary:
     needs:
-      - scan-coordinator
-      - codeql-scanner
-      - opengrep-scanner
-      - bandit-scanner
-      - gitleaks-scanner
-      - container-scanner
-      - infrastructure-scanner
-      - example-scanner  # <-- Add here
-    if: always()
-```
-
-In the report generation step, download your scanner's artifacts:
-
-```yaml
-    - name: Download Example artifacts
-      if: needs.scan-coordinator.outputs.run_example == 'true'
-      uses: actions/download-artifact@v5
-      with:
-        pattern: example-*
-      continue-on-error: true
-
-    - name: Download all scanner summaries
-      uses: actions/download-artifact@v5
-      with:
-        pattern: scanner-summary-*
-        merge-multiple: true
-      continue-on-error: true
-```
-
-#### 2.4 Add Scanner to Summary Loop
-
-**CRITICAL:** Add your scanner to the summary aggregation loop, otherwise it won't appear in PR comments!
-
-Find the "Combine scanner summaries" step and add your scanner to the list:
-
-```bash
-# Combine all scanner summaries in a specific order
-for scanner in codeql opengrep bandit gitleaks example container infrastructure sbom trivy-iac checkov trivy-container grype; do
-  if [ -f "${scanner}.md" ]; then
-    echo "✅ Adding ${scanner} summary..."
-    cat "${scanner}.md" >> security-hardening-report.md
-  else
-    echo "⏭️  No ${scanner}.md summary found"
-  fi
-done
-```
-
-> **Note:** Add your scanner in a logical position in the list. Group similar scanners together (e.g., SAST scanners, container scanners, etc.).
-
-### Step 3: Sync and Validate Workflows
-
-After making changes to both workflow files, validate they're in sync:
-
-```bash
-./.github/scripts/validate-reusable-workflow-sync.sh
-```
-
-This script ensures that `reusable-security-hardening.yml` and `pr-reusable-security-hardening.yml` are structurally identical (ignoring path differences).
-
-### Step 4: Update Changelog Categorization
-
-When adding a new scanner, update `scripts/release-it-process-changelog.js` to ensure Dependabot version bumps for your scanner are categorized under "Security Tools" in the changelog:
-
-```javascript
-// Security scanner patterns to detect in commit messages
-const securityScannerPatterns = [
-  'bridgecrewio/checkov-action',
-  // ... existing scanners
-  'your-org/example-scanner-action',  // Add full action path
-  'example-scanner-action',           // Add short name
-  'example-scanner'                   // Add common name
-];
-```
-
-**Examples:**
-- If using GitHub Action: Add the full path (e.g., `github/codeql-action`)
-- If using pip package: Add the package name (e.g., `bandit`)
-- Add common aliases that might appear in commit messages
-
-This ensures that when Dependabot updates your scanner, the changelog will show it under "Security Tools" instead of generic "Dependencies".
-
-### Step 5: Update Documentation
-
-#### 5.1 Update README.md
-
-Add your scanner to the available scanners list:
-
-```markdown
-**Available scanners:**
-- **SAST:** `codeql`, `opengrep`, `bandit`, `gitleaks`
-- **Container:** `container`, `trivy-container`, `grype`
-- **Infrastructure:** `infrastructure`, `trivy-iac`, `checkov`
-- **Linting:** `lint`
-- **New:** `example`
-```
-
-Add a usage example:
-
-```markdown
-**Example Security Focus:**
-```yaml
-with:
-  scanners: codeql,example,gitleaks
-```
-
-#### 5.2 Update QUICK-START.md
-
-Add quick-start examples:
-
-```yaml
-## Example Scanner Only
-
-```yaml
-name: security-example
-on: [push]
-
-jobs:
-  scan:
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.12.0
-    with:
-      scanners: example
-```
-
-#### 5.3 Create Examples
-
-Add to `examples/scanner-list-examples.yml`:
-
-```yaml
-  example-focus:
-    name: Example Scanner Focus
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@2.12.0
-    with:
-      scanners: 'example'
-      post_pr_comment: true
-```
-
-### Step 6: Add Input Validation (Optional)
-
-If your scanner requires specific inputs, add validation to the scan-coordinator:
-
-```yaml
-    - name: Validate example scanner inputs
-      if: steps.resolve.outputs.run_example == 'true'
-      run: |
-        if [ -z "${{ inputs.example_config }}" ]; then
-          echo "::warning::Example scanner requires example_config input"
-        fi
+      - example-scanner  # Add to needs array
+      - bandit
+      # ... other scanners
 ```
 
 ---
 
-## Scanner Workflow Template
+## Testing Your Changes
 
-Use this minimal template as a starting point:
+### Testing Approach
 
-```yaml
-name: Example Security Scanner
-
-on:
-  workflow_dispatch:
-  workflow_call:
-    inputs:
-      post_pr_comment:
-        required: false
-        type: boolean
-        default: true
-      enable_code_security:
-        required: false
-        type: boolean
-        default: false
-
-permissions:
-  contents: read
-  security-events: write
-  actions: read
-  pull-requests: write
-
-jobs:
-  example-analysis:
-    name: Example Analysis
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    continue-on-error: true
-
-    steps:
-    - uses: actions/checkout@v5
-
-    - name: Run Example Scanner
-      run: |
-        mkdir -p scanner-reports
-        echo "🔍 Running example scanner..."
-        # Run your scanner here
-
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: example-reports
-        path: scanner-reports/
-        retention-days: 30
-      if: always()
-
-    - name: Generate summary
-      if: always()
-      run: |
-        mkdir -p scanner-summaries
-        cat > scanner-summaries/example.md << 'EOF'
-        <details>
-        <summary>🔍 Example Scanner</summary>
-
-        **Status:** ✅ Completed
-        **Issues Found:** 0
-
-        **📁 Artifacts:** [Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)
-
-        </details>
-        EOF
-
-    - name: Upload summary
-      uses: actions/upload-artifact@v4
-      with:
-        name: scanner-summary-example
-        path: scanner-summaries/example.md
-        retention-days: 7
-      if: always()
+**Co-located tests** - pytest tests live with the actions they validate:
+```
+.github/actions/scanner-myScanner/
+├── action.yml
+├── scripts/
+│   ├── parse-results.py
+│   └── generate-summary.py
+└── tests/                      # ← Tests co-located here
+    ├── test_parse_results.py
+    ├── test_generate_summary.py
+    └── conftest.py (optional)
 ```
 
----
+**Shared fixtures** - mock data centralized for reuse:
+```
+tests/fixtures/
+├── scanner-outputs/            # Mock scanner results
+├── test-apps/                  # Minimal test apps
+└── configs/                    # Test configurations
+```
 
-## Testing Your Scanner
-
-### Local Testing with act
-
-Test your scanner locally before pushing:
-
+**Run tests**:
 ```bash
-# Install act (if not already)
-brew install act  # macOS
-# or
-curl https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
-
-# Test your scanner workflow
-act workflow_dispatch -W .github/workflows/scanner-example.yml
-
-# Test the full pipeline with your scanner
-act push -W .github/workflows/reusable-security-hardening.yml -s scanners='example'
+pytest                          # All tests with coverage
+pytest --no-cov -q              # Fast mode (no coverage)
+pytest .github/actions/scanner-x/tests/  # Single action tests
 ```
 
-### Create Test Workflow
+**Key principles**:
+1. Tests co-located with actions they test
+2. Fixtures shared across actions (avoid duplication)
+3. Use synthetic data, not real vulnerabilities
+4. Measure coverage with pytest-cov
 
-Create `.github/workflows/test-example-scanner.yml`:
+See `tests/CONTRIBUTING.md` for detailed pytest guide.
+
+### Manual Testing
+
+Create a test workflow:
 
 ```yaml
 name: Test Example Scanner
@@ -658,284 +377,168 @@ on:
   workflow_dispatch:
 
 jobs:
-  test-scanner:
-    uses: ./.github/workflows/scanner-example.yml
-    with:
-      post_pr_comment: false
-      enable_code_security: false
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/scanner-example
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          scan_path: 'tests/fixtures/test-apps/example-app'
 ```
 
-### Integration Testing
+### Automated Testing ✅
 
-Test with the full pipeline:
+Test infrastructure is complete:
 
-```yaml
-name: Test Full Pipeline with Example
-
-on:
-  workflow_dispatch:
-
-jobs:
-  test-integration:
-    uses: ./.github/workflows/reusable-security-hardening.yml
-    with:
-      scanners: example
-      post_pr_comment: false
-```
+- ✅ Unit tests for parser scripts (co-located in `.github/actions/*/tests/`)
+- ✅ Unit tests for summary generators (co-located)
+- ✅ Integration tests for full actions (`.github/workflows/test-actions*.yml`)
+- ✅ Coverage reporting via Codecov
+- ✅ 174+ tests running in CI/CD
 
 ### Validation Checklist
 
-- [ ] Scanner runs successfully in isolation
-- [ ] Scanner generates all expected artifacts
-- [ ] Summary section formats correctly
-- [ ] Scanner integrates with **both** reusable workflows
-- [ ] Scanner added to summary aggregation loop in both workflows
-- [ ] Workflow sync validation passes (`./.github/scripts/validate-reusable-workflow-sync.sh`)
-- [ ] Report generator includes scanner output
-- [ ] No breaking changes to existing scanners
-- [ ] Documentation is complete and accurate
+- [ ] Action runs without errors
+- [ ] All outputs are set correctly
+- [ ] Parser handles various input formats
+- [ ] Summary markdown is valid
+- [ ] Unit tests added in `.github/actions/*/tests/`
+- [ ] Tests use shared fixtures from `tests/fixtures/`
+- [ ] All tests pass: `npm test`
+- [ ] SARIF upload works (if applicable)
+- [ ] Artifacts upload with correct names
+- [ ] PR comments work
+- [ ] Severity thresholds fail appropriately
 
 ---
 
 ## Documentation Requirements
 
-Every new scanner must include:
+Every scanner action must include:
 
-### 1. Inline Documentation
+1. **Action README.md**
+   - Purpose and capabilities
+   - Usage examples
+   - Complete inputs/outputs tables
+   - Requirements
 
-Add comments explaining:
-- What the scanner does
-- Input requirements
-- Output formats
-- Severity level mappings
+2. **Inline Documentation**
+   - Comments in action.yml
+   - Comments in scripts
+   - Helpful error messages
 
-### 2. README Entry
+3. **Catalog Entry**
+   - Add to `.github/actions/README.md`
 
-Add a section describing:
-- Scanner purpose
-- Supported languages/technologies
-- Configuration options
-- Known limitations
+4. **Usage Example**
+   - Add to `examples/composite-actions-example.yml`
 
-### 3. Example Usage
+5. **Changelog**
+   - Update `CHANGELOG.md`
 
-Provide at least 3 examples:
-- Standalone scanner usage
-- Combined with other scanners
-- Production-ready configuration
+---
 
-### 4. Changelog Entry
+## Pull Request Process
 
-Update `CHANGELOG.md`:
+### Before Submitting
+
+- [ ] Manual testing complete
+- [ ] Documentation complete
+- [ ] Unit tests added in `.github/actions/*/tests/`
+- [ ] All tests pass: `pytest`
+- [ ] Coverage meets 80% threshold
+- [ ] Follows existing patterns
+- [ ] Automated tests pass in CI
+
+### PR Template
 
 ```markdown
-## [Unreleased]
+## Add Example Scanner Composite Action
 
-### Added
-- New Example Scanner for detecting X vulnerabilities
-- Support for Y file formats in Example Scanner
+### Summary
+Brief description of the scanner.
+
+### Scanner Details
+- **Tool**: Example Scanner v1.0
+- **Languages**: Python, JavaScript
+- **Output Formats**: SARIF, JSON
+
+### Changes
+- ✅ Created scanner-example action
+- ✅ Added parser and summary scripts
+- ✅ Updated actions catalog
+- ✅ Added examples
+- ✅ Documentation complete
+
+### Testing
+- [x] Tested manually
+- [x] Verified outputs
+- [x] Confirmed artifacts
+- [ ] TODO: Unit tests
+- [ ] TODO: Integration tests
+
+### Usage
+\`\`\`yaml
+- uses: huntridge-labs/hardening-workflows/.github/actions/scanner-example@v3
+\`\`\`
 ```
 
 ---
 
 ## Best Practices
 
-### Scanner Naming
+### Naming Conventions
 
-- Use descriptive, lowercase names: `trivy`, `snyk`, `sonarqube`
-- Use hyphens for multi-word names: `secret-scanner`, `license-checker`
-- Avoid version numbers: `scanner-v2` ❌, `scanner` ✅
+- **Actions**: `scanner-{tool}` or `linter-{tool}`
+- **Scripts**: `parse-{tool}-results.sh`, `generate-{tool}-summary.sh`
+- **Artifacts**: `{tool}-reports-{job_id}`, `scanner-summary-{tool}-{job_id}`
 
-### Error Handling
+### Script Guidelines
 
-Always use `continue-on-error: true` for:
-- Scanner execution steps (scanners may find issues)
-- Artifact uploads (GitHub may have issues)
-- SARIF uploads (may not be available)
-
-Never use `continue-on-error: true` for:
-- Checkout steps
-- Setup steps (Python, Node, etc.)
-
-### Performance
-
-- Set reasonable `timeout-minutes` (10-15 minutes typical)
-- Use caching for dependencies when possible
-- Generate only necessary output formats
+1. Always use `set -euo pipefail`
+2. Validate inputs before processing
+3. Handle missing files gracefully
+4. Provide default values
+5. Use descriptive error messages
 
 ### Security
 
-- Never hardcode credentials or tokens
-- Use `secrets` for sensitive inputs
-- Validate user inputs
-- Use pinned action versions: `actions/checkout@v5` not `@main`
+- Never hardcode secrets
+- Validate all inputs
+- Use `continue-on-error` for optional steps
+- Pin action versions
+- Minimize required permissions
 
-### Artifacts
+### Performance
 
-- Set appropriate `retention-days` (7 for summaries, 30 for reports)
-- Use descriptive artifact names: `example-scanner-reports`
-- Include multiple formats (SARIF, JSON, text) when possible
-
-### Summary Format
-
-Follow the standard format:
-
-```markdown
-<details>
-<summary>🔍 Scanner Name</summary>
-
-**Status:** ✅ Completed | ⏭️ Skipped | ❌ Failed
-
-**Issues Found:** N
-
-| Severity | Count |
-|----------|-------|
-| 🔴 Critical | N |
-| 🟠 High | N |
-| 🟡 Medium | N |
-| 🟢 Low | N |
-| 🔵 Info | N |
-
-**📁 Artifacts:** [Scanner Reports](link)
-
-</details>
-```
-
-### Output Parsing
-
-When parsing scanner output:
-
-1. **Prefer JSON over text parsing**
-   ```bash
-   jq -r '.results[] | .severity' report.json
-   ```
-
-2. **Handle missing files gracefully**
-   ```bash
-   if [ -f "report.json" ]; then
-     # parse
-   else
-     echo "Report not found"
-   fi
-   ```
-
-3. **Provide default values**
-   ```bash
-   COUNT=$(jq -r '.count' report.json 2>/dev/null || echo "0")
-   ```
-
-4. **Map severity levels consistently**
-   - CRITICAL/FATAL → 🔴 Critical
-   - HIGH → 🟠 High
-   - MEDIUM/MODERATE → 🟡 Medium
-   - LOW → 🟢 Low
-   - INFO/NOTE → 🔵 Info
+- Set reasonable timeouts
+- Cache dependencies
+- Minimize scan scope
+- Generate only necessary formats
 
 ---
 
-## Common Issues and Solutions
+## Migration Complete ✅
 
-### Issue: Scanner not appearing in output
-
-**Solution:** Check that:
-1. Scanner is added to `DEFAULT_SCANNERS` array
-2. Output variable is set: `echo "run_example=${RUN[example]}" >> $GITHUB_OUTPUT`
-3. Job needs include your scanner
-
-### Issue: Summary not showing in PR comment
-
-**Solution:** Verify:
-1. Summary artifact is uploaded with pattern `scanner-summary-*`
-2. Artifact name matches the pattern: `scanner-summary-example`
-3. Report generator job includes your scanner in `needs`
-4. **Scanner is added to the summary aggregation loop** in both workflow files
-5. Both workflows are in sync (run validation script)
-
-### Issue: SARIF upload fails
-
-**Solution:**
-1. Ensure SARIF file is valid JSON
-2. Check `enable_code_security` is true
-3. Verify file exists: `hashFiles('report.sarif') != ''`
-4. Use `continue-on-error: true` (SARIF upload is optional)
-
-### Issue: Scanner takes too long
-
-**Solution:**
-1. Increase `timeout-minutes`
-2. Add caching for dependencies
-3. Limit scan scope with configuration
-4. Consider parallel execution for large repos
+All action scripts and tests are now Python with pytest:
+- ✅ All scripts converted to Python (`*.py`)
+- ✅ All tests migrated to pytest
+- ✅ Unified coverage with pytest-cov
+- ✅ Shared utility modules in `.github/actions/_shared/`
+- ✅ Duplicate scripts eliminated (container-summary, zap-summary)
 
 ---
 
 ## Getting Help
 
-- 📋 Check existing scanner implementations for reference
+- 📋 Check existing actions for patterns
+- 📖 Review `CLAUDE.md` for architecture
+- 📝 See `tests/TODO.md` for testing
 - 💬 Open a [Discussion](https://github.com/huntridge-labs/hardening-workflows/discussions)
-- 🐛 Report bugs via [Issues](https://github.com/huntridge-labs/hardening-workflows/issues)
-- 📧 Contact maintainers for major changes
+- 🐛 Report via [Issues](https://github.com/huntridge-labs/hardening-workflows/issues)
 
 ---
 
-## Pull Request Checklist
-
-Before submitting your PR:
-
-- [ ] Scanner workflow created and tested
-- [ ] **Both** reusable workflows updated with scanner integration
-- [ ] Scanner added to summary aggregation loop in both workflows
-- [ ] Workflow sync validation passes
-- [ ] Documentation added/updated
-- [ ] Examples provided
-- [ ] Tests passing
-- [ ] No breaking changes to existing scanners
-- [ ] PR description explains the scanner's purpose
-- [ ] Changelog updated
-
----
-
-## Example PR Description Template
-
-```markdown
-## Add [Scanner Name] Security Scanner
-
-### Summary
-This PR adds [Scanner Name] to detect [type of vulnerabilities] in [languages/technologies].
-
-### Scanner Details
-- **Tool**: [Scanner Name] v[version]
-- **Language**: [Supported languages]
-- **Output Formats**: SARIF, JSON, Text
-- **Severity Levels**: Critical, High, Medium, Low
-
-### Changes
-- ✅ Created `scanner-example.yml` workflow
-- ✅ Integrated with `reusable-security-hardening.yml`
-- ✅ Added documentation and examples
-- ✅ Tested with sample projects
-
-### Usage
-```yaml
-with:
-  scanners: example
-```
-
-### Testing
-- [x] Tested standalone scanner workflow
-- [x] Tested integration with full pipeline
-- [x] Verified summary generation
-- [x] Confirmed PR comment includes scanner output
-
-### Screenshots
-[Include screenshot of PR comment with scanner section]
-```
-
----
-
-**Thank you for contributing to making security scanning more accessible! 🎉**
+**Thank you for contributing! 🎉**

@@ -11,23 +11,22 @@
     "cz-conventional-changelog": "^3.3.0",
     "husky": "^9.1.7",
     "is-ci": "^4.1.0",
-    "pre-commit": "^1.2.2",
     "release-it": "^19.2.2"
   },
   "dependencies": {
     "@digitalroute/cz-conventional-changelog-for-jira": "^8.0.1",
     "@octokit/plugin-paginate-rest": "^14.0.0",
-    "ajv": "^8.17.1",
-    "ajv-formats": "^3.0.1",
     "conventional-changelog-conventionalcommits": "^9.1.0",
     "cz-emoji-conventional": "^1.2.1",
     "dateformat": "^5.0.3",
-    "husky": "^9.1.7",
-    "js-yaml": "^4.1.0"
+    "husky": "^9.1.7"
   },
   "scripts": {
     "prepare": "husky",
-    "test": "npm ci",
+    "test": "pytest --no-cov -q",
+    "test:coverage": "pytest",
+    "test:actions": "python tests/unit/actions/validate-action-schemas.py",
+    "validate": "python tests/unit/actions/validate-action-schemas.py",
     "commitizen": "commitizen init cz-conventional-changelog --save-dev --save-exact --force",
     "release": "release-it",
     "release:dry": "release-it --dry-run",

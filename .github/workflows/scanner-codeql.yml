@@ -1,3 +1,14 @@
+# CodeQL SAST Scanner - Reusable Workflow
+#
+# THIN WRAPPER: This workflow delegates to the scanner-codeql composite action.
+# All scanning logic is in: .github/actions/scanner-codeql/action.yml
+#
+# Note: This workflow retains the language auto-detection and matrix generation
+# since the composite action handles one language at a time.
+#
+# For GHES users: Use the composite action directly with a matrix strategy.
+# See: examples/github-enterprise/sast-only.yml
+
 name: CodeQL Scanner
 
 on:
@@ -10,25 +21,10 @@ on:
         type: string
         default: ''
       config_file:
-        description: 'Path to CodeQL config file. Leave empty to auto-detect project config or generate one.'
+        description: 'Path to CodeQL config file. Leave empty to auto-detect project config or use defaults.'
         required: false
         type: string
         default: ''
-      query_suite:
-        description: 'CodeQL query suite to use (security-extended, security-and-quality, or default). Ignored if config_file is set.'
-        required: false
-        type: string
-        default: 'security-extended,security-and-quality'
-      scan_paths:
-        description: 'Comma-separated list of paths to scan (empty = scan everything). Ignored if config_file is set.'
-        required: false
-        type: string
-        default: ''
-      ignore_paths:
-        description: 'Comma-separated list of paths to ignore. Ignored if config_file is set.'
-        required: false
-        type: string
-        default: '**/node_modules/**,**/venv/**,**/__pycache__/**'
       post_pr_comment:
         description: 'Whether to post PR comments'
         required: false
@@ -39,15 +35,27 @@ on:
         required: false
         type: boolean
         default: false
+      fail_on_severity:
+        description: 'Fail the job if vulnerabilities at or above this severity are found. Options: none, low, medium, high, critical. Set to "none" to never fail.'
+        required: false
+        type: string
+        default: 'none'
+      setup_python_version:
+        description: 'Python version to set up (only used when language is python)'
+        required: false
+        type: string
+        default: '3.12'
+      setup_node_version:
+        description: 'Node.js version to set up (only used when language is javascript)'
+        required: false
+        type: string
+        default: '22'
 
 permissions:
   contents: read
   security-events: write
   actions: read
   pull-requests: write
-
-env:
-  PYTHON_VERSION: '3.12'
 
 jobs:
   generate-codeql-matrix:
@@ -57,104 +65,106 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       detected_languages: ${{ steps.set-matrix.outputs.detected_languages }}
     steps:
-    - name: Checkout for language detection
-      if: inputs.codeql_languages == ''
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
+      - name: Checkout for language detection
+        if: inputs.codeql_languages == ''
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
 
-    - name: Generate matrix
-      id: set-matrix
-      run: |
-        LANGUAGES="${{ inputs.codeql_languages }}"
+      - name: Generate matrix
+        id: set-matrix
+        env:
+          INPUT_LANGUAGES: ${{ inputs.codeql_languages }}
+        run: |
+          LANGUAGES="$INPUT_LANGUAGES"
 
-        # Auto-detect languages if not specified
-        if [ -z "$LANGUAGES" ]; then
-          echo "🔍 Auto-detecting languages..."
-          DETECTED=""
-
-          # Check for Python files
-          if find . -name "*.py" -type f | head -1 | grep -q .; then
-            DETECTED="${DETECTED}python,"
-            echo "  ✅ Python detected"
-          fi
-
-          # Check for JavaScript/TypeScript files
-          if find . \( -name "*.js" -o -name "*.ts" -o -name "*.jsx" -o -name "*.tsx" \) -type f -not -path "*/node_modules/*" | head -1 | grep -q .; then
-            DETECTED="${DETECTED}javascript,"
-            echo "  ✅ JavaScript/TypeScript detected"
-          fi
-
-          # Check for Go files
-          if find . -name "*.go" -type f | head -1 | grep -q .; then
-            DETECTED="${DETECTED}go,"
-            echo "  ✅ Go detected"
-          fi
-
-          # Check for Java files
-          if find . -name "*.java" -type f | head -1 | grep -q .; then
-            DETECTED="${DETECTED}java,"
-            echo "  ✅ Java detected"
-          fi
-
-          # Check for C/C++ files
-          if find . \( -name "*.c" -o -name "*.cpp" -o -name "*.cc" -o -name "*.h" -o -name "*.hpp" \) -type f | head -1 | grep -q .; then
-            DETECTED="${DETECTED}cpp,"
-            echo "  ✅ C/C++ detected"
-          fi
-
-          # Check for C# files
-          if find . -name "*.cs" -type f | head -1 | grep -q .; then
-            DETECTED="${DETECTED}csharp,"
-            echo "  ✅ C# detected"
-          fi
-
-          # Check for Ruby files
-          if find . -name "*.rb" -type f | head -1 | grep -q .; then
-            DETECTED="${DETECTED}ruby,"
-            echo "  ✅ Ruby detected"
-          fi
-
-          # Check for Swift files
-          if find . -name "*.swift" -type f | head -1 | grep -q .; then
-            DETECTED="${DETECTED}swift,"
-            echo "  ✅ Swift detected"
-          fi
-
-          # Check for Kotlin files
-          if find . -name "*.kt" -type f | head -1 | grep -q .; then
-            DETECTED="${DETECTED}kotlin,"
-            echo "  ✅ Kotlin detected"
-          fi
-
-          # Remove trailing comma
-          LANGUAGES=$(echo "$DETECTED" | sed 's/,$//')
-
+          # Auto-detect languages if not specified
           if [ -z "$LANGUAGES" ]; then
-            echo "⚠️ No supported languages detected, defaulting to python,javascript"
-            LANGUAGES="python,javascript"
+            echo "🔍 Auto-detecting languages..."
+            DETECTED=""
+
+            # Check for Python files
+            if find . -name "*.py" -type f | head -1 | grep -q .; then
+              DETECTED="${DETECTED}python,"
+              echo "  ✅ Python detected"
+            fi
+
+            # Check for JavaScript/TypeScript files
+            if find . \( -name "*.js" -o -name "*.ts" -o -name "*.jsx" -o -name "*.tsx" \) -type f -not -path "*/node_modules/*" | head -1 | grep -q .; then
+              DETECTED="${DETECTED}javascript,"
+              echo "  ✅ JavaScript/TypeScript detected"
+            fi
+
+            # Check for Go files
+            if find . -name "*.go" -type f | head -1 | grep -q .; then
+              DETECTED="${DETECTED}go,"
+              echo "  ✅ Go detected"
+            fi
+
+            # Check for Java files
+            if find . -name "*.java" -type f | head -1 | grep -q .; then
+              DETECTED="${DETECTED}java,"
+              echo "  ✅ Java detected"
+            fi
+
+            # Check for C/C++ files
+            if find . \( -name "*.c" -o -name "*.cpp" -o -name "*.cc" -o -name "*.h" -o -name "*.hpp" \) -type f | head -1 | grep -q .; then
+              DETECTED="${DETECTED}cpp,"
+              echo "  ✅ C/C++ detected"
+            fi
+
+            # Check for C# files
+            if find . -name "*.cs" -type f | head -1 | grep -q .; then
+              DETECTED="${DETECTED}csharp,"
+              echo "  ✅ C# detected"
+            fi
+
+            # Check for Ruby files
+            if find . -name "*.rb" -type f | head -1 | grep -q .; then
+              DETECTED="${DETECTED}ruby,"
+              echo "  ✅ Ruby detected"
+            fi
+
+            # Check for Swift files
+            if find . -name "*.swift" -type f | head -1 | grep -q .; then
+              DETECTED="${DETECTED}swift,"
+              echo "  ✅ Swift detected"
+            fi
+
+            # Check for Kotlin files
+            if find . -name "*.kt" -type f | head -1 | grep -q .; then
+              DETECTED="${DETECTED}kotlin,"
+              echo "  ✅ Kotlin detected"
+            fi
+
+            # Remove trailing comma
+            LANGUAGES=$(echo "$DETECTED" | sed 's/,$//')
+
+            if [ -z "$LANGUAGES" ]; then
+              echo "⚠️ No supported languages detected, defaulting to python,javascript"
+              LANGUAGES="python,javascript"
+            fi
+
+            echo "detected_languages=$LANGUAGES" >> $GITHUB_OUTPUT
           fi
 
-          echo "detected_languages=$LANGUAGES" >> $GITHUB_OUTPUT
-        fi
+          echo "Languages to analyze: $LANGUAGES"
 
-        echo "Languages to analyze: $LANGUAGES"
+          # Validate languages and remove spaces
+          LANGUAGES=$(echo "$LANGUAGES" | tr -d ' ')
 
-        # Validate languages and remove spaces
-        LANGUAGES=$(echo "$LANGUAGES" | tr -d ' ')
+          # Convert comma-separated string to JSON array
+          MATRIX_JSON=$(echo "$LANGUAGES" | sed 's/,/","/g' | sed 's/^/["/' | sed 's/$/"]/')
+          echo "Generated matrix: $MATRIX_JSON"
 
-        # Convert comma-separated string to JSON array
-        MATRIX_JSON=$(echo "$LANGUAGES" | sed 's/,/","/g' | sed 's/^/["/' | sed 's/$/"]/')
-        echo "Generated matrix: $MATRIX_JSON"
+          # Validate JSON syntax
+          if ! echo "$MATRIX_JSON" | python3 -m json.tool > /dev/null 2>&1; then
+            echo "Error: Invalid JSON generated: $MATRIX_JSON"
+            echo "Falling back to default languages"
+            MATRIX_JSON='["python","javascript"]'
+          fi
 
-        # Validate JSON syntax
-        if ! echo "$MATRIX_JSON" | python3 -m json.tool > /dev/null 2>&1; then
-          echo "Error: Invalid JSON generated: $MATRIX_JSON"
-          echo "Falling back to default languages"
-          MATRIX_JSON='["python","javascript"]'
-        fi
-
-        echo "matrix={\"language\":$MATRIX_JSON}" >> $GITHUB_OUTPUT
+          echo "matrix={\"language\":$MATRIX_JSON}" >> $GITHUB_OUTPUT
 
   codeql-analysis:
     name: CodeQL Analysis
@@ -163,634 +173,22 @@ jobs:
     timeout-minutes: 45
     continue-on-error: true
     if: github.actor != 'nektos/act'
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
 
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.generate-codeql-matrix.outputs.matrix) }}
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
-
-    - name: Detect or generate CodeQL config
-      id: codeql-config
-      run: |
-        # Priority order:
-        # 1. Explicit config_file input
-        # 2. Project's existing config (auto-detect common locations)
-        # 3. Generate a config from inputs
-
-        INPUT_CONFIG="${{ inputs.config_file }}"
-
-        # Check if explicit config was provided
-        if [ -n "$INPUT_CONFIG" ]; then
-          if [ -f "$INPUT_CONFIG" ]; then
-            echo "✅ Using explicit config: $INPUT_CONFIG"
-            echo "config_file=$INPUT_CONFIG" >> $GITHUB_OUTPUT
-            echo "config_source=explicit" >> $GITHUB_OUTPUT
-            cat "$INPUT_CONFIG"
-            exit 0
-          else
-            echo "⚠️ Specified config file not found: $INPUT_CONFIG"
-            echo "Falling back to auto-detection..."
-          fi
-        fi
-
-        # Auto-detect project's existing config
-        PROJECT_CONFIGS=(
-          ".github/codeql/codeql-config.yml"
-          ".github/codeql/codeql-config.yaml"
-          ".github/codeql-config.yml"
-          ".github/codeql-config.yaml"
-          "codeql-config.yml"
-          "codeql-config.yaml"
-        )
-
-        for config in "${PROJECT_CONFIGS[@]}"; do
-          if [ -f "$config" ]; then
-            echo "✅ Found project CodeQL config: $config"
-            echo "config_file=$config" >> $GITHUB_OUTPUT
-            echo "config_source=project" >> $GITHUB_OUTPUT
-            cat "$config"
-            exit 0
-          fi
-        done
-
-        echo "📝 No existing config found, generating from inputs..."
-        echo "config_source=generated" >> $GITHUB_OUTPUT
-
-        # Generate config from inputs
-        mkdir -p .codeql-generated
-        CONFIG_FILE=".codeql-generated/codeql-config.yml"
-
-        echo "name: Generated CodeQL Config" > "$CONFIG_FILE"
-        echo "" >> "$CONFIG_FILE"
-
-        # Add query suite if specified (not 'default')
-        QUERY_SUITE="${{ inputs.query_suite }}"
-        if [ -n "$QUERY_SUITE" ] && [ "$QUERY_SUITE" != "default" ]; then
-          echo "queries:" >> "$CONFIG_FILE"
-          # Split comma-separated suites
-          IFS=',' read -ra SUITES <<< "$QUERY_SUITE"
-          for suite in "${SUITES[@]}"; do
-            suite=$(echo "$suite" | tr -d ' ')
-            echo "  - uses: $suite" >> "$CONFIG_FILE"
-          done
-          echo "" >> "$CONFIG_FILE"
-        fi
-
-        # Add paths to scan if specified
-        SCAN_PATHS="${{ inputs.scan_paths }}"
-        if [ -n "$SCAN_PATHS" ]; then
-          echo "paths:" >> "$CONFIG_FILE"
-          IFS=',' read -ra PATHS <<< "$SCAN_PATHS"
-          for p in "${PATHS[@]}"; do
-            p=$(echo "$p" | tr -d ' ')
-            echo "  - '$p'" >> "$CONFIG_FILE"
-          done
-          echo "" >> "$CONFIG_FILE"
-        fi
-
-        # Add paths to ignore
-        IGNORE_PATHS="${{ inputs.ignore_paths }}"
-        if [ -n "$IGNORE_PATHS" ]; then
-          echo "paths-ignore:" >> "$CONFIG_FILE"
-          IFS=',' read -ra IPATHS <<< "$IGNORE_PATHS"
-          for p in "${IPATHS[@]}"; do
-            p=$(echo "$p" | tr -d ' ')
-            echo "  - '$p'" >> "$CONFIG_FILE"
-          done
-        fi
-
-        echo "📋 Generated CodeQL config:"
-        cat "$CONFIG_FILE"
-        echo "config_file=$CONFIG_FILE" >> $GITHUB_OUTPUT
-
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v4
-      with:
-        languages: ${{ matrix.language }}
-        config-file: ${{ steps.codeql-config.outputs.config_file }}
-        queries: ${{ steps.codeql-config.outputs.config_source == 'generated' && inputs.query_suite != 'default' && inputs.query_suite || '' }}
-        tools: latest
-
-    - name: Debug - Show files to analyze
-      if: runner.debug == '1'
-      run: |
-        echo "🔍 Files that will be analyzed for ${{ matrix.language }}:"
-        if [ "${{ matrix.language }}" = "javascript" ]; then
-          find . -name "*.js" -o -name "*.ts" | head -20
-        elif [ "${{ matrix.language }}" = "python" ]; then
-          find . -name "*.py" | head -20
-        fi
-
-    - name: Set up Python
-      if: matrix.language == 'python'
-      uses: actions/setup-python@v6
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-
-    - name: Set up Node.js
-      if: matrix.language == 'javascript'
-      uses: actions/setup-node@v6
-      with:
-        node-version: '22'
-
-    - name: Install Python dependencies
-      if: matrix.language == 'python'
-      run: |
-        python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then
-          pip install -r requirements.txt
-        fi
-      continue-on-error: true
-
-    - name: Install Node.js dependencies
-      if: matrix.language == 'javascript'
-      run: |
-        # Find all package.json files and install dependencies
-        find . -name "package.json" -not -path "*/node_modules/*" | while read package; do
-          dir=$(dirname "$package")
-          echo "Installing dependencies in $dir"
-          cd "$dir"
-          npm install || true
-          cd - > /dev/null
-        done
-      continue-on-error: true
-
-    - name: Autobuild
-      uses: github/codeql-action/autobuild@v4
-
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v4
-      with:
-        category: "/language:${{matrix.language}}"
-        output: sarif-results
-        upload: ${{ inputs.enable_code_security && 'always' || 'never' }}
-      continue-on-error: true
-
-    - name: Extract Raw BQRS Results as JSON
-      run: |
-        # Use CodeQL CLI to decode BQRS files to clean JSON format
-        # This provides raw query results without SARIF metadata overhead
-
-        # CodeQL CLI should be available after init action
-        # The action installs it to /opt/hostedtoolcache/CodeQL/.../codeql
-        CODEQL_PATH=$(find /opt/hostedtoolcache/CodeQL -name "codeql" -type f 2>/dev/null | head -1)
-
-        if [ -n "$CODEQL_PATH" ]; then
-          echo "✅ CodeQL CLI found at: $CODEQL_PATH"
-
-          # Database directory is typically in /home/runner/work/_temp/codeql_databases
-          # or we can use the CODEQL_DATABASE_* environment variables
-          DB_DIR="/home/runner/work/_temp/codeql_databases"
-
-          if [ -d "$DB_DIR" ]; then
-            echo "Found database directory: $DB_DIR"
-            mkdir -p codeql-reports/bqrs-json
-            mkdir -p codeql-reports/sarif
-            mkdir -p codeql-reports/sarif-json
-
-            # Find and decode all BQRS files to JSON
-            find "$DB_DIR" -name "*.bqrs" | while read bqrs_file; do
-              echo "Decoding BQRS file: $bqrs_file"
-              basename=$(basename "$bqrs_file" .bqrs)
-
-              # Decode BQRS to JSON format
-              "$CODEQL_PATH" bqrs decode \
-                --format=json \
-                --output="codeql-reports/bqrs-json/${basename}.json" \
-                "$bqrs_file" 2>/dev/null || echo "Failed to decode $bqrs_file"
-            done
-
-            echo "✅ BQRS decoding completed"
-          else
-            echo "❌ Could not find CodeQL database directory at $DB_DIR"
-            # Fallback: try to find any codeql_databases directory
-            DB_DIR=$(find . -name "codeql_databases" -type d 2>/dev/null | head -1)
-            if [ -n "$DB_DIR" ]; then
-              echo "Found database directory (fallback): $DB_DIR"
-              mkdir -p codeql-reports/bqrs-json
-
-              # Find and decode all BQRS files to JSON
-              find "$DB_DIR" -name "*.bqrs" | while read bqrs_file; do
-                echo "Decoding BQRS file: $bqrs_file"
-                basename=$(basename "$bqrs_file" .bqrs)
-
-                # Decode BQRS to JSON format
-                "$CODEQL_PATH" bqrs decode \
-                  --format=json \
-                  --output="codeql-reports/bqrs-json/${basename}.json" \
-                  "$bqrs_file" 2>/dev/null || echo "Failed to decode $bqrs_file"
-              done
-
-              echo "✅ BQRS decoding (fallback) completed"
-            else
-              echo "❌ No CodeQL database directory found - BQRS decoding skipped"
-            fi
-          fi
-        else
-          echo "❌ CodeQL CLI not found in tool cache"
-        fi
-      continue-on-error: true
-
-    - name: Convert SARIF to JSON
-      run: |
-        # Convert SARIF results to JSON format for easier processing
-        # SARIF is already JSON, but we extract a cleaner format for downstream tools
-        if [ -d "sarif-results" ]; then
-          # Find all SARIF files and convert them to JSON
-          find sarif-results -name "*.sarif" | while read sarif_file; do
-            echo "Converting SARIF to JSON: $sarif_file"
-            basename=$(basename "$sarif_file" .sarif)
-
-            # Copy SARIF file to consolidated location
-            cp "$sarif_file" "codeql-reports/sarif/${basename}.sarif"
-
-            # SARIF is already JSON format, so we can simply copy it
-            # Optionally extract just the results for cleaner output
-            if command -v jq &> /dev/null; then
-              # Use jq to extract results if available
-              jq '{
-                version: .version,
-                runs: .runs | map({
-                  results: .results,
-                  tool: .tool,
-                  language: "${{ matrix.language }}"
-                })
-              }' "$sarif_file" > "codeql-reports/sarif-json/${basename}.json" 2>/dev/null || cp "$sarif_file" "codeql-reports/sarif-json/${basename}.json"
-            else
-              # Fallback: just copy the SARIF file as JSON (SARIF is valid JSON)
-              cp "$sarif_file" "codeql-reports/sarif-json/${basename}.json"
-            fi
-          done
-
-          echo "✅ SARIF to JSON conversion completed"
-        else
-          echo "❌ No SARIF results directory found"
-        fi
-      continue-on-error: true
-
-    - name: Upload CodeQL Reports
-      uses: actions/upload-artifact@v6
-      with:
-        name: codeql-reports-${{ matrix.language }}
-        path: codeql-reports/
-        retention-days: 30
-      if: always()
-
-  codeql-summary:
-    name: CodeQL Summary
-    runs-on: ubuntu-latest
-    needs: [codeql-analysis]
-    if: always()
-
-    steps:
-    - name: Download CodeQL Reports
-      uses: actions/download-artifact@v7
-      with:
-        pattern: codeql-reports-*
-        path: codeql-reports
-        merge-multiple: true
-      continue-on-error: true
-
-    - name: Debug downloaded artifacts
-      if: runner.debug == '1'
-      run: |
-        echo "📁 Listing downloaded artifact structure:"
-        echo "Working directory: $(pwd)"
-        ls -la
-        echo ""
-        echo "Looking for codeql-reports directory:"
-        if [ -d "codeql-reports" ]; then
-          echo "Found codeql-reports/, listing contents:"
-          find codeql-reports -type f | head -20
-        else
-          echo "codeql-reports/ not found"
-        fi
-        echo ""
-        echo "Looking for sarif files anywhere:"
-        find . -name "*.sarif" -o -name "*.json" 2>/dev/null | head -20 || echo "No sarif/json files found"
-
-    - name: Generate CodeQL summary section
-      if: always()
-      env:
-        HEAD_REF: ${{ github.head_ref || github.ref_name }}
-      run: |
-        mkdir -p scanner-summaries
-
-        # Function to generate summary for a given output
-        generate_codeql_summary() {
-          local output="$1"
-          local is_pr_comment="$2"
-
-          if [ "$is_pr_comment" = "true" ]; then
-            echo "<details>" >> "$output"
-            echo "<summary>🔍 CodeQL SAST</summary>" >> "$output"
-          else
-            echo "## 🔍 CodeQL SAST Scan Summary" >> "$output"
-          fi
-          echo "" >> "$output"
-
-          # Check multiple possible locations for SARIF files
-          # Artifact download may place files at ./sarif/ or ./codeql-reports/sarif/ depending on structure
-          SARIF_DIR=""
-          if [ -d "codeql-reports/sarif" ] && [ "$(ls -A codeql-reports/sarif 2>/dev/null)" ]; then
-            SARIF_DIR="codeql-reports/sarif"
-          elif [ -d "sarif" ] && [ "$(ls -A sarif 2>/dev/null)" ]; then
-            SARIF_DIR="sarif"
-          fi
-
-          SARIF_JSON_DIR=""
-          if [ -d "codeql-reports/sarif-json" ] && [ "$(ls -A codeql-reports/sarif-json 2>/dev/null)" ]; then
-            SARIF_JSON_DIR="codeql-reports/sarif-json"
-          elif [ -d "sarif-json" ] && [ "$(ls -A sarif-json 2>/dev/null)" ]; then
-            SARIF_JSON_DIR="sarif-json"
-          fi
-
-          if [ -n "$SARIF_DIR" ] || [ -n "$SARIF_JSON_DIR" ]; then
-            if [ "$is_pr_comment" = "true" ]; then
-              echo "**Status:** ✅ Completed" >> "$output"
-              echo "" >> "$output"
-            fi
-
-            # Count issues from SARIF/JSON files
-            ISSUE_COUNT=0
-            ERROR_COUNT=0
-            WARNING_COUNT=0
-            NOTE_COUNT=0
-            CRITICAL_COUNT=0
-            HIGH_COUNT=0
-            MEDIUM_COUNT=0
-            LOW_COUNT=0
-
-            # Prefer sarif-json directory if it exists, otherwise use sarif
-            if [ -n "$SARIF_JSON_DIR" ]; then
-              SCAN_DIR="$SARIF_JSON_DIR"
-              FILE_EXT="json"
-            elif [ -n "$SARIF_DIR" ]; then
-              SCAN_DIR="$SARIF_DIR"
-              FILE_EXT="sarif"
-            else
-              SCAN_DIR=""
-              FILE_EXT=""
-            fi
-
-            echo "📂 Using scan directory: $SCAN_DIR (extension: $FILE_EXT)" >&2
-
-            # Build a combined results file for detailed parsing
-            echo '{"all_results":[],"all_rules":{}}' > /tmp/codeql_combined.json
-
-            # Set up repo URL for clickable links
-            REPO_URL="https://github.com/${{ github.repository }}/blob/${HEAD_REF}"
-
-            for scan_file in $(find ./$SCAN_DIR -name "*.$FILE_EXT" -type f 2>/dev/null); do
-              if [ -f "$scan_file" ] && [ -s "$scan_file" ] && command -v jq >/dev/null 2>&1; then
-                # Count total issues
-                issues=$(jq -r '[.runs[]?.results[]?] | length' "$scan_file" 2>/dev/null || echo "0")
-                ISSUE_COUNT=$((ISSUE_COUNT + issues))
-
-                # Count by SARIF level (error, warning, note, none)
-                error=$(jq -r '[.runs[]?.results[]? | select(.level == "error")] | length' "$scan_file" 2>/dev/null || echo "0")
-                ERROR_COUNT=$((ERROR_COUNT + error))
-
-                warning=$(jq -r '[.runs[]?.results[]? | select(.level == "warning" or .level == null)] | length' "$scan_file" 2>/dev/null || echo "0")
-                WARNING_COUNT=$((WARNING_COUNT + warning))
-
-                note=$(jq -r '[.runs[]?.results[]? | select(.level == "note")] | length' "$scan_file" 2>/dev/null || echo "0")
-                NOTE_COUNT=$((NOTE_COUNT + note))
-
-                # Count by security-severity (CVSS score) with SARIF level fallback
-                # Priority: CVSS score if available, otherwise use SARIF level
-                # Critical: CVSS >= 9.0
-                # High: CVSS >= 7.0, OR (no CVSS AND level == "error")
-                # Medium: CVSS >= 4.0, OR (no CVSS AND level == "warning")
-                # Low: CVSS > 0 and < 4.0, OR (no CVSS AND level == "note")
-
-                critical=$(jq -r '
-                  [.runs[]? as $run |
-                   ($run.tool.driver.rules // [] | map({(.id): .properties["security-severity"]}) | add // {}) as $rule_sev |
-                   $run.results[]? |
-                   (($rule_sev[.ruleId] // "0") | tonumber) as $severity |
-                   select($severity >= 9.0)] | length' "$scan_file" 2>/dev/null || echo "0")
-                CRITICAL_COUNT=$((CRITICAL_COUNT + critical))
-
-                # High: CVSS >= 7.0 OR (no CVSS AND SARIF level "error")
-                high=$(jq -r '
-                  [.runs[]? as $run |
-                   ($run.tool.driver.rules // [] | map({(.id): .properties["security-severity"]}) | add // {}) as $rule_sev |
-                   $run.results[]? |
-                   (($rule_sev[.ruleId] // "0") | tonumber) as $severity |
-                   select(($severity >= 7.0 and $severity < 9.0) or ($severity == 0 and .level == "error"))] | length' "$scan_file" 2>/dev/null || echo "0")
-                HIGH_COUNT=$((HIGH_COUNT + high))
-
-                # Medium: CVSS >= 4.0 OR (no CVSS AND SARIF level "warning" or null)
-                medium=$(jq -r '
-                  [.runs[]? as $run |
-                   ($run.tool.driver.rules // [] | map({(.id): .properties["security-severity"]}) | add // {}) as $rule_sev |
-                   $run.results[]? |
-                   (($rule_sev[.ruleId] // "0") | tonumber) as $severity |
-                   select(($severity >= 4.0 and $severity < 7.0) or ($severity == 0 and (.level == "warning" or .level == null)))] | length' "$scan_file" 2>/dev/null || echo "0")
-                MEDIUM_COUNT=$((MEDIUM_COUNT + medium))
-
-                # Low: CVSS > 0 and < 4.0 OR (no CVSS AND SARIF level "note")
-                low=$(jq -r '
-                  [.runs[]? as $run |
-                   ($run.tool.driver.rules // [] | map({(.id): .properties["security-severity"]}) | add // {}) as $rule_sev |
-                   $run.results[]? |
-                   (($rule_sev[.ruleId] // "0") | tonumber) as $severity |
-                   select(($severity > 0 and $severity < 4.0) or ($severity == 0 and .level == "note"))] | length' "$scan_file" 2>/dev/null || echo "0")
-                LOW_COUNT=$((LOW_COUNT + low))
-              fi
-            done
-
-            # No more "info" bucket - all findings are now categorized by CVSS or SARIF level fallback
-
-            # Overall Summary Table (by security severity)
-            echo "### 📊 Findings Summary" >> "$output"
-            echo "" >> "$output"
-            echo "| 🚨 Critical | ⚠️ High | 🟡 Medium | 🔵 Low | 📦 Total |" >> "$output"
-            echo "|-------------|---------|-----------|---------|----------|" >> "$output"
-            echo "| **$CRITICAL_COUNT** | **$HIGH_COUNT** | **$MEDIUM_COUNT** | **$LOW_COUNT** | **$ISSUE_COUNT** |" >> "$output"
-            echo "" >> "$output"
-            echo "_Severity: CVSS score when available, otherwise SARIF level (error→High, warning→Medium, note→Low)_" >> "$output"
-            echo "" >> "$output"
-
-            # Also show by SARIF level
-            echo "**By SARIF Level:** 🔴 Error: $ERROR_COUNT | 🟠 Warning: $WARNING_COUNT | 🟡 Note: $NOTE_COUNT" >> "$output"
-            echo "" >> "$output"
-
-            # Priority messages
-            if [ $CRITICAL_COUNT -gt 0 ]; then
-              echo "🚨 **CRITICAL**: $CRITICAL_COUNT critical-severity findings (CVSS ≥ 9.0) need immediate attention" >> "$output"
-              echo "" >> "$output"
-            fi
-            if [ $HIGH_COUNT -gt 0 ]; then
-              echo "⚠️ **HIGH**: $HIGH_COUNT high-severity findings (CVSS ≥ 7.0) should be addressed promptly" >> "$output"
-              echo "" >> "$output"
-            fi
-
-            # Detailed findings with collapsible sections
-            if [ $ISSUE_COUNT -gt 0 ]; then
-              echo "<details open>" >> "$output"
-              echo "<summary>🔍 Finding Details</summary>" >> "$output"
-              echo "" >> "$output"
-
-              # Process each SARIF file for detailed output using a more robust approach
-              # that handles missing rules gracefully
-              for scan_file in $(find ./$SCAN_DIR -name "*.$FILE_EXT" -type f 2>/dev/null); do
-                if [ -f "$scan_file" ] && [ -s "$scan_file" ]; then
-                  # Extract language from filename
-                  lang=$(basename "$scan_file" .$FILE_EXT)
-
-                  # Build a lookup of rule severities first, then process results
-                  # This approach is more robust when rules array doesn't match results
-
-                  # Show Critical findings (CVSS >= 9.0)
-                  crit_findings=$(jq -r --arg repo_url "$REPO_URL" '
-                    .runs[]? as $run |
-                    ($run.tool.driver.rules // [] | map({(.id): .properties["security-severity"]}) | add // {}) as $rule_sev |
-                    $run.results[]? |
-                    . as $result |
-                    (($rule_sev[$result.ruleId] // "0") | tonumber) as $severity |
-                    select($severity >= 9.0) |
-                    ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A") as $file |
-                    ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
-                    "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($severity) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:80]) |"
-                  ' "$scan_file" 2>/dev/null)
-
-                  if [ -n "$crit_findings" ] && [ "$crit_findings" != "" ]; then
-                    echo "#### 🚨 Critical Findings (CVSS ≥ 9.0)" >> "$output"
-                    echo "" >> "$output"
-                    echo "| Rule ID | Location | CVSS | Message |" >> "$output"
-                    echo "|---------|----------|------|---------|" >> "$output"
-                    echo "$crit_findings" >> "$output"
-                    echo "" >> "$output"
-                  fi
-
-                  # Show High findings (CVSS >= 7.0 and < 9.0)
-                  high_findings=$(jq -r --arg repo_url "$REPO_URL" '
-                    .runs[]? as $run |
-                    ($run.tool.driver.rules // [] | map({(.id): .properties["security-severity"]}) | add // {}) as $rule_sev |
-                    $run.results[]? |
-                    . as $result |
-                    (($rule_sev[$result.ruleId] // "0") | tonumber) as $severity |
-                    select(($severity >= 7.0 and $severity < 9.0) or ($severity == 0 and .level == "error")) |
-                    ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A") as $file |
-                    ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
-                    (if $severity > 0 then ($severity | tostring) else "error" end) as $sev_display |
-                    "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($sev_display) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:80]) |"
-                  ' "$scan_file" 2>/dev/null)
-
-                  if [ -n "$high_findings" ] && [ "$high_findings" != "" ]; then
-                    echo "#### ⚠️ High Findings (CVSS 7.0-8.9 or SARIF error)" >> "$output"
-                    echo "" >> "$output"
-                    echo "| Rule ID | Location | Severity | Message |" >> "$output"
-                    echo "|---------|----------|----------|---------|" >> "$output"
-                    echo "$high_findings" >> "$output"
-                    echo "" >> "$output"
-                  fi
-
-                  # Show Medium findings (CVSS >= 4.0 and < 7.0 OR SARIF warning level)
-                  medium_findings=$(jq -r --arg repo_url "$REPO_URL" '
-                    .runs[]? as $run |
-                    ($run.tool.driver.rules // [] | map({(.id): .properties["security-severity"]}) | add // {}) as $rule_sev |
-                    $run.results[]? |
-                    . as $result |
-                    (($rule_sev[$result.ruleId] // "0") | tonumber) as $severity |
-                    select(($severity >= 4.0 and $severity < 7.0) or ($severity == 0 and (.level == "warning" or .level == null))) |
-                    ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A") as $file |
-                    ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
-                    (if $severity > 0 then ($severity | tostring) else "warning" end) as $sev_display |
-                    "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($sev_display) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:80]) |"
-                  ' "$scan_file" 2>/dev/null)
-
-                  if [ -n "$medium_findings" ] && [ "$medium_findings" != "" ]; then
-                    echo "<details>" >> "$output"
-                    echo "<summary>🟡 Medium Findings (CVSS 4.0-6.9 or SARIF warning) - $MEDIUM_COUNT total</summary>" >> "$output"
-                    echo "" >> "$output"
-                    echo "| Rule ID | Location | Severity | Message |" >> "$output"
-                    echo "|---------|----------|----------|---------|" >> "$output"
-                    echo "$medium_findings" >> "$output"
-                    echo "" >> "$output"
-                    echo "</details>" >> "$output"
-                    echo "" >> "$output"
-                  fi
-
-                  # Show Low findings (CVSS > 0 and < 4.0 OR SARIF note level)
-                  low_findings=$(jq -r --arg repo_url "$REPO_URL" '
-                    .runs[]? as $run |
-                    ($run.tool.driver.rules // [] | map({(.id): .properties["security-severity"]}) | add // {}) as $rule_sev |
-                    $run.results[]? |
-                    . as $result |
-                    (($rule_sev[$result.ruleId] // "0") | tonumber) as $severity |
-                    select(($severity > 0 and $severity < 4.0) or ($severity == 0 and .level == "note")) |
-                    ($result.locations[0]?.physicalLocation?.artifactLocation?.uri // "N/A") as $file |
-                    ($result.locations[0]?.physicalLocation?.region?.startLine // 1) as $line |
-                    (if $severity > 0 then ($severity | tostring) else "note" end) as $sev_display |
-                    "| \($result.ruleId // "N/A") | [\($file)#L\($line)](\($repo_url)/\($file)#L\($line)) | \($sev_display) | \($result.message.text // "N/A" | gsub("\n"; " ") | .[0:80]) |"
-                  ' "$scan_file" 2>/dev/null)
-
-                  if [ -n "$low_findings" ] && [ "$low_findings" != "" ]; then
-                    echo "<details>" >> "$output"
-                    echo "<summary>🔵 Low Findings (CVSS < 4.0 or SARIF note) - $LOW_COUNT total</summary>" >> "$output"
-                    echo "" >> "$output"
-                    echo "| Rule ID | Location | Severity | Message |" >> "$output"
-                    echo "|---------|----------|----------|---------|" >> "$output"
-                    echo "$low_findings" >> "$output"
-                    echo "" >> "$output"
-                    echo "</details>" >> "$output"
-                    echo "" >> "$output"
-                  fi
-                fi
-              done
-
-              echo "</details>" >> "$output"
-              echo "" >> "$output"
-            elif [ $ISSUE_COUNT -eq 0 ]; then
-              echo "✅ **No security findings detected!**" >> "$output"
-              echo "" >> "$output"
-            fi
-
-            echo "**📁 Artifacts:** [CodeQL Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> "$output"
-          else
-            if [ "$is_pr_comment" = "true" ]; then
-              echo "**Status:** ⏭️ Skipped" >> "$output"
-            else
-              echo "**Status:** ⏭️ No CodeQL results available" >> "$output"
-            fi
-          fi
-
-          if [ "$is_pr_comment" = "true" ]; then
-            echo "" >> "$output"
-            echo "</details>" >> "$output"
-          fi
-          echo "" >> "$output"
-        }
-
-        # Generate PR comment artifact
-        generate_codeql_summary "scanner-summaries/codeql.md" "true"
-
-        # Generate job summary
-        generate_codeql_summary "$GITHUB_STEP_SUMMARY" "false"
-      continue-on-error: true
-
-    - name: Upload CodeQL summary section
-      if: always()
-      uses: actions/upload-artifact@v6
-      with:
-        name: scanner-summary-codeql
-        path: scanner-summaries/codeql.md
-        retention-days: 7
-      continue-on-error: true
-
-    - name: Comment PR with CodeQL Results
-      if: false  # Disabled - consolidated into main security hardening comment
-      uses: actions/github-script@v8
-      with:
-        script: |
-          // Disabled - consolidated into main security hardening comment
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Run CodeQL Scanner
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-codeql@feat/migrate-to-composite-actions
+        with:
+          language: ${{ matrix.language }}
+          config_file: ${{ inputs.config_file }}
+          post_pr_comment: ${{ inputs.post_pr_comment }}
+          enable_code_security: ${{ inputs.enable_code_security }}
+          fail_on_severity: ${{ inputs.fail_on_severity }}
+          setup_python_version: ${{ inputs.setup_python_version }}
+          setup_node_version: ${{ inputs.setup_node_version }}

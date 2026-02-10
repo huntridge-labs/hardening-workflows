@@ -1,19 +1,22 @@
+# Trivy Container Scanner - Reusable Workflow
+#
+# THIN WRAPPER: This workflow delegates to the scanner-container composite action.
+# All scanning logic is in: .github/actions/scanner-container/action.yml
+#
+# For GHES users: Use the composite action directly instead of this workflow.
+# See: examples/github-enterprise/container-scanning.yml
+
 name: Trivy Container Scanner
 
 on:
   workflow_dispatch:
     inputs:
       image_ref:
-        description: 'Container image reference to scan (e.g., nginx:latest, ghcr.io/owner/image:tag, or 123456.dkr.ecr.region.amazonaws.com/image:tag)'
+        description: 'Container image reference to scan (e.g., nginx:latest, ghcr.io/owner/image:tag)'
         required: true
         type: string
       registry_username:
         description: 'Username for registry authentication (leave empty for public images)'
-        required: false
-        type: string
-        default: ''
-      registry_password:
-        description: 'Password/token for registry authentication (use secrets)'
         required: false
         type: string
         default: ''
@@ -68,6 +71,7 @@ permissions:
   security-events: write
   actions: read
   pull-requests: write
+  packages: read
 
 jobs:
   trivy-container-scan:
@@ -77,177 +81,17 @@ jobs:
     continue-on-error: true
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
-    - name: Validate image reference
-      id: validate
-      run: |
-        IMAGE_REF="${{ inputs.image_ref }}"
-        SCAN_NAME="${{ inputs.scan_name }}"
-
-        if [ -z "$IMAGE_REF" ]; then
-          echo "❌ Error: image_ref is required"
-          exit 1
-        fi
-
-        if [ -z "$SCAN_NAME" ]; then
-          SCAN_NAME="container"
-        fi
-
-        echo "image_ref=$IMAGE_REF" >> $GITHUB_OUTPUT
-        echo "scan_name=$SCAN_NAME" >> $GITHUB_OUTPUT
-        echo "✅ Scanning image: $IMAGE_REF"
-
-    - name: Run Trivy vulnerability scanner (SARIF)
-      uses: aquasecurity/trivy-action@0.33.1
-      # Only continue-on-error when not enforcing severity threshold
-      continue-on-error: ${{ inputs.fail_on_severity == 'none' || inputs.fail_on_severity == '' }}
-      with:
-        image-ref: ${{ steps.validate.outputs.image_ref }}
-        format: 'sarif'
-        output: 'trivy-${{ steps.validate.outputs.scan_name }}-results.sarif'
-        # Use native exit-code when severity threshold is set
-        exit-code: ${{ inputs.fail_on_severity != 'none' && inputs.fail_on_severity != '' && '1' || '0' }}
-        severity: ${{ inputs.fail_on_severity == 'critical' && 'CRITICAL' || inputs.fail_on_severity == 'high' && 'HIGH,CRITICAL' || inputs.fail_on_severity == 'medium' && 'MEDIUM,HIGH,CRITICAL' || inputs.fail_on_severity == 'low' && 'LOW,MEDIUM,HIGH,CRITICAL' || 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL' }}
-      env:
-        TRIVY_USERNAME: ${{ inputs.registry_username }}
-        TRIVY_PASSWORD: ${{ secrets.registry_password || inputs.registry_password }}
-
-    - name: Run Trivy vulnerability scanner (JSON)
-      uses: aquasecurity/trivy-action@0.33.1
-      continue-on-error: true
-      with:
-        image-ref: ${{ steps.validate.outputs.image_ref }}
-        format: 'json'
-        output: 'trivy-${{ steps.validate.outputs.scan_name }}-results.json'
-      env:
-        TRIVY_USERNAME: ${{ inputs.registry_username }}
-        TRIVY_PASSWORD: ${{ secrets.registry_password || inputs.registry_password }}
-
-    - name: Run Trivy vulnerability scanner (Table)
-      uses: aquasecurity/trivy-action@0.33.1
-      continue-on-error: true
-      with:
-        image-ref: ${{ steps.validate.outputs.image_ref }}
-        format: 'table'
-        output: 'trivy-${{ steps.validate.outputs.scan_name }}-results.txt'
-      env:
-        TRIVY_USERNAME: ${{ inputs.registry_username }}
-        TRIVY_PASSWORD: ${{ secrets.registry_password || inputs.registry_password }}
-
-    - name: Upload Trivy scan results to GitHub Security tab
-      if: inputs.enable_code_security == true && github.actor != 'nektos/act'
-      uses: github/codeql-action/upload-sarif@v4
-      continue-on-error: true
-      with:
-        sarif_file: 'trivy-${{ steps.validate.outputs.scan_name }}-results.sarif'
-        category: trivy-container-${{ steps.validate.outputs.scan_name }}
-
-    - name: Analyze scan results
-      if: always()
-      run: |
-        SCAN_NAME="${{ steps.validate.outputs.scan_name }}"
-        JSON_FILE="trivy-$SCAN_NAME-results.json"
-
-        echo "📊 Container Security Analysis for ${{ steps.validate.outputs.image_ref }}"
-        echo "========================================"
-
-        if [ ! -f "$JSON_FILE" ]; then
-          echo "⚠️  No Trivy results found"
-          exit 0
-        fi
-
-        # Count vulnerabilities from Trivy JSON
-        CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
-        HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
-        MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
-        LOW=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
-
-        echo "🔍 Vulnerability Summary:"
-        echo "  Critical: $CRITICAL"
-        echo "  High: $HIGH"
-        echo "  Medium: $MEDIUM"
-        echo "  Low: $LOW"
-
-        TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
-
-        if [ "$TOTAL" -gt 0 ]; then
-          echo "⚠️  Found $TOTAL total vulnerabilities"
-          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
-            echo "::warning title=High Severity Vulnerabilities::Found $CRITICAL critical and $HIGH high severity vulnerabilities in ${{ steps.validate.outputs.image_ref }}"
-          fi
-        else
-          echo "✅ No vulnerabilities found"
-        fi
-
-        # Display sample of results if available
-        TXT_FILE="trivy-$SCAN_NAME-results.txt"
-        if [ -f "$TXT_FILE" ]; then
-          echo ""
-          echo "📋 Sample Trivy Results:"
-          head -20 "$TXT_FILE" || echo "Could not display results"
-        fi
-
-    - name: Upload Trivy artifacts
-      if: always()
-      uses: actions/upload-artifact@v6
-      with:
-        name: trivy-container-${{ steps.validate.outputs.scan_name }}-results
-        path: |
-          trivy-${{ steps.validate.outputs.scan_name }}-results.*
-        retention-days: 30
-
-    - name: Generate scanner summary section
-      if: always()
-      run: |
-        mkdir -p scanner-summaries
-        SCAN_NAME="${{ steps.validate.outputs.scan_name }}"
-        JSON_FILE="trivy-$SCAN_NAME-results.json"
-
-        echo "<details>" > scanner-summaries/trivy-container-$SCAN_NAME.md
-        echo "<summary>🐳 Trivy Container Scanner ($SCAN_NAME)</summary>" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-        echo "" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-
-        if [ -f "$JSON_FILE" ]; then
-          echo "**Status:** ✅ Completed" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-          echo "**Image:** \`${{ steps.validate.outputs.image_ref }}\`" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-          echo "" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-
-          CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
-          HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
-          MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
-          LOW=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW")] | length' "$JSON_FILE" 2>/dev/null || echo "0")
-          TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
-
-          echo "**Vulnerabilities Found:** $TOTAL" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-          echo "" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-
-          if [ $TOTAL -gt 0 ]; then
-            echo "| Severity | Count |" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-            echo "|----------|-------|" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-            [ $CRITICAL -gt 0 ] && echo "| 🔴 Critical | $CRITICAL |" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-            [ $HIGH -gt 0 ] && echo "| 🟠 High | $HIGH |" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-            [ $MEDIUM -gt 0 ] && echo "| 🟡 Medium | $MEDIUM |" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-            [ $LOW -gt 0 ] && echo "| 🔵 Low | $LOW |" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-            echo "" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-          fi
-
-          echo "**📁 Artifacts:** [Trivy Container Results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-        else
-          echo "**Status:** ⚠️ No results generated" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-        fi
-
-        echo "" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-        echo "</details>" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-        echo "" >> scanner-summaries/trivy-container-$SCAN_NAME.md
-      continue-on-error: true
-
-    - name: Upload scanner summary section
-      if: always()
-      uses: actions/upload-artifact@v6
-      with:
-        name: scanner-summary-trivy-container-${{ steps.validate.outputs.scan_name }}
-        path: scanner-summaries/trivy-container-${{ steps.validate.outputs.scan_name }}.md
-        retention-days: 7
-      continue-on-error: true
+      - name: Run Trivy Scanner
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@feat/migrate-to-composite-actions
+        with:
+          image_ref: ${{ inputs.image_ref }}
+          container_name: ${{ inputs.scan_name || 'trivy-scan' }}
+          scanners: 'trivy'
+          post_pr_comment: ${{ inputs.post_pr_comment }}
+          fail_on_severity: ${{ inputs.fail_on_severity }}
+          enable_code_security: ${{ inputs.enable_code_security }}
+          registry_username: ${{ inputs.registry_username }}
+          registry_password: ${{ secrets.registry_password }}

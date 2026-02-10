@@ -3,6 +3,9 @@
 # Hardening Workflows
 
 ![GitHub Release](https://img.shields.io/github/v/release/huntridge-labs/hardening-workflows?style=plastic)
+![Unit Tests](https://github.com/huntridge-labs/hardening-workflows/actions/workflows/test-unit.yml/badge.svg)
+![Integration Tests](https://github.com/huntridge-labs/hardening-workflows/actions/workflows/test-actions.yml/badge.svg)
+[![codecov](https://codecov.io/gh/huntridge-labs/hardening-workflows/graph/badge.svg?token=LG3BOJYDZY)](https://codecov.io/gh/huntridge-labs/hardening-workflows)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg?style=plastic)](https://www.gnu.org/licenses/agpl-3.0)
 
 Reusable GitHub Actions workflows for comprehensive security scanning.<br>
@@ -14,6 +17,7 @@ Run SAST, container, infrastructure, and secret detection scanners with a single
 - [Quick Start](#quick-start)
 - [Supported Scanners](#supported-scanners)
 - [Features](#features)
+- [GitHub Enterprise Server (GHES)](#github-enterprise-server-ghes)
 - [Documentation](#documentation)
 - [Usage Examples](#usage-examples)
 - [Configuration](#configuration)
@@ -68,6 +72,54 @@ For detailed scanner configuration, see [Scanner Reference](docs/scanners.md).
 - **Private registry support** - Authenticate to container registries
 - **Environment variable expansion** - Dynamic configuration values
 
+## GitHub Enterprise Server (GHES)
+
+GHES users can use our composite actions directly from github.com - no mirroring required.
+
+**Architecture**: This project uses an actions-first architecture where all scanner logic lives in composite actions. The reusable workflows are thin wrappers for backwards compatibility on github.com.
+
+<details>
+<summary><strong>GHES Quick Start</strong></summary>
+
+```yaml
+name: Security Scan (GHES)
+
+on: [pull_request, push]
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+
+jobs:
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # Use composite actions directly from github.com
+      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-gitleaks@v2.12.0
+        with:
+          enable_code_security: true
+          fail_on_severity: high
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+      - uses: huntridge-labs/hardening-workflows/.github/actions/scanner-bandit@v2.12.0
+        with:
+          enable_code_security: true
+          fail_on_severity: high
+```
+
+</details>
+
+See [examples/github-enterprise/](examples/github-enterprise/) for complete GHES workflow templates:
+- [SAST Scanning](examples/github-enterprise/sast-only.yml)
+- [Container Scanning](examples/github-enterprise/container-scanning.yml)
+- [Infrastructure Scanning](examples/github-enterprise/infrastructure-scanning.yml)
+- [DAST Scanning](examples/github-enterprise/dast-scanning.yml)
+
 ## Documentation
 
 ### User Guides
@@ -78,7 +130,8 @@ For detailed scanner configuration, see [Scanner Reference](docs/scanners.md).
 
 ### Developer Docs
 
-- [PR Workflow Sync](docs/developer/pr-workflow-sync.md) - Keep PR workflow in sync with main
+- [Contributing Guide](CONTRIBUTING.md) - How to add scanners and actions
+- [Testing Guide](tests/CONTRIBUTING.md) - How to add and run tests
 - [Release Management](docs/developer/release-management.md) - Release process and versioning
 - [Enhanced PR Comments](docs/developer/enhanced-pr-comments.md) - PR comment implementation
 
@@ -299,12 +352,37 @@ Most secrets are optional and inherited via `secrets: inherit`. Scanner-specific
 
 ## Contributing
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Development Setup
+
+**Quick Start with Dev Container (Recommended):**
+
+[![Open in Dev Containers](https://img.shields.io/static/v1?label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/huntridge-labs/hardening-workflows)
+
+1. Install [VS Code](https://code.visualstudio.com/) + [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+2. Open repository → "Reopen in Container"
+3. All dependencies ready! Run `npm test`
+
+See [.devcontainer/README.md](.devcontainer/README.md) for details.
 
 - Code of Conduct
 - Development setup
 - Pull request process
 - Commit message format
+
+### Development Setup
+
+```bash
+# Install dependencies
+npm install
+pip install -r .devcontainer/requirements.txt
+
+# Run tests
+npm test
+
+# See tests/CONTRIBUTING.md for detailed testing guide
+```
 
 ## License
 

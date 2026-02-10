@@ -1,0 +1,22 @@
+{
+  "name": "Hardening Workflows Dev Environment",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "remoteEnv": {
+    "VIRTUAL_ENV": "${containerWorkspaceFolder}/.dev.venv",
+    "PATH": "${containerWorkspaceFolder}/.dev.venv/bin:${localEnv:HOME}${containerEnv:HOME}/.local/share/gem/ruby/3.2.0/bin:${containerEnv:PATH}"
+  },
+  "forwardPorts": [
+    3000,
+    8080
+  ],
+  "capAdd": [
+    "SYS_PTRACE"
+  ],
+  "securityOpt": [
+    "seccomp=unconfined"
+  ],
+  "remoteUser": "vscode"
+}
