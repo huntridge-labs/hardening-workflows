@@ -57,9 +57,9 @@ components:
     type: action
     structure:
       action.yml: "Inputs, outputs, steps"
-      scripts/parse.sh: "Scanner output → JSON"
-      scripts/summary.sh: "JSON → Markdown"
-      tests/: "Co-located tests"
+      scripts/parse-results.py: "Scanner output → JSON"
+      scripts/generate-summary.py: "JSON → Markdown"
+      tests/: "Co-located pytest tests"
     pr_commenting:
       has_step: true
       default: false
@@ -150,13 +150,21 @@ dependencies:
       limitation: "Requires GitHub Advanced Security for private repos"
 
   internal:
-    jq:
-      purpose: "JSON parsing in bash scripts"
-      required_by: [parse scripts, summary scripts]
-
-    yq:
-      purpose: "YAML parsing in bash scripts"
+    pyyaml:
+      purpose: "YAML parsing in Python scripts"
       required_by: [config parsers]
+
+    jsonschema:
+      purpose: "JSON schema validation in Python scripts"
+      required_by: [config validators]
+
+    pytest:
+      purpose: "Testing framework"
+      required_by: [all test suites]
+
+    pytest-cov:
+      purpose: "Code coverage measurement"
+      required_by: [coverage reporting]
 
 data_flow:
   diagram: |

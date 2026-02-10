@@ -2,6 +2,106 @@
 
 Composite actions for comprehensive security scanning, designed for GitHub Enterprise Server (GHES) with github.com access.
 
+---
+
+## Project Vision & Goals
+
+**Primary Vision**: Make it as easy as possible for users to employ a hardening pipeline on their projects to gain insights into their security footprint and current vulnerabilities.
+
+### Core Principles
+
+1. **Documentation serves both humans and AI**: Concise, clear, on point. Structured context in `.ai/` for machine-readability.
+2. **Code must be simple and maintainable**: Minimize complexity, maximize clarity. Easy for anyone to understand and extend.
+3. **Dependabot is foundational**: Automated dependency updates are critical to the pipeline's value.
+4. **Trust is everything**: The pipeline must earn trust in PRs through extremely robust testing. Only then can it auto-merge and auto-release.
+5. **Automation end-state**:
+   - Dependabot dependency updates arrive in PRs
+   - Pipeline runs automatically
+   - Green test results = trusted
+   - Auto-merge enabled
+   - Auto-release to users
+
+---
+
+## Testing Philosophy
+
+**Just completed migration: ALL action scripts and tests are now Python.**
+
+### Standards
+
+- **Single Language**: Python for all action scripts and tests (not Bash, not Node.js for actions)
+- **Single Test Framework**: pytest (not jest, mocha, or other)
+- **Single Coverage Tool**: pytest-cov (with `--cov-fail-under=80` in pytest.ini)
+- **Minimum Coverage**: 80% enforced at all times
+
+### Test Structure
+
+```
+.github/actions/scanner-{name}/
+├── scripts/
+│   ├── parse-results.py       # Scanner output → JSON
+│   └── generate-summary.py    # JSON → Markdown
+└── tests/
+    ├── test_parse_results.py
+    ├── test_generate_summary.py
+    └── conftest.py (optional)
+
+tests/
+├── fixtures/
+│   └── scanner-outputs/       # Pre-captured real scanner results
+└── (integration tests)
+```
+
+### Test Execution
+
+```bash
+# Full run with coverage (enforced: ≥80%)
+pytest
+
+# Fast validation (no coverage)
+pytest --no-cov -q
+
+# Specific action
+pytest .github/actions/scanner-clamav/tests/
+```
+
+### Reference Implementation
+
+**`scanner-clamav`** is the reference pattern for:
+- Python action script structure
+- Test organization and fixtures
+- Coverage targets (80%+)
+- How to test scanner parsing and summary generation
+
+All new scanner actions should follow this exact pattern.
+
+---
+
+## Project Conventions
+
+### Versioning & Release
+
+- **Single Version Source**: `version.yaml` (prevents drift)
+- **Release Command**: `npm run release` (manages all version updates and tags)
+- **Version Tags**: Release workflow auto-tags and publishes
+
+### Commit Messages
+
+Follow **Conventional Commits**:
+```
+feat(scanner-name): add support for X
+fix(parser): handle empty results
+docs: update scanner reference
+test(bandit): add edge case coverage
+refactor: simplify parse logic
+```
+
+### Release Process
+
+Users depend on you auto-releasing after dependency updates pass. The testing pipeline must be bulletproof for this trust.
+
+---
+
 ## AI Context Ecosystem
 
 This project uses **AI Context as Code (AICaC)** - structured, machine-readable context in `.ai/`:
@@ -29,8 +129,10 @@ This project uses **AI Context as Code (AICaC)** - structured, machine-readable 
 | Fix common errors | `.ai/errors.yaml` |
 | Project metadata | `.ai/context.yaml` |
 
-**Before completing any task**, include in your summary:
-- [ ] Relevant `.ai/` files updated (or confirmed not needed)
+**Before completing any task**, verify:
+```
+[ ] Relevant .ai/ files updated (or confirmed not needed)
+```
 
 See `.ai/MAINTENANCE.md` for detailed instructions.
 

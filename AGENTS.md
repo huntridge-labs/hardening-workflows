@@ -77,7 +77,7 @@ with:
 ```bash
 # Clone and install
 git clone <repo>
-npm install
+pip install -r requirements.txt
 
 # Dev container (recommended)
 # Open in VS Code → "Reopen in Container"
@@ -92,25 +92,20 @@ pip install -r .devcontainer/requirements.txt
 
 ```bash
 # Run all tests
-npm test
+pytest
 
-# Specific test suites
-npm run test:unit      # Schema validation
-npm run test:bash      # Bash parser tests
-npm run test:js        # JavaScript tests
-npm run test:python    # Python tests
+# With coverage
+pytest --cov
 
-# Coverage
-npm run test:coverage
+# Fast validation (no coverage)
+pytest --no-cov -q
 
 # Linting
 npm run lint
 ```
 
 ### Coverage Targets
-- Python: 80%+
-- JavaScript: 80%+
-- Bash: 60%+
+- Overall: 80%+
 
 ---
 
@@ -125,13 +120,14 @@ npm run lint
 Every composite action follows this pattern:
 ```
 .github/actions/scanner-{name}/
-├── action.yml        # Inputs, outputs, steps
+├── action.yml              # Inputs, outputs, steps
 ├── scripts/
-│   ├── parse.sh      # Scanner output → JSON
-│   └── summary.sh    # JSON → Markdown summary
+│   ├── parse-results.py    # Scanner output → JSON
+│   └── generate-summary.py # JSON → Markdown summary
 ├── tests/
-│   ├── test-parse.sh
-│   └── fixtures/
+│   ├── test_parse_results.py
+│   ├── test_generate_summary.py
+│   └── conftest.py (optional)
 └── README.md
 ```
 
@@ -141,7 +137,7 @@ Follow Conventional Commits:
 feat(scanner): add support for X
 fix(trivy): handle empty results
 docs: update scanner reference
-test(bandit): add edge case coverage
+test(bandit): add edge case pytest coverage
 ```
 
 ---
@@ -188,9 +184,9 @@ containers:
 ### Add a New Scanner (Contributors)
 
 1. Create `.github/actions/scanner-{name}/action.yml`
-2. Add `scripts/parse.sh` (convert output → JSON)
-3. Add `scripts/summary.sh` (JSON → Markdown)
-4. Add tests in `tests/` directory
+2. Add `scripts/parse-results.py` (convert output → JSON)
+3. Add `scripts/generate-summary.py` (JSON → Markdown)
+4. Add pytest tests in `tests/` directory
 5. Update `docs/scanners.md`
 6. Add to matrix in main orchestrator
 
@@ -233,7 +229,7 @@ permissions:
 ## PR Guidelines
 
 ### Before Creating PR
-- [ ] All tests pass (`npm test`)
+- [ ] All tests pass (`pytest`)
 - [ ] No linting errors (`npm run lint`)
 - [ ] Conventional commit messages used
 - [ ] Documentation updated if needed
@@ -267,7 +263,7 @@ How was this tested?
 |----------|--------|
 | Dual implementation (workflows + actions) | GHES doesn't support cross-repo `workflow_call` |
 | SARIF as output format | GitHub Security tab integration, industry standard |
-| Bash for parsing scripts | No runtime dependencies, fast in Actions |
+| Python for all scripts | Single language, one test framework (pytest), unified coverage |
 | Co-located tests | Tests live next to code they test |
 | Single version.yaml | Prevents version drift across 20+ files |
 

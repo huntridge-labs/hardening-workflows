@@ -227,30 +227,29 @@ error_patterns:
   # LOCAL DEVELOPMENT ERRORS
   # ==============================================================================
 
-  - pattern: "npm.*command not found"
+  - pattern: "pytest.*command not found"
     category: development
     context: "Running tests locally"
 
-    root_cause: "Node.js not installed"
+    root_cause: "pytest not installed or Python not in PATH"
 
     solution:
-      options:
-        - description: "Use Dev Container (recommended)"
-          how: "Open in VS Code → 'Reopen in Container'"
-        - description: "Install Node.js manually"
-          how: "https://nodejs.org/ or 'brew install node'"
+      steps:
+        - "Install Python 3.11+: https://python.org/ or 'brew install python'"
+        - "Install dependencies: pip install -r requirements.txt"
+        - "Run tests: pytest"
+      alternative: "Use Dev Container (recommended)"
 
-  - pattern: "jq.*command not found"
+  - pattern: "ModuleNotFoundError.*pytest"
     category: development
-    context: "Running bash tests locally"
+    context: "pytest import fails"
 
-    root_cause: "jq not installed"
+    root_cause: "pytest or dependencies not installed"
 
     solution:
-      install:
-        macos: "brew install jq"
-        ubuntu: "apt-get install jq"
-        windows: "choco install jq"
+      steps:
+        - "Install: pip install -r requirements.txt"
+        - "Or: pip install pytest pytest-cov pyyaml jsonschema"
 
   # ==============================================================================
   # GHES-SPECIFIC ERRORS
@@ -297,6 +296,6 @@ debugging:
       - "Pipe output through parse script"
       - "Verify JSON structure"
     example: |
-      bandit -r tests/fixtures/test-apps/python-app -f json \
-        | .github/actions/scanner-bandit/scripts/parse.sh \
-        | jq .
+      bandit -r tests/fixtures/test-apps/python-app -f json | \
+        python .github/actions/scanner-bandit/scripts/parse-results.py counts - | \
+        python -m json.tool

@@ -7,11 +7,11 @@ coverage:
     project:
       default:
         target: 80%
-        threshold: 3%  # Fail if coverage drops more than 3%
+        threshold: 3%
 
     patch:
       default:
-        target: 80%  # New code must have 80% coverage
+        target: 80%
 
   ignore:
     - "tests/**/*"

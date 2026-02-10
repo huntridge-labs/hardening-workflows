@@ -4,28 +4,23 @@ This guide helps you add or modify tests when contributing to hardening-workflow
 
 ## Quick Start
 
-**TL;DR**: Create a `test-*.sh` file in `.github/actions/YOUR_ACTION/tests/` and it will be automatically discovered. No configuration needed! 🎉
+**TL;DR**: Create a `test_*.py` file in `.github/actions/YOUR_ACTION/tests/` using pytest and it will be automatically discovered. No configuration needed! 🎉
 
 ### Prerequisites
 
 ```bash
-# Install Node.js dependencies
-npm install
-
 # Install Python dependencies
-pip install -r .devcontainer/requirements.txt
+pip install -r requirements.txt
 
 # Verify setup
-npm test
+pytest
 ```
 
 ## Test Structure
 
-We use a **co-located test approach** with plain bash scripts for bash tests:
+We use a **co-located pytest approach**:
 - **Unit tests** (<30s) for scripts and parsers - **co-located with actions**
-  - **Bash tests**: Plain bash scripts with assert functions (63 tests across 5 files)
-  - **JavaScript tests**: Using Node.js test framework (27+ tests)
-  - **Python tests**: Using pytest (44 tests)
+  - **Python tests**: Using pytest (110+ tests across all actions)
 - **Schema validation** (174 tests) for composite actions - in `tests/unit/actions/`
 - **Shared fixtures** - in `tests/fixtures/` reused across all tests
 - **Integration tests** (16+ jobs in test-actions.yml) for end-to-end action validation
@@ -35,17 +30,18 @@ We use a **co-located test approach** with plain bash scripts for bash tests:
 .github/actions/
 ├── scanner-*/
 │   ├── action.yml
-│   ├── scripts/               # Parser & summary scripts
-│   │   ├── parse-results.sh
-│   │   └── generate-summary.sh
-│   └── tests/                 # Co-located tests
-│       ├── test-parse-results.sh        # Plain bash with assert functions
-│       └── test-generate-summary.sh     # Plain bash with assert functions
+│   ├── scripts/               # Parser & summary scripts (Python)
+│   │   ├── parse-results.py
+│   │   └── generate-summary.py
+│   └── tests/                 # Co-located pytest tests
+│       ├── test_parse_results.py
+│       ├── test_generate_summary.py
+│       └── conftest.py (optional, for shared fixtures/setup)
 ├── parse-*/
-│   ├── scripts/               # Config parsers
-│   │   └── parse-config.js
-│   └── tests/                 # Co-located tests
-│       └── test-parse-config.test.js
+│   ├── scripts/               # Config parsers (Python)
+│   │   └── parse_config.py
+│   └── tests/                 # Co-located pytest tests
+│       └── test_parse_config.py
 
 tests/
 ├── fixtures/                  # Shared synthetic test data
@@ -58,30 +54,29 @@ tests/
 
 **Key Principles**:
 - ✅ Tests live with the code they test (co-located in action directories)
-- ✅ **Automatic discovery** - just add `test-*.sh` files, no config updates needed
-- ✅ Shared fixtures - multiple actions reuse the same mock data from `tests/fixtures/`
-- ✅ Plain bash scripts with colored output and assert functions
+- ✅ **Automatic discovery** - pytest finds all `test_*.py` files, no config updates needed
+- ✅ Shared fixtures - multiple actions reuse mock data from `tests/fixtures/`
+- ✅ pytest fixtures and parametrize for DRY tests
 
 ## Running Tests Locally
 
 ```bash
-# All tests (recommended)
-npm test
+# All tests with coverage (recommended)
+pytest
+
+# Fast validation without coverage (<10s)
+pytest --no-cov -q
 
 # Individual test suites
-npm run test:bash      # Bash parser & summary tests
-npm run test:js        # JavaScript config parsers
-npm run test:python    # Python utilities
-npm run test:actions   # Action schema validation
+pytest .github/actions/scanner-bandit/tests/  # Single action tests
+pytest tests/unit/actions/                    # Schema validation
+pytest --collect-only                         # List all tests
 
-# Fast validation only (<1s)
-npm run validate
-
-# Single test file (bash format)
-bash .github/actions/scanner-container/tests/test-parse-trivy-results.sh
+# Single test file (pytest)
+pytest .github/actions/scanner-container/tests/test_parse_trivy_results.py -v
 ```
 
-**Current Status**: 300+ tests passing (63 bash tests + 27 JS tests + 44 Python tests + 174 schema validation + 16+ integration jobs)
+**Current Status**: 300+ tests passing (110+ pytest tests + 174 schema validation + 16+ integration jobs)
 
 ## When to Add/Update Tests
 
@@ -89,100 +84,67 @@ bash .github/actions/scanner-container/tests/test-parse-trivy-results.sh
 
 **Files**:
 - `.github/actions/scanner-myScanner/action.yml`
-- `.github/actions/scanner-myScanner/scripts/parse-results.sh`
-- `.github/actions/scanner-myScanner/scripts/generate-summary.sh`
+- `.github/actions/scanner-myScanner/scripts/parse-results.py`
+- `.github/actions/scanner-myScanner/scripts/generate-summary.py`
 
-**Add**: `.github/actions/scanner-myScanner/tests/test-parse-results.sh`
+**Add**: `.github/actions/scanner-myScanner/tests/test_parse_results.py`
 
-**✨ No configuration needed!** Tests are automatically discovered by:
-- `npm run test:bash` - Finds all `test-*.sh` files in `.github/actions/*/tests/`
-- `npm run test:coverage:bash` - Automatically includes them in coverage reports with bashcov
+**✨ No configuration needed!** Tests are automatically discovered by pytest:
+- `pytest` - Finds all `test_*.py` files in `.github/actions/*/tests/`
+- Coverage automatically included with `--cov`
 
-**Pattern** (plain bash format - copy from existing scanner action test):
-```bash
-#!/usr/bin/env bash
-# Unit tests for parse-results.sh
+**Pattern** (pytest format - copy from existing scanner action test):
+```python
+import pytest
+from pathlib import Path
+import json
+from ..scripts.parse_results import parse_counts
 
-set -euo pipefail
+# Fixtures directory
+FIXTURES_DIR = Path(__file__).parent.parent.parent.parent.parent / "tests" / "fixtures" / "scanner-outputs" / "myScanner"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-NC='\033[0m' # No Color
+@pytest.mark.parametrize("fixture_file,expected", [
+    ("results-zero-findings.json", (0, 0, 0, 0)),
+    ("results-with-findings.json", (1, 2, 3, 4)),
+])
+def test_parse_counts(fixture_file, expected):
+    """Test parsing severity counts from scanner output."""
+    report_file = FIXTURES_DIR / fixture_file
+    result = parse_counts(str(report_file))
+    assert result == expected
 
-# Test counters
-TESTS_RUN=0
-TESTS_PASSED=0
-TESTS_FAILED=0
+def test_parse_counts_missing_file():
+    """Test handling of missing report file."""
+    result = parse_counts("/nonexistent/file.json")
+    assert result == (0, 0, 0, 0)
 
-# Get script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FIXTURES_DIR="${SCRIPT_DIR}/../../../../tests/fixtures/scanner-outputs/myScanner"
-PARSER_SCRIPT="${SCRIPT_DIR}/../scripts/parse-results.sh"
-
-# Test helper functions
-assert_equals() {
-    local expected="$1"
-    local actual="$2"
-    local test_name="$3"
-
-    TESTS_RUN=$((TESTS_RUN + 1))
-    if [[ "$expected" == "$actual" ]]; then
-        echo -e "${GREEN}✓${NC} PASS: $test_name"
-        TESTS_PASSED=$((TESTS_PASSED + 1))
-    else
-        echo -e "${RED}✗${NC} FAIL: $test_name"
-        echo "  Expected: $expected"
-        echo "  Actual:   $actual"
-        TESTS_FAILED=$((TESTS_FAILED + 1))
-    fi
-}
-
-# Run tests
-echo "Testing parse-results.sh"
-echo "======================="
-
-output=$("$PARSER_SCRIPT" counts "$FIXTURES_DIR/results-zero-findings.json")
-assert_equals "0 0 0 0" "$output" "counts: zero findings"
-
-output=$("$PARSER_SCRIPT" counts "$FIXTURES_DIR/results-with-findings.json")
-assert_equals "1 2 3 4" "$output" "counts: with findings"
-
-# Show summary
-echo ""
-echo "========================"
-if [ $TESTS_FAILED -eq 0 ]; then
-    echo -e "${GREEN}All tests passed!${NC}"
-else
-    echo -e "${RED}Some tests failed${NC}"
-fi
-echo "Total:  $TESTS_RUN"
-echo "Passed: $TESTS_PASSED"
-echo "Failed: $TESTS_FAILED"
-echo "========================"
-
-# Exit with error if any tests failed
-[ $TESTS_FAILED -eq 0 ] || exit 1
+def test_parse_counts_malformed_json(tmp_path):
+    """Test handling of malformed JSON."""
+    bad_json = tmp_path / "bad.json"
+    bad_json.write_text("{invalid json}")
+    result = parse_counts(str(bad_json))
+    assert result == (0, 0, 0, 0)
 ```
 
-**Why Plain Bash?**
-- Simple and straightforward - no additional framework needed
-- Works with bashcov for code coverage
-- Colored output for easy reading
-- Full control over test execution
-- **Automatic discovery** - no need to update package.json or test scripts!
+**Why pytest?**
+- Industry standard testing framework
+- Fixtures and parametrize for DRY tests
+- Clear assertion syntax
+- Automatic discovery - no config needed
+- Integrated coverage reporting with pytest-cov
+- Rich output and debugging features
 
 **Shared Fixture**: Add to `tests/fixtures/scanner-outputs/myScanner/results-with-findings.json`
 
 **Why shared?** Multiple tests may need the same mock data, so fixtures remain centralized in `tests/fixtures/`
 
 **Test Discovery**:
-Place your `test-*.sh` file anywhere in `.github/actions/*/tests/test-*.sh` and it will be automatically discovered:
+Place your `test_*.py` file anywhere in `.github/actions/*/tests/test_*.py` and pytest will automatically discover it:
 ```bash
 # These all work automatically:
-.github/actions/scanner-myScanner/tests/test-parse-results.sh
-.github/actions/scanner-myScanner/tests/test-generate-summary.sh
-.github/actions/scanner-foo/tests/test-parser.sh
+.github/actions/scanner-myScanner/tests/test_parse_results.py
+.github/actions/scanner-myScanner/tests/test_generate_summary.py
+.github/actions/scanner-foo/tests/test_parser.py
 ```
 
 ### Scenario 2: Adding a New Composite Action
@@ -196,8 +158,8 @@ Place your `test-*.sh` file anywhere in `.github/actions/*/tests/test-*.sh` and 
 
 **Validation**: Automatically tested by `validate-action-schemas.py`
 
-**Add integration test** (see Phase 3 in TODO.md):
-- Add to `.github/workflows/test-actions-scanners.yml` matrix
+**Add integration test**:
+- Add to `.github/workflows/test-actions.yml` matrix with appropriate scanner name
 
 ### Scenario 3: Modifying an Existing Script
 
@@ -216,92 +178,89 @@ Place your `test-*.sh` file anywhere in `.github/actions/*/tests/test-*.sh` and 
 
 ## Test Patterns & Examples
 
-### Bash Test Template (Plain Bash)
+### Python Test Template (pytest)
 
 **See existing tests for full examples:**
-- [test-parse-trivy-results.sh](/.github/actions/scanner-container/tests/test-parse-trivy-results.sh)
-- [test-generate-container-summary.sh](/.github/actions/scanner-container/tests/test-generate-container-summary.sh)
-
-```bash
-#!/usr/bin/env bash
-# Unit tests for parse-results.sh
-
-# Setup runs before each test
-setup() {
-  SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
-  FIXTURES_DIR="${REPO_ROOT}/tests/fixtures/scanner-outputs/scanner-name"
-  PARSER_SCRIPT="${SCRIPT_DIR}/../scripts/parse-results.sh"
-}
-
-# Colors for output
-RED='\033[0;31m'; GREEN='\033[0;32m'; NC='\033[0m'
-TESTS_PASSED=0; TESTS_FAILED=0
-
-# Helper functions
-assert_equals() {
-  local expected="$1" actual="$2" test_name="$3"
-  if [[ "$expected" == "$actual" ]]; then
-    echo -e "${GREEN}✓${NC} PASS: $test_name"
-    TESTS_PASSED=$((TESTS_PASSED + 1))
-  else
-    echo -e "${RED}✗${NC} FAIL: $test_name"
-    echo "  Expected: $expected"
-    echo "  Actual: $actual"
-    TESTS_FAILED=$((TESTS_FAILED + 1))
-  fi
-}
-
-print_summary() {
-  echo "Tests passed: $TESTS_PASSED"
-  echo "Tests failed: $TESTS_FAILED"
-  [ "$TESTS_FAILED" -eq 0 ] && exit 0 || exit 1
-}
-
-# Your tests here
-```
-
-### JavaScript Test Template
-
-```javascript
-const fs = require('fs');
-const path = require('path');
-
-let passed = 0, failed = 0;
-
-function assertEquals(expected, actual, testName) {
-  if (expected === actual) {
-    console.log(`✓ PASS: ${testName}`);
-    passed++;
-  } else {
-    console.log(`✗ FAIL: ${testName}`);
-    console.log(`  Expected: ${expected}`);
-    console.log(`  Actual: ${actual}`);
-    failed++;
-  }
-}
-
-// Your tests here
-
-console.log(`\nTests passed: ${passed}`);
-console.log(`Tests failed: ${failed}`);
-process.exit(failed === 0 ? 0 : 1);
-```
-
-### Python Test Template (pytest)
+- `.github/actions/scanner-container/tests/test_parse_trivy_results.py`
+- `.github/actions/scanner-bandit/tests/test_parse_results.py`
 
 ```python
 import pytest
 from pathlib import Path
+import json
+import sys
+import os
 
-# Fixtures are shared across all actions
+# Add parent scripts dir to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
+
+from parse_results import parse_counts
+from generate_summary import generate_summary
+
+# Fixtures directory - navigate from test file to repo root
 FIXTURES = Path(__file__).parent.parent.parent.parent.parent / "tests" / "fixtures"
 
-def test_parser_with_findings():
-    """Test parser with sample findings"""
-    result = parse_results(FIXTURES / "scanner-outputs/myScanner/results.json")
-    assert result['critical'] == 1
-    assert result['high'] == 2
+class TestParseResults:
+    """Test suite for parse-results.py"""
+
+    @pytest.fixture
+    def fixtures_dir(self):
+        return FIXTURES / "scanner-outputs" / "myScanner"
+
+    @pytest.mark.parametrize("fixture_file,expected", [
+        ("results-zero-findings.json", (0, 0, 0, 0)),
+        ("results-with-findings.json", (1, 2, 3, 4)),
+        ("results-edge-cases.json", (5, 10, 3, 2)),
+    ])
+    def test_parse_counts(self, fixtures_dir, fixture_file, expected):
+        """Test parsing counts from various fixture files."""
+        report_file = fixtures_dir / fixture_file
+        result = parse_counts(str(report_file))
+        assert result == expected
+
+    def test_parse_counts_missing_file(self):
+        """Test graceful handling of missing report file."""
+        result = parse_counts("/nonexistent/file.json")
+        assert result == (0, 0, 0, 0)
+
+    def test_parse_counts_malformed_json(self, tmp_path):
+        """Test handling of malformed JSON."""
+        bad_json = tmp_path / "bad.json"
+        bad_json.write_text("{invalid json")
+        result = parse_counts(str(bad_json))
+        assert result == (0, 0, 0, 0)
+
+class TestGenerateSummary:
+    """Test suite for generate-summary.py"""
+
+    def test_summary_generation(self, tmp_path, monkeypatch):
+        """Test markdown summary generation."""
+        output_file = tmp_path / "summary.md"
+
+        # Mock environment variables
+        monkeypatch.setenv("CRITICAL", "1")
+        monkeypatch.setenv("HIGH", "2")
+        monkeypatch.setenv("MEDIUM", "3")
+        monkeypatch.setenv("LOW", "4")
+        monkeypatch.setenv("TOTAL", "10")
+        monkeypatch.setenv("GITHUB_SERVER_URL", "https://github.com")
+        monkeypatch.setenv("GITHUB_REPOSITORY", "org/repo")
+        monkeypatch.setenv("GITHUB_RUN_ID", "12345")
+
+        generate_summary(str(output_file), is_pr_comment=False)
+
+        content = output_file.read_text()
+        assert "## 🔍" in content
+        assert "1" in content  # critical count
+        assert "View Reports" in content
 ```
+
+**pytest features used:**
+- `@pytest.fixture` - Setup/teardown for tests
+- `@pytest.mark.parametrize` - Run same test with multiple inputs
+- `@pytest.fixture` - Monkeypatch environment variables
+- `tmp_path` - Temporary directory for file tests
+- Class-based organization - Group related tests
 
 **Note**: Fixtures are in repo root at `tests/fixtures/`, so tests in `.github/actions/*/tests/` navigate up to reach them.
 
@@ -334,13 +293,19 @@ trivy image --format json alpine:3.18 > results.json
 ✅ **Do**: Use synthetic/redacted data
 
 ❌ **Don't**: Skip tests when modifying scripts
-✅ **Do**: Run tests before committing
+✅ **Do**: Run tests before committing: `pytest`
 
 ❌ **Don't**: Hard-code absolute paths
-✅ **Do**: Use relative paths from REPO_ROOT
+✅ **Do**: Use relative paths from repo root or pytest fixtures
 
 ❌ **Don't**: Commit broken tests
-✅ **Do**: Fix or skip (with TODO) failing tests
+✅ **Do**: Fix or skip (with `@pytest.mark.skip`) failing tests
+
+❌ **Don't**: Import scripts without sys.path manipulation
+✅ **Do**: Use `sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))`
+
+❌ **Don't**: Forget to handle environment variables in tests
+✅ **Do**: Use `monkeypatch` fixture to set/mock env vars
 
 ## CI/CD Integration
 
@@ -420,11 +385,12 @@ strategy:
 
 | Task | Command |
 |------|---------|
-| Run all tests | `npm test` |
-| Run bash tests | `npm run test:bash` |
-| Run JS tests | `npm run test:js` |
-| Run Python tests | `npm run test:python` |
-| Validate actions | `npm run validate` |
-| Run single test | `./tests/unit/bash/test-parse-trivy-results.sh` |
+| Run all tests with coverage | `pytest` |
+| Run fast (no coverage) | `pytest --no-cov -q` |
+| Run single action tests | `pytest .github/actions/scanner-x/tests/` |
+| Run single test file | `pytest .github/actions/scanner-x/tests/test_parse_results.py -v` |
+| Run specific test | `pytest .github/actions/scanner-x/tests/test_parse_results.py::test_parse_counts -v` |
+| Validate actions | `pytest tests/unit/actions/` |
+| See coverage report | `pytest --cov --cov-report=html` (open htmlcov/index.html) |
 
 **Test fast, test often, ship with confidence!** 🚀

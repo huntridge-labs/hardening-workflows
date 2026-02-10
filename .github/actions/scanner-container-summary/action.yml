@@ -98,15 +98,13 @@ runs:
       id: summarize
       shell: bash
       env:
-        TRIVY_PARSER: ${{ github.action_path }}/scripts/parse-trivy-results.sh
-        GRYPE_PARSER: ${{ github.action_path }}/scripts/parse-grype-results.sh
+        TRIVY_PARSER: ${{ github.action_path }}/../scanner-container/scripts/parse_trivy_results.py
+        GRYPE_PARSER: ${{ github.action_path }}/../scanner-container/scripts/parse_grype_results.py
         GITHUB_REPOSITORY: ${{ github.repository }}
         GITHUB_RUN_ID: ${{ github.run_id }}
         GITHUB_SERVER_URL: ${{ github.server_url }}
       run: |
-        chmod +x "$TRIVY_PARSER" "$GRYPE_PARSER"
-        chmod +x "${{ github.action_path }}/scripts/generate-combined-summary.sh"
-        "${{ github.action_path }}/scripts/generate-combined-summary.sh"
+        python3 "${{ github.action_path }}/../scanner-container/scripts/generate_container_summary.py" --combined
 
     - name: Upload combined summary artifact
       uses: actions/upload-artifact@v4

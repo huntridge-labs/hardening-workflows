@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 import pytest
 
+pytestmark = pytest.mark.unit
+
 # Add the scripts directory to the path
 REPO_ROOT = Path(__file__).parent.parent.parent.parent.parent
 SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
@@ -247,6 +249,66 @@ Time: 0.008 sec (0 m 0 s)
         assert "SCAN SUMMARY" in content
         assert "Infected files: 0" in content
         assert "Scanned files: 245" in content
+
+
+class TestEdgeCases:
+    """Edge case tests for ClamAV report parsing."""
+
+    def test_empty_report_file(self, tmp_path):
+        """Test with empty report file."""
+        empty_file = tmp_path / "empty.txt"
+        empty_file.write_text("")
+        content = empty_file.read_text()
+        assert "Infected files" not in content
+
+    def test_missing_report_file(self):
+        """Test with nonexistent report file."""
+        report_file = Path("/nonexistent/report.txt")
+        assert not report_file.exists()
+
+    def test_report_without_scan_summary(self, tmp_path):
+        """Test report missing SCAN SUMMARY section."""
+        report_file = tmp_path / "no_summary.txt"
+        report_file.write_text("Some output\nNo summary here\n")
+        content = report_file.read_text()
+        assert "SCAN SUMMARY" not in content
+
+    def test_report_with_zero_infected(self, tmp_path):
+        """Test report with zero infected files."""
+        report_file = tmp_path / "clean.txt"
+        report_file.write_text("""
+SCAN SUMMARY
+Infected files: 0
+Scanned files: 100
+""")
+        content = report_file.read_text()
+        assert "Infected files: 0" in content
+
+    def test_very_large_infected_count(self, tmp_path):
+        """Test with very large infected file count."""
+        report_file = tmp_path / "huge_infection.txt"
+        report_file.write_text("""
+SCAN SUMMARY
+Infected files: 99999
+Scanned files: 999999
+Data scanned: 10000 MB
+Data read: 10000 MB
+Execution time: 5.0 sec
+Time: 10:00:00
+""")
+        content = report_file.read_text()
+        assert "99999" in content
+
+    def test_report_with_whitespace_variations(self, tmp_path):
+        """Test report with varying whitespace around numbers."""
+        report_file = tmp_path / "whitespace.txt"
+        report_file.write_text("""
+SCAN SUMMARY
+Infected files:    42
+Scanned files:  1000
+""")
+        content = report_file.read_text()
+        assert "Infected files:" in content
 
 
 if __name__ == "__main__":

@@ -72,15 +72,14 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Setup Node.js
-      uses: actions/setup-node@v6
+    - name: Setup Python
+      uses: actions/setup-python@v4
       with:
-        node-version: '20'
+        python-version: '3.13'
 
     - name: Install dependencies
       shell: bash
-      working-directory: ${{ github.action_path }}
-      run: npm install --no-save js-yaml ajv ajv-formats 2>/dev/null || npm install --no-save js-yaml ajv ajv-formats
+      run: pip install -q pyyaml
 
     - name: Parse ZAP config
       id: parse
@@ -88,7 +87,6 @@ runs:
       env:
         CONFIG_FILE: ${{ inputs.config_file }}
         SCHEMA_FILE: ${{ github.action_path }}/schemas/zap-config.schema.json
-        PARSER_SCRIPT: ${{ github.action_path }}/scripts/parse-zap-config.js
       run: |
         set -euo pipefail
 
@@ -106,7 +104,7 @@ runs:
           exit 1
         fi
 
-        node "$PARSER_SCRIPT"
+        python3 "${{ github.action_path }}/scripts/parse_zap_config.py"
         PARSE_EXIT_CODE=$?
 
         echo "::endgroup::"
@@ -119,7 +117,7 @@ runs:
         # Ensure has_scans + total_scan_count outputs exist
         MATRIX=$(grep "^matrix=" "$GITHUB_OUTPUT" | cut -d= -f2- || true)
         if [ -n "$MATRIX" ] && [ "$MATRIX" != "{}" ] && [ "$MATRIX" != '{"include":[]}' ]; then
-          COUNT=$(node -e "console.log(JSON.parse('$MATRIX').include.length)")
+          COUNT=$(python3 -c "import json; print(len(json.loads('$MATRIX')['include']))")
           echo "has_scans=true" >> "$GITHUB_OUTPUT"
           echo "total_scan_count=$COUNT" >> "$GITHUB_OUTPUT"
           echo "✅ Found $COUNT scan(s) to run"

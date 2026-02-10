@@ -382,7 +382,7 @@ runs:
         set -euo pipefail
 
         report="report_json.json"
-        parser="${{ github.action_path }}/scripts/parse-zap-results.sh"
+        parser="${{ github.action_path }}/scripts/parse_zap_results.py"
 
         if [[ ! -f "$report" ]]; then
           echo "⚠️  No ZAP JSON report found"
@@ -404,7 +404,7 @@ runs:
         #   riskcode 1 (ZAP Low)           -> Low
         #   riskcode 0 (ZAP Informational) -> Informational
         # Note: ZAP has no "Critical" level. When fail_on_severity=critical, we check High.
-        read crit high medium low info <<< $("$parser" counts-with-info "$report")
+        read crit high medium low info <<< $(python3 "$parser" counts-with-info "$report")
         total=$((crit + high + medium + low))
 
         echo "📊 Scan Results:"
@@ -465,14 +465,14 @@ runs:
       if: always()
       shell: bash
       env:
-        ZAP_PARSER: ${{ github.action_path }}/scripts/parse-zap-results.sh
+        ZAP_PARSER: ${{ github.action_path }}/scripts/parse_zap_results.py
         ZAP_SCAN_TYPE: ${{ inputs.scan_type }}
         ZAP_SCAN_MODE: ${{ inputs.scan_mode }}
         GITHUB_SERVER_URL: ${{ github.server_url }}
       run: |
         set -euo pipefail
 
-        summary_script="${{ github.action_path }}/scripts/generate-zap-summary.sh"
+        summary_script="${{ github.action_path }}/scripts/generate_zap_summary.py"
         chmod +x "$summary_script" "$ZAP_PARSER"
 
         # Create zap-downloads structure expected by summary script
@@ -481,7 +481,7 @@ runs:
           cp report_json.json "zap-downloads/zap-reports-${{ steps.validate.outputs.artifact_prefix }}/"
         fi
 
-        "$summary_script"
+        python3 "$summary_script"
 
     - name: Upload scan summary
       if: always()

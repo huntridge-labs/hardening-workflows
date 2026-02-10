@@ -256,33 +256,33 @@ runs:
         SCRIPT_DIR="${{ github.action_path }}"
         REPO_URL="${{ github.server_url }}/${{ github.repository }}/blob/${HEAD_REF}"
 
-        "$SCRIPT_DIR/scripts/generate-summary.sh" \
+        python3 "$SCRIPT_DIR/scripts/generate_summary.py" \
           "scanner-summaries/codeql-${LANGUAGE}.md" \
-          "true" \
-          "$LANGUAGE" \
-          "$CRITICAL" \
-          "$HIGH" \
-          "$MEDIUM" \
-          "$LOW" \
-          "$TOTAL" \
-          "$REPO_URL" \
-          "${{ github.server_url }}" \
-          "${{ github.repository }}" \
-          "${{ github.run_id }}"
+          --is-pr-comment "true" \
+          --language "$LANGUAGE" \
+          --critical "$CRITICAL" \
+          --high "$HIGH" \
+          --medium "$MEDIUM" \
+          --low "$LOW" \
+          --total "$TOTAL" \
+          --repo-url "$REPO_URL" \
+          --server-url "${{ github.server_url }}" \
+          --repository "${{ github.repository }}" \
+          --run-id "${{ github.run_id }}"
 
-        "$SCRIPT_DIR/scripts/generate-summary.sh" \
+        python3 "$SCRIPT_DIR/scripts/generate_summary.py" \
           "$GITHUB_STEP_SUMMARY" \
-          "false" \
-          "$LANGUAGE" \
-          "$CRITICAL" \
-          "$HIGH" \
-          "$MEDIUM" \
-          "$LOW" \
-          "$TOTAL" \
-          "$REPO_URL" \
-          "${{ github.server_url }}" \
-          "${{ github.repository }}" \
-          "${{ github.run_id }}"
+          --is-pr-comment "false" \
+          --language "$LANGUAGE" \
+          --critical "$CRITICAL" \
+          --high "$HIGH" \
+          --medium "$MEDIUM" \
+          --low "$LOW" \
+          --total "$TOTAL" \
+          --repo-url "$REPO_URL" \
+          --server-url "${{ github.server_url }}" \
+          --repository "${{ github.repository }}" \
+          --run-id "${{ github.run_id }}"
       continue-on-error: true
 
     - name: Upload scanner summary

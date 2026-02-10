@@ -155,29 +155,29 @@ runs:
         SCRIPT_DIR="${{ github.action_path }}"
         REPO_URL="${{ github.server_url }}/${{ github.repository }}/blob/${HEAD_REF}"
 
-        "$SCRIPT_DIR/scripts/generate-summary.sh" \
+        python3 "$SCRIPT_DIR/scripts/generate_summary.py" \
           "scanner-summaries/opengrep.md" \
-          "true" \
-          "$ERROR_COUNT" \
-          "$WARNING_COUNT" \
-          "$INFO_COUNT" \
-          "$TOTAL" \
-          "$REPO_URL" \
-          "${{ github.server_url }}" \
-          "${{ github.repository }}" \
-          "${{ github.run_id }}"
+          --is-pr-comment "true" \
+          --error-count "$ERROR_COUNT" \
+          --warning-count "$WARNING_COUNT" \
+          --info-count "$INFO_COUNT" \
+          --total "$TOTAL" \
+          --repo-url "$REPO_URL" \
+          --github-server-url "${{ github.server_url }}" \
+          --github-repo "${{ github.repository }}" \
+          --github-run-id "${{ github.run_id }}"
 
-        "$SCRIPT_DIR/scripts/generate-summary.sh" \
+        python3 "$SCRIPT_DIR/scripts/generate_summary.py" \
           "$GITHUB_STEP_SUMMARY" \
-          "false" \
-          "$ERROR_COUNT" \
-          "$WARNING_COUNT" \
-          "$INFO_COUNT" \
-          "$TOTAL" \
-          "$REPO_URL" \
-          "${{ github.server_url }}" \
-          "${{ github.repository }}" \
-          "${{ github.run_id }}"
+          --is-pr-comment "false" \
+          --error-count "$ERROR_COUNT" \
+          --warning-count "$WARNING_COUNT" \
+          --info-count "$INFO_COUNT" \
+          --total "$TOTAL" \
+          --repo-url "$REPO_URL" \
+          --github-server-url "${{ github.server_url }}" \
+          --github-repo "${{ github.repository }}" \
+          --github-run-id "${{ github.run_id }}"
       continue-on-error: true
 
     - name: Upload scanner summary
