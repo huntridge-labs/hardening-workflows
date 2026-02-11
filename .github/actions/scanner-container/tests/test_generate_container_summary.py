@@ -252,6 +252,48 @@ class TestGenerateContainerSummary:
         # Combined flag should affect header
         assert "Container Security" in content
 
+    def test_combined_nested_artifact_directories(self, tmp_path):
+        """Test parallel scan with nested artifact directories from download-artifact.
+
+        In parallel scan mode, download-artifact@v4 with merge-multiple: false
+        creates nested directories:
+          container-scan-results-app-grype-12345-app-grype/
+            container-scan-results-app/
+              grype-app-results.json
+          container-scan-results-app-trivy-12345-app-trivy/
+            container-scan-results-app/
+              trivy-app-results.json
+        """
+        # Simulate the nested directory structure from CI
+        grype_outer = tmp_path / "container-scan-results-app-grype-12345-app-grype"
+        grype_inner = grype_outer / "container-scan-results-app"
+        grype_inner.mkdir(parents=True)
+
+        trivy_outer = tmp_path / "container-scan-results-app-trivy-12345-app-trivy"
+        trivy_inner = trivy_outer / "container-scan-results-app"
+        trivy_inner.mkdir(parents=True)
+
+        trivy_fixture = FIXTURES_DIR / "trivy" / "results-with-findings.json"
+        grype_fixture = FIXTURES_DIR / "grype" / "results-with-findings.json"
+
+        if trivy_fixture.exists():
+            (trivy_inner / "trivy-app-results.json").write_text(trivy_fixture.read_text())
+        if grype_fixture.exists():
+            (grype_inner / "grype-app-results.json").write_text(grype_fixture.read_text())
+
+        returncode, stdout, stderr = run_summary_generator(combined=True, cwd=tmp_path)
+
+        assert returncode == 0
+
+        summary_file = tmp_path / "scanner-summaries" / "container.md"
+        assert summary_file.exists()
+        content = summary_file.read_text()
+
+        # Should find vulns (not all zeros)
+        assert "Parallel Scan" in content
+        assert "Trivy" in content or "🔷" in content
+        assert "Grype" in content or "⚓" in content
+
     # ====== Tests for summary content validation ======
 
     def test_summary_contains_severity_summary(self, tmp_path):
