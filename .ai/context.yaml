@@ -36,6 +36,13 @@ entrypoints:
   examples: "examples/workflows/"
   documentation: "docs/"
 
+common_tasks:
+  run_all_scanners: "Call the reusable workflow to run the default scanner suite."
+  run_subset: "Enable a subset of scanners via workflow inputs or config."
+  view_reports: "Review SARIF uploads, PR comments, and summary reports."
+  update_versions: "Bump scanner or action versions and validate outputs."
+  troubleshoot_failures: "Inspect workflow logs and scanner outputs to resolve errors."
+
 primary_users:
   - DevSecOps engineers setting up CI/CD pipelines
   - Security teams wanting automated scanning
