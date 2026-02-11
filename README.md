@@ -2,6 +2,9 @@
 
 # Hardening Workflows
 
+[![AICaC](https://img.shields.io/badge/AICaC-Comprehensive-success.svg)](https://github.com/eFAILution/AICaC)
+
+
 ![GitHub Release](https://img.shields.io/github/v/release/huntridge-labs/hardening-workflows?style=plastic)
 ![Unit Tests](https://github.com/huntridge-labs/hardening-workflows/actions/workflows/test-unit.yml/badge.svg)
 ![Integration Tests](https://github.com/huntridge-labs/hardening-workflows/actions/workflows/test-actions.yml/badge.svg)
