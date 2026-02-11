@@ -97,7 +97,7 @@ runs:
       id: job-id
       uses: huntridge-labs/hardening-workflows/.github/actions/get-job-id@feat/migrate-to-composite-actions
       with:
-        job-name-pattern: Scan ${{ inputs.container_name }} (${{ inputs.scanners }})
+        job-name-pattern: Scan ${{ inputs.container_name }}[ (/].*${{ inputs.scanners }}
         fallback-suffix: ${{ inputs.container_name }}-${{ inputs.scanners }}
 
     # ========================================
