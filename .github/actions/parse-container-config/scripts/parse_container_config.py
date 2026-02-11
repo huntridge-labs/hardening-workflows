@@ -121,7 +121,7 @@ def validate_config_structure(config: dict, schema: dict) -> None:
         if 'scanners' in container:
             scanners = container['scanners']
             if isinstance(scanners, list):
-                valid_scanners = {'trivy', 'grype'}
+                valid_scanners = {'trivy', 'grype', 'syft'}
                 for scanner in scanners:
                     if scanner not in valid_scanners:
                         errors.append(f"containers[{i}].scanners: '{scanner}' is not valid")
