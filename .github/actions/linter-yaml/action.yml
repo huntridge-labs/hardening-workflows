@@ -75,7 +75,7 @@ runs:
         yamllint $CONFIG_ARG ${{ inputs.paths }} --format parsable > "$ISSUES_FILE" 2>&1 || true
 
         # Count issues (non-empty lines)
-        ISSUE_COUNT=$(grep -c ":" "$ISSUES_FILE" 2>/dev/null || echo "0")
+        ISSUE_COUNT=$(grep -c ":" "$ISSUES_FILE" 2>/dev/null) || ISSUE_COUNT=0
 
         echo "issues=$ISSUE_COUNT" >> $GITHUB_OUTPUT
 
