@@ -891,7 +891,7 @@ jobs:
       id: job_id
       uses: huntridge-labs/hardening-workflows/.github/actions/get-job-id@feat/migrate-to-composite-actions
       with:
-        job-name-pattern: 'Security Hardening Summary'
+        job-name-string: 'Security Hardening Summary'
         fallback-suffix: 'security-hardening-report'
 
     - name: Upload comprehensive security report

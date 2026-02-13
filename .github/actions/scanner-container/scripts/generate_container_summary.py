@@ -7,32 +7,59 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, Set, Tuple
 
 
-def find_container_artifacts():
-    """Find all container scan result directories."""
+def find_scan_results():
+    """Find all scan result files recursively, regardless of directory nesting.
+
+    Discovers trivy/grype results by searching for files matching the naming
+    convention {scanner}-{container_name}-results.json. This handles any
+    artifact directory layout:
+      - Flat: container-scan-results-{name}/{scanner}-{name}-results.json
+      - Nested: container-scan-results-{name}-{scanner}-{job-id}/
+                  container-scan-results-{name}/{scanner}-{name}-results.json
+
+    Returns dict mapping container names to their scan file paths:
+      { "oris-kaci": {"trivy": Path, "grype": Path, "status": Path} }
+    """
     containers = {}
-    for item in Path(".").glob("container-scan-results-*"):
-        if item.is_dir():
-            name = item.name.replace("container-scan-results-", "")
-            # Skip SBOM-only directories
-            if not name.startswith("sbom-"):
-                containers[name] = item
+
+    # Recursively find all scanner result JSON files
+    for json_file in Path(".").rglob("*-results.json"):
+        filename = json_file.name
+        for scanner in ("trivy", "grype"):
+            prefix = f"{scanner}-"
+            suffix = "-results.json"
+            if filename.startswith(prefix) and filename.endswith(suffix):
+                container_name = filename[len(prefix):-len(suffix)]
+                if container_name not in containers:
+                    containers[container_name] = {
+                        "trivy": None,
+                        "grype": None,
+                        "status": None,
+                    }
+                containers[container_name][scanner] = json_file
+
+                # Check for scan-status.json in the same directory
+                status = json_file.parent / "scan-status.json"
+                if status.exists():
+                    containers[container_name]["status"] = status
+
+    # Also check for containers that only have a scan-status.json (build failures)
+    for status_file in Path(".").rglob("scan-status.json"):
+        # Derive container name from parent directory
+        parent_name = status_file.parent.name
+        if parent_name.startswith("container-scan-results-"):
+            container_name = parent_name.replace("container-scan-results-", "")
+            if container_name not in containers:
+                containers[container_name] = {
+                    "trivy": None,
+                    "grype": None,
+                    "status": status_file,
+                }
+
     return containers
-
-
-def get_scan_files(container_dir: Path, container_name: str):
-    """Get trivy and grype JSON files for a container."""
-    trivy_file = container_dir / f"trivy-{container_name}-results.json"
-    grype_file = container_dir / f"grype-{container_name}-results.json"
-    status_file = container_dir / "scan-status.json"
-
-    return {
-        "trivy": trivy_file if trivy_file.exists() else None,
-        "grype": grype_file if grype_file.exists() else None,
-        "status": status_file if status_file.exists() else None,
-    }
 
 
 def run_parser(parser_path: str, command: str, json_file: Path, *args):
@@ -202,7 +229,7 @@ def generate_summary(
     """Generate container security summary."""
     Path("scanner-summaries").mkdir(exist_ok=True)
 
-    containers = find_container_artifacts()
+    containers = find_scan_results()
 
     if not containers:
         # No scan results found
@@ -239,9 +266,8 @@ def generate_summary(
     all_cves = set()
     container_data = []
 
-    for container_name, container_dir in sorted(containers.items()):
+    for container_name, scan_files in sorted(containers.items()):
         print(f"  Processing: {container_name}")
-        scan_files = get_scan_files(container_dir, container_name)
         data, is_failed = process_container(trivy_parser, grype_parser, container_name, scan_files)
 
         container_data.append(data)
