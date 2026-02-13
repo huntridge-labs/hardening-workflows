@@ -51,7 +51,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Run Trivy IaC Scanner
-        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-trivy-iac@feat/migrate-to-composite-actions
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-trivy-iac@main
         with:
           iac_path: ${{ inputs.iac_path }}
           enable_code_security: ${{ inputs.enable_code_security }}

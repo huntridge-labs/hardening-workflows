@@ -205,7 +205,7 @@ jobs:
 
       - name: Run security scanners
         if: steps.build.outputs.build_success == 'true'
-        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@feat/migrate-to-composite-actions
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@main
         with:
           image_ref: ${{ steps.build.outputs.full_image }}
           container_name: ${{ matrix.container.name }}
@@ -244,7 +244,7 @@ jobs:
           REGISTRY_PASSWORD: ${{ secrets.registry_password }}
 
       - name: Run security scanners
-        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@feat/migrate-to-composite-actions
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container@main
         with:
           image_ref: ${{ inputs.image_ref }}
           container_name: ${{ inputs.container_name || 'remote-image' }}
@@ -274,7 +274,7 @@ jobs:
           pattern: ${{ inputs.scan_mode == 'remote' && inputs.container_name != '' && format('container-scan-results-{0}*', inputs.container_name) || 'container-scan-results-*' }}
 
       - name: Generate container summary
-        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container-summary@feat/migrate-to-composite-actions
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-container-summary@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:

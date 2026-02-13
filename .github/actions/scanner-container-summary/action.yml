@@ -116,7 +116,7 @@ runs:
 
     - name: Post PR comment
       if: github.event_name == 'pull_request' && inputs.post_pr_comment == 'true'
-      uses: huntridge-labs/hardening-workflows/.github/actions/comment-pr@feat/migrate-to-composite-actions
+      uses: huntridge-labs/hardening-workflows/.github/actions/comment-pr@main
       with:
         summary_file: scanner-summaries/container.md
         comment_marker: container-scan-parallel-comment

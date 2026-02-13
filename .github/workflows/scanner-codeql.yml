@@ -183,7 +183,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Run CodeQL Scanner
-        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-codeql@feat/migrate-to-composite-actions
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-codeql@main
         with:
           language: ${{ matrix.language }}
           config_file: ${{ inputs.config_file }}

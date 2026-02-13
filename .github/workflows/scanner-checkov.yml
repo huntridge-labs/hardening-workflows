@@ -60,7 +60,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Run Checkov Scanner
-        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-checkov@feat/migrate-to-composite-actions
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-checkov@main
         env:
           BC_API_KEY: ${{ secrets.BC_API_KEY }}
         with:

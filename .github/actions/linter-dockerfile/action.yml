@@ -9,7 +9,7 @@ description: |
   **Usage Example:**
   ```yaml
   - uses: actions/checkout@v6
-  - uses: huntridge-labs/hardening-workflows/.github/actions/linter-dockerfile@feat/migrate-to-composite-actions
+  - uses: huntridge-labs/hardening-workflows/.github/actions/linter-dockerfile@main
     with:
       fail_on_issues: false
   ```
@@ -210,7 +210,7 @@ runs:
 
     - name: Comment PR with Dockerfile lint results
       if: github.event_name == 'pull_request' && inputs.post_pr_comment == 'true'
-      uses: huntridge-labs/hardening-workflows/.github/actions/comment-pr@feat/migrate-to-composite-actions
+      uses: huntridge-labs/hardening-workflows/.github/actions/comment-pr@main
       with:
         summary_file: linter-summaries/dockerfile.md
         comment_marker: dockerfile-linter-comment-marker

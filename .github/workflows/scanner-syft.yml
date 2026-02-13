@@ -82,7 +82,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Run Syft SBOM Generator
-        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-syft@feat/migrate-to-composite-actions
+        uses: huntridge-labs/hardening-workflows/.github/actions/scanner-syft@main
         with:
           scan_path: ${{ inputs.scan_path }}
           scan_image: ${{ inputs.scan_image }}
