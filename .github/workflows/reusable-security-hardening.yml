@@ -172,6 +172,7 @@ permissions:
   pull-requests: write
   checks: write
   id-token: write
+  packages: read
 
 env:
   AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
@@ -528,6 +529,7 @@ jobs:
       actions: read
       packages: read
       pull-requests: write
+      packages: read
     secrets: inherit
 
   scanner-infrastructure:
@@ -612,6 +614,7 @@ jobs:
       actions: read
       packages: read
       pull-requests: write
+      packages: read
     secrets: inherit
 
   scanner-grype:
@@ -630,6 +633,7 @@ jobs:
       actions: read
       packages: read
       pull-requests: write
+      packages: read
     secrets: inherit
 
   scanner-zap:
@@ -654,6 +658,7 @@ jobs:
       actions: read
       packages: read
       pull-requests: write
+      packages: read
     secrets: inherit
 
   security-summary:

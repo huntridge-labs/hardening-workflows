@@ -92,6 +92,7 @@ permissions:
   actions: read
   packages: read
   pull-requests: write
+  packages: read
 
 jobs:
   # Discover containers in this repository (skipped in remote mode)
